@@ -100,7 +100,7 @@ jobs:
             --task-definition "$TASK_FAMILY:${{ steps.register-task-def.outputs.revision }}" \
             --launch-type FARGATE \
             --network-configuration "awsvpcConfiguration={subnets=[subnet-08690545b2df36758,subnet-0fc7d3cb0cdb81126,subnet-009c75d2c0c3a100d],securityGroups=[sg-0e393600ccc73570e],assignPublicIp=ENABLED}" \
-            --overrides '{"containerOverrides":[{"name":"api","command":["sh","-c","npx prisma migrate deploy && npx prisma db execute --file ./prisma/constraints.sql --schema ./prisma/schema.prisma"]}]}' \
+            --overrides '{"containerOverrides":[{"name":"api","command":["sh","-c","npx prisma@5.22.0 migrate deploy && npx prisma@5.22.0 db execute --file ./prisma/constraints.sql --schema ./prisma/schema.prisma"]}]}' \
             --query 'tasks[0].taskArn' --output text)
           echo "Migration task: $TASK_ARN"
           aws ecs wait tasks-stopped --cluster "$ECS_CLUSTER" --tasks "$TASK_ARN"
