@@ -31,8 +31,20 @@ export function setAuthCookies(
   const common = {
     httpOnly: true,
     secure: env.COOKIE_SECURE,
-    sameSite: 'lax' as const,
-    domain: env.COOKIE_DOMAIN,
+    // 'none' is only needed when the frontend and API don't share a parent
+    // domain (e.g. this project's current no-custom-domain-yet staging setup,
+    // where the frontend is on *.amplifyapp.com and the API on
+    // *.cloudfront.net — genuinely different sites as far as SameSite is
+    // concerned). Once they share a domain (subdomains of the same site,
+    // e.g. api.rajyarank.in + app.rajyarank.in), switch back to 'lax' — it's
+    // strictly more secure (real CSRF protection) and works fine for
+    // same-site subdomains.
+    sameSite: env.COOKIE_SAME_SITE,
+    // An empty COOKIE_DOMAIN means "host-only" — scoped exactly to whichever
+    // domain issued it, no subdomain sharing. Must NOT be set to a domain
+    // that doesn't match the API's own host, or the browser silently
+    // refuses to set the cookie at all.
+    ...(env.COOKIE_DOMAIN ? { domain: env.COOKIE_DOMAIN } : {}),
     path: '/',
   };
   const refreshTtlSeconds = remember ? env.REFRESH_TOKEN_TTL : NOT_REMEMBERED_REFRESH_TTL_SECONDS;
@@ -41,7 +53,7 @@ export function setAuthCookies(
 }
 
 export function clearAuthCookies(res: Response, env: ApiEnv, kind: 'STUDENT' | 'STAFF') {
-  const opts = { domain: env.COOKIE_DOMAIN, path: '/' };
+  const opts = { ...(env.COOKIE_DOMAIN ? { domain: env.COOKIE_DOMAIN } : {}), path: '/' };
   res.clearCookie(accessCookieName(kind), opts);
   res.clearCookie(refreshCookieName(kind), opts);
 }

@@ -16,11 +16,22 @@ export class S3Service {
 
   constructor(@Inject(ENV) private readonly env: ApiEnv) {
     this.bucket = env.S3_BUCKET_PRIVATE;
+    // S3_ACCESS_KEY is only ever set for local dev against MinIO, which needs
+    // an explicit endpoint, path-style requests, and a static credential pair.
+    // On real AWS (staging/production) these are left unset — omitting
+    // `credentials`/`endpoint` here lets the AWS SDK fall back to its default
+    // credential chain, which on ECS resolves to the task's IAM role. No
+    // long-lived access key ever exists for the deployed app.
+    const isLocalDev = Boolean(env.S3_ACCESS_KEY);
     this.client = new S3Client({
       region: env.S3_REGION,
-      endpoint: env.S3_ENDPOINT,
-      forcePathStyle: true, // required for MinIO
-      credentials: { accessKeyId: env.S3_ACCESS_KEY, secretAccessKey: env.S3_SECRET_KEY },
+      ...(isLocalDev
+        ? {
+            endpoint: env.S3_ENDPOINT,
+            forcePathStyle: true,
+            credentials: { accessKeyId: env.S3_ACCESS_KEY, secretAccessKey: env.S3_SECRET_KEY },
+          }
+        : {}),
     });
   }
 

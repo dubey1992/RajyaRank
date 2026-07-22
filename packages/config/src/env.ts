@@ -19,11 +19,18 @@ export const apiEnvSchema = z.object({
   JWT_REFRESH_SECRET: z.string().min(32),
   ACCESS_TOKEN_TTL: z.coerce.number().int().positive().default(600),
   REFRESH_TOKEN_TTL: z.coerce.number().int().positive().default(2_592_000),
-  COOKIE_DOMAIN: z.string().default('localhost'),
+  // Empty means "host-only" (no shared-subdomain cookie scoping) — the safe
+  // default for a schema meant to serve every environment. Local dev sets
+  // this explicitly to 'localhost' in .env.
+  COOKIE_DOMAIN: z.string().optional().default(''),
   COOKIE_SECURE: z
     .enum(['true', 'false'])
     .default('false')
     .transform((v) => v === 'true'),
+  // 'none' only when the frontend and API don't share a parent domain (see
+  // cookies.ts for the full explanation). Defaults to 'lax' — the more
+  // secure choice — everywhere except where explicitly overridden.
+  COOKIE_SAME_SITE: z.enum(['lax', 'none']).default('lax'),
 
   FIELD_ENCRYPTION_KEY: z.string().min(32),
 
@@ -46,10 +53,14 @@ export const apiEnvSchema = z.object({
   GOOGLE_CLIENT_SECRET: z.string().optional().default(''),
   GOOGLE_CALLBACK_URL: z.string().optional().default(''),
 
-  S3_ENDPOINT: z.string().default('http://localhost:9000'),
-  S3_REGION: z.string().default('us-east-1'),
-  S3_ACCESS_KEY: z.string().default('minioadmin'),
-  S3_SECRET_KEY: z.string().default('minioadmin'),
+  // S3_ENDPOINT/S3_ACCESS_KEY/S3_SECRET_KEY are only set for local dev (MinIO),
+  // which has no concept of IAM roles. Left unset in staging/production — real
+  // AWS S3 access there comes from the ECS task's IAM role instead (see
+  // S3Service), never a long-lived access key.
+  S3_ENDPOINT: z.string().optional().default(''),
+  S3_REGION: z.string().default('ap-south-1'),
+  S3_ACCESS_KEY: z.string().optional().default(''),
+  S3_SECRET_KEY: z.string().optional().default(''),
   S3_BUCKET_PRIVATE: z.string().default('rajyarank-private'),
 
   INVITATION_TTL_HOURS: z.coerce.number().int().positive().default(48),
@@ -78,6 +89,9 @@ export const apiEnvSchema = z.object({
   VAPID_SUBJECT: z.string().optional().default('mailto:no-reply@rajyarank.in'),
 
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
+}).refine((env) => !(env.COOKIE_SAME_SITE === 'none' && !env.COOKIE_SECURE), {
+  message: 'COOKIE_SAME_SITE=none requires COOKIE_SECURE=true — browsers silently reject SameSite=None cookies that are not Secure.',
+  path: ['COOKIE_SECURE'],
 });
 
 export type ApiEnv = z.infer<typeof apiEnvSchema>;
