@@ -12,9 +12,9 @@
 set -eu
 
 echo "[migrate] prisma migrate deploy…"
-npx prisma migrate deploy --schema=./prisma/schema.prisma
+npx prisma@5.22.0 migrate deploy --schema=./prisma/schema.prisma
 
 echo "[migrate] applying raw-SQL constraints (idempotent)…"
-npx prisma db execute --file ./prisma/constraints.sql --schema ./prisma/schema.prisma
+npx prisma@5.22.0 db execute --file ./prisma/constraints.sql --schema ./prisma/schema.prisma
 
 echo "[migrate] done."

@@ -9,8 +9,13 @@ RUN pnpm --filter @rajyarank/worker build
 
 FROM node:20-slim AS runner
 RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
-WORKDIR /app
+# See Dockerfile.api for why this mirrors apps/worker/'s real location instead
+# of flattening to /app — pnpm keeps this package's own dependencies
+# (ioredis, nodemailer, @rajyarank/*) symlinked into apps/worker/node_modules,
+# not hoisted to the workspace root.
+WORKDIR /app/apps/worker
 ENV NODE_ENV=production
-COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/node_modules /app/node_modules
+COPY --from=builder /app/apps/worker/node_modules ./node_modules
 COPY --from=builder /app/apps/worker/dist ./dist
 CMD ["node", "dist/main.js"]

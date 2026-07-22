@@ -10,9 +10,20 @@ RUN pnpm --filter @rajyarank/api exec nest build --webpack
 
 FROM node:20-slim AS runner
 RUN apt-get update && apt-get install -y --no-install-recommends openssl curl && rm -rf /var/lib/apt/lists/*
-WORKDIR /app
+# WORKDIR mirrors the monorepo's real apps/api/ location (not flattened to
+# /app) — pnpm keeps this package's own dependencies symlinked into its OWN
+# node_modules (apps/api/node_modules), not hoisted to the workspace root,
+# for anything not shared across every package (reflect-metadata, argon2,
+# etc.). Node's module resolution walks upward from wherever dist/main.js
+# actually sits, so that directory has to be a real ancestor of
+# apps/api/node_modules for those packages to resolve at runtime — flattening
+# dist to the image root broke this silently (nest build --webpack bundles
+# @rajyarank/* workspace code, but deliberately leaves real npm packages as
+# externals resolved via node_modules at runtime, so this matters).
+WORKDIR /app/apps/api
 ENV NODE_ENV=production
-COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/node_modules /app/node_modules
+COPY --from=builder /app/apps/api/node_modules ./node_modules
 COPY --from=builder /app/apps/api/dist ./dist
 COPY --from=builder /app/apps/api/prisma ./prisma
 COPY --from=builder /app/infra/deployment/migrate.sh ./migrate.sh
