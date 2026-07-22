@@ -1,0 +1,121 @@
+name: Deploy Staging
+
+# Runs automatically on every push to the staging branch. Builds the API
+# container image, pushes it to ECR, applies any new database migrations,
+# then updates the running ECS service to the new image. Uses OIDC — no
+# permanent AWS credentials are stored in GitHub.
+
+on:
+  push:
+    branches: [staging]
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+permissions:
+  id-token: write # required for OIDC
+  contents: read
+
+env:
+  AWS_REGION: ap-south-1
+  ECR_REPOSITORY: 485141928074.dkr.ecr.ap-south-1.amazonaws.com/rajyarank-api-staging
+  ECS_CLUSTER: rajyarank-staging
+  ECS_SERVICE: rajyarank-staging-api
+  TASK_FAMILY: rajyarank-staging-api
+
+jobs:
+  quality:
+    name: Lint, typecheck, test, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @rajyarank/api exec prisma generate
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+
+  deploy:
+    name: Build, migrate, deploy
+    needs: [quality]
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Assume the staging deploy role (OIDC — no stored AWS keys)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::485141928074:role/rajyarank-github-staging-deploy-role
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Log in to ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push the API image
+        id: build
+        env:
+          IMAGE_TAG: staging-${{ github.sha }}
+        run: |
+          docker build -f infra/docker/Dockerfile.api -t "$ECR_REPOSITORY:$IMAGE_TAG" -t "$ECR_REPOSITORY:staging-latest" .
+          docker push "$ECR_REPOSITORY:$IMAGE_TAG"
+          docker push "$ECR_REPOSITORY:staging-latest"
+          echo "image=$ECR_REPOSITORY:$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Register new task definition revision
+        id: register-task-def
+        run: |
+          CURRENT=$(aws ecs describe-task-definition --task-definition "$TASK_FAMILY" --query 'taskDefinition' --output json)
+          NEW=$(echo "$CURRENT" | python3 -c "
+          import json, sys
+          td = json.load(sys.stdin)
+          td['containerDefinitions'][0]['image'] = '${{ steps.build.outputs.image }}'
+          for key in ['taskDefinitionArn','revision','status','requiresAttributes','compatibilities','registeredAt','registeredBy']:
+              td.pop(key, None)
+          print(json.dumps(td))
+          ")
+          echo "$NEW" > new-task-def.json
+          aws ecs register-task-definition --cli-input-json file://new-task-def.json > register-output.json
+          echo "revision=$(python3 -c "import json; print(json.load(open('register-output.json'))['taskDefinition']['revision'])")" >> "$GITHUB_OUTPUT"
+
+      - name: Apply database migrations (one-off task, same image)
+        run: |
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "$ECS_CLUSTER" \
+            --task-definition "$TASK_FAMILY:${{ steps.register-task-def.outputs.revision }}" \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=[subnet-08690545b2df36758,subnet-0fc7d3cb0cdb81126,subnet-009c75d2c0c3a100d],securityGroups=[sg-0e393600ccc73570e],assignPublicIp=ENABLED}" \
+            --overrides '{"containerOverrides":[{"name":"api","command":["sh","-c","npx prisma migrate deploy && npx prisma db execute --file ./prisma/constraints.sql --schema ./prisma/schema.prisma"]}]}' \
+            --query 'tasks[0].taskArn' --output text)
+          echo "Migration task: $TASK_ARN"
+          aws ecs wait tasks-stopped --cluster "$ECS_CLUSTER" --tasks "$TASK_ARN"
+          EXIT_CODE=$(aws ecs describe-tasks --cluster "$ECS_CLUSTER" --tasks "$TASK_ARN" --query 'tasks[0].containers[0].exitCode' --output text)
+          if [ "$EXIT_CODE" != "0" ]; then
+            echo "::error::Migration task failed with exit code $EXIT_CODE — check CloudWatch Logs (/ecs/rajyarank-staging)"
+            exit 1
+          fi
+          echo "Migrations applied successfully."
+
+      - name: Deploy new revision to the running service
+        run: |
+          aws ecs update-service \
+            --cluster "$ECS_CLUSTER" \
+            --service "$ECS_SERVICE" \
+            --task-definition "$TASK_FAMILY:${{ steps.register-task-def.outputs.revision }}" \
+            --force-new-deployment
+          aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE"
+
+      - name: Health check
+        run: |
+          curl -fsS "${{ vars.STAGING_API_URL || 'http://rajyarank-staging-alb-1233015900.ap-south-1.elb.amazonaws.com' }}/healthz"
