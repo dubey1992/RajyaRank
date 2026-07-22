@@ -57,15 +57,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # TEMPORARY DEBUG STEP — decodes the actual OIDC token claims so we can
-      # see the real `sub`/`aud` values instead of guessing. The token itself
-      # is short-lived and scoped to this one job; safe to print. Remove once
-      # the trust policy is confirmed working.
-      - name: Debug - show actual OIDC token claims
-        run: |
-          TOKEN=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | python3 -c "import sys,json; print(json.load(sys.stdin)['value'])")
-          echo "$TOKEN" | cut -d. -f2 | base64 -d 2>/dev/null | python3 -m json.tool || echo "$TOKEN" | cut -d. -f2 | base64 --decode
-
       - name: Assume the staging deploy role (OIDC — no stored AWS keys)
         uses: aws-actions/configure-aws-credentials@v4
         with:
