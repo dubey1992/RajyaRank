@@ -1,0 +1,18 @@
+# RajyaRank staff/admin portal (Next standalone).
+FROM node:20-slim AS builder
+RUN corepack enable
+WORKDIR /app
+ARG NEXT_PUBLIC_API_URL=https://api.rajyarank.in
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+COPY . .
+RUN pnpm install --frozen-lockfile=false
+RUN pnpm --filter @rajyarank/admin build
+
+FROM node:20-slim AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+COPY --from=builder /app/apps/admin/.next/standalone ./
+COPY --from=builder /app/apps/admin/.next/static ./apps/admin/.next/static
+COPY --from=builder /app/apps/admin/public ./apps/admin/public
+EXPOSE 3001
+CMD ["node", "apps/admin/server.js"]

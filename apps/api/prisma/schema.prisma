@@ -1,0 +1,1909 @@
+// RajyaRank — Phase 1 data model (Auth & Role Management).
+// Forward-compatible with Phases 2–8: StaffAssignment.courseId/subjectId/batchId
+// are nullable UUIDs now and become FKs when Course/Subject/Batch land in Phase 2.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AccountStatus {
+  INVITED
+  PENDING_SETUP
+  ACTIVE
+  SUSPENDED
+  DISABLED
+}
+
+enum UserKind {
+  STUDENT
+  STAFF
+}
+
+enum RoleKey {
+  STUDENT
+  TEACHER
+  QUESTION_SETTER
+  ACADEMIC_REVIEWER
+  CONTENT_ADMIN
+  SUPPORT_AGENT
+  ACADEMIC_HEAD
+  SUPER_ADMIN
+}
+
+enum OrganizationStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum AssuranceLevel {
+  AAL1
+  AAL2
+}
+
+enum IdentityProvider {
+  PHONE
+  GOOGLE
+  EMAIL_PASSWORD
+}
+
+enum OtpChannel {
+  SMS
+  EMAIL
+}
+
+enum OtpPurpose {
+  STUDENT_LOGIN
+  STAFF_LOGIN
+  EMAIL_VERIFY
+  PASSWORD_RESET
+  STEP_UP
+}
+
+enum MfaType {
+  TOTP
+}
+
+enum MfaStatus {
+  PENDING
+  ACTIVE
+  REVOKED
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  REVOKED
+}
+
+enum SessionStatus {
+  ACTIVE
+  REVOKED
+  EXPIRED
+}
+
+enum AssignmentScope {
+  ORG
+  STATE
+  EXAM
+  COURSE
+  SUBJECT
+  BATCH
+}
+
+enum AuditResult {
+  SUCCESS
+  DENIED
+  FAILED
+}
+
+// ── Phase 2: catalogue, hierarchy, assets ───────────────────────────────────
+
+enum CourseStatus {
+  DRAFT
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+enum Visibility {
+  PUBLIC
+  PRIVATE
+  UNLISTED
+}
+
+enum LessonType {
+  VIDEO
+  PDF
+  TEXT
+  QUIZ
+  MIXED
+}
+
+enum ContentLanguage {
+  HINDI
+  ENGLISH
+  BILINGUAL
+}
+
+/// Content lifecycle. Phase 2 creates versions as DRAFT; Phase 3 drives the
+/// transitions (submit → review → correction/approve → schedule → publish → …).
+enum ContentStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  CORRECTION_REQUIRED
+  APPROVED
+  READY_TO_PUBLISH
+  SCHEDULED
+  PUBLISHED
+  UNPUBLISHED
+  ARCHIVED
+  REJECTED
+  SUPERSEDED
+}
+
+enum AssetType {
+  VIDEO
+  AUDIO
+  IMAGE
+  DOCUMENT
+}
+
+enum AssetStatus {
+  UPLOADING
+  PROCESSING
+  READY
+  FAILED
+  QUARANTINED
+  ARCHIVED
+}
+
+enum LessonAssetRole {
+  PRIMARY_VIDEO
+  PDF_NOTES
+  ATTACHMENT
+  THUMBNAIL
+}
+
+/// Actions recorded on a content version's review timeline (Phase 3).
+enum ReviewAction {
+  SUBMITTED
+  REVIEW_STARTED
+  COMMENT
+  CORRECTION_REQUESTED
+  APPROVED
+  REJECTED
+  SCHEDULED
+  PUBLISHED
+  UNPUBLISHED
+  ARCHIVED
+  RESUBMITTED
+}
+
+model Course {
+  id         String       @id @default(uuid())
+  code       String       @unique
+  stateId    String       @map("state_id")
+  examId     String       @map("exam_id")
+  titleHi    String       @map("title_hi")
+  titleEn    String       @map("title_en")
+  descHi     String?      @map("desc_hi")
+  descEn     String?      @map("desc_en")
+  status     CourseStatus @default(DRAFT)
+  visibility Visibility   @default(PRIVATE)
+  sequence   Int          @default(0)
+  createdAt  DateTime     @default(now()) @map("created_at")
+  updatedAt  DateTime     @updatedAt @map("updated_at")
+  createdBy  String?      @map("created_by")
+  updatedBy  String?      @map("updated_by")
+  deletedAt  DateTime?    @map("deleted_at")
+
+  orgId String? @map("org_id")
+
+  // Learning design (Course Studio "Learning design" step) — additive,
+  // all optional so existing courses need no backfill.
+  coursePromiseHi              String?  @map("course_promise_hi")
+  coursePromiseEn              String?  @map("course_promise_en")
+  learningOutcomes             String[] @default([]) @map("learning_outcomes")
+  recommendedDailyStudyMinutes Int?     @map("recommended_daily_study_minutes")
+  expectedCompletionDays       Int?     @map("expected_completion_days")
+  masteryThresholdPercent      Int?     @default(70) @map("mastery_threshold_percent")
+  prerequisitesHi              String?  @map("prerequisites_hi")
+  prerequisitesEn              String?  @map("prerequisites_en")
+
+  state        State             @relation(fields: [stateId], references: [id])
+  exam         Exam              @relation(fields: [examId], references: [id])
+  organization Organization?     @relation(fields: [orgId], references: [id])
+  batches      Batch[]
+  subjects     Subject[]
+  assigns      StaffAssignment[]
+  products     Product[]
+
+  @@index([stateId, examId, status])
+  @@index([orgId])
+  @@map("courses")
+}
+
+model Batch {
+  id        String    @id @default(uuid())
+  courseId  String    @map("course_id")
+  code      String
+  nameHi    String    @map("name_hi")
+  nameEn    String    @map("name_en")
+  startsAt  DateTime? @map("starts_at")
+  endsAt    DateTime? @map("ends_at")
+  isActive  Boolean   @default(true) @map("is_active")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  course  Course            @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lessons Lesson[]
+  assigns StaffAssignment[]
+
+  @@unique([courseId, code])
+  @@index([courseId])
+  @@map("batches")
+}
+
+model Subject {
+  id        String    @id @default(uuid())
+  courseId  String    @map("course_id")
+  nameHi    String    @map("name_hi")
+  nameEn    String    @map("name_en")
+  sequence  Int       @default(0)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  course    Course            @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  chapters  Chapter[]
+  assigns   StaffAssignment[]
+  questions Question[]
+
+  @@index([courseId])
+  @@map("subjects")
+}
+
+model Chapter {
+  id        String    @id @default(uuid())
+  subjectId String    @map("subject_id")
+  nameHi    String    @map("name_hi")
+  nameEn    String    @map("name_en")
+  sequence  Int       @default(0)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  subject Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  topics  Topic[]
+
+  @@index([subjectId])
+  @@map("chapters")
+}
+
+model Topic {
+  id        String    @id @default(uuid())
+  chapterId String    @map("chapter_id")
+  nameHi    String    @map("name_hi")
+  nameEn    String    @map("name_en")
+  sequence  Int       @default(0)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  chapter Chapter  @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  lessons Lesson[]
+
+  @@index([chapterId])
+  @@map("topics")
+}
+
+model Lesson {
+  id               String     @id @default(uuid())
+  topicId          String     @map("topic_id")
+  batchId          String?    @map("batch_id")
+  lessonType       LessonType @map("lesson_type")
+  freePreview      Boolean    @default(false) @map("free_preview")
+  sequence         Int        @default(0)
+  currentVersionId String?    @unique @map("current_version_id")
+  createdAt        DateTime   @default(now()) @map("created_at")
+  updatedAt        DateTime   @updatedAt @map("updated_at")
+  createdBy        String?    @map("created_by")
+  deletedAt        DateTime?  @map("deleted_at")
+
+  topic          Topic            @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  batch          Batch?           @relation(fields: [batchId], references: [id])
+  versions       LessonVersion[]  @relation("LessonVersions")
+  currentVersion LessonVersion?   @relation("CurrentVersion", fields: [currentVersionId], references: [id])
+  progress       LessonProgress[]
+  bookmarks      Bookmark[]
+
+  @@index([topicId])
+  @@index([batchId])
+  @@map("lessons")
+}
+
+model LessonVersion {
+  id               String           @id @default(uuid())
+  lessonId         String           @map("lesson_id")
+  versionNumber    Int              @map("version_number")
+  status           ContentStatus    @default(DRAFT)
+  titleHi          String           @map("title_hi")
+  titleEn          String           @map("title_en")
+  summaryHi        String?          @map("summary_hi")
+  summaryEn        String?          @map("summary_en")
+  estimatedMinutes Int?             @map("estimated_minutes")
+  difficulty       Difficulty?      @default(MEDIUM)
+  language         ContentLanguage? @map("content_language")
+  changeSummary    String?          @map("change_summary")
+  createdBy        String           @map("created_by")
+  submittedAt      DateTime?        @map("submitted_at")
+  reviewerId       String?          @map("reviewer_id")
+  rejectionReason  String?          @map("rejection_reason")
+  scheduledFor     DateTime?        @map("scheduled_for")
+  approvedBy       String?          @map("approved_by")
+  approvedAt       DateTime?        @map("approved_at")
+  publishedAt      DateTime?        @map("published_at")
+  rowVersion       Int              @default(1) @map("row_version")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+
+  lesson     Lesson          @relation("LessonVersions", fields: [lessonId], references: [id], onDelete: Cascade)
+  currentFor Lesson?         @relation("CurrentVersion")
+  assets     LessonAsset[]
+  comments   ReviewComment[]
+
+  @@unique([lessonId, versionNumber])
+  @@index([status])
+  @@index([reviewerId])
+  @@map("lesson_versions")
+}
+
+model ReviewComment {
+  id              String       @id @default(uuid())
+  lessonVersionId String       @map("lesson_version_id")
+  authorUserId    String       @map("author_user_id")
+  action          ReviewAction
+  body            String?
+  createdAt       DateTime     @default(now()) @map("created_at")
+
+  lessonVersion LessonVersion @relation(fields: [lessonVersionId], references: [id], onDelete: Cascade)
+
+  @@index([lessonVersionId, createdAt])
+  @@map("review_comments")
+}
+
+model MediaAsset {
+  id              String      @id @default(uuid())
+  ownerUserId     String      @map("owner_user_id")
+  provider        String      @default("s3")
+  providerAssetId String?     @map("provider_asset_id")
+  storageKey      String?     @map("storage_key")
+  embedUrl        String?     @map("embed_url")
+  assetType       AssetType   @map("asset_type")
+  status          AssetStatus @default(UPLOADING)
+  mimeType        String      @map("mime_type")
+  sizeBytes       Int?        @map("size_bytes")
+  durationSeconds Int?        @map("duration_seconds")
+  checksum        String?
+  metadata        Json?
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+
+  lessonAssets LessonAsset[]
+
+  @@index([ownerUserId, status])
+  @@map("media_assets")
+}
+
+model LessonAsset {
+  id              String          @id @default(uuid())
+  lessonVersionId String          @map("lesson_version_id")
+  assetId         String          @map("asset_id")
+  role            LessonAssetRole
+  sequence        Int             @default(0)
+  createdAt       DateTime        @default(now()) @map("created_at")
+
+  lessonVersion LessonVersion @relation(fields: [lessonVersionId], references: [id], onDelete: Cascade)
+  asset         MediaAsset    @relation(fields: [assetId], references: [id])
+
+  @@unique([lessonVersionId, assetId, role])
+  @@index([assetId])
+  @@map("lesson_assets")
+}
+
+model User {
+  id            String        @id @default(uuid())
+  kind          UserKind
+  status        AccountStatus @default(PENDING_SETUP)
+  phone         String? // E.164 / 10-digit
+  phoneVerified Boolean       @default(false) @map("phone_verified")
+  email         String?
+  emailVerified Boolean       @default(false) @map("email_verified")
+  passwordHash  String?       @map("password_hash")
+  displayName   String?       @map("display_name")
+  locale        String        @default("hi")
+  mfaEnabled    Boolean       @default(false) @map("mfa_enabled")
+  failedLogins  Int           @default(0) @map("failed_logins")
+  lockedUntil   DateTime?     @map("locked_until")
+  permVersion   Int           @default(1) @map("perm_version") // bump busts cached principal
+  lastLoginAt   DateTime?     @map("last_login_at")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+  createdBy     String?       @map("created_by")
+  updatedBy     String?       @map("updated_by")
+  deletedAt     DateTime?     @map("deleted_at")
+
+  studentProfile    StudentProfile?
+  staffProfile      StaffProfile?
+  roles             UserRole[]
+  assignments       StaffAssignment[]
+  sessions          LoginSession[]
+  mfaFactors        MfaFactor[]
+  identities        UserIdentity[]
+  lessonProgress    LessonProgress[]
+  bookmarks         Bookmark[]
+  attempts          Attempt[]
+  orders            Order[]
+  entitlements      Entitlement[]
+  pushSubscriptions PushSubscription[]
+  membershipEvents  OrgMembershipEvent[]
+  studyPlans        StudyPlan[]
+
+  orgId     String?       @map("org_id")
+  org       Organization? @relation("OrgMembers", fields: [orgId], references: [id])
+  headOfOrg Organization? @relation("OrgHead")
+
+  @@unique([kind, email])
+  @@unique([kind, phone])
+  @@index([kind, status])
+  @@index([email])
+  @@index([phone])
+  @@index([orgId])
+  @@map("users")
+}
+
+// Web Push (VAPID) subscriptions per user (§17).
+model PushSubscription {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("push_subscriptions")
+}
+
+model UserIdentity {
+  id          String           @id @default(uuid())
+  userId      String           @map("user_id")
+  provider    IdentityProvider
+  providerUid String           @map("provider_uid")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerUid])
+  @@index([userId])
+  @@map("user_identities")
+}
+
+model StudentProfile {
+  id                String    @id @default(uuid())
+  userId            String    @unique @map("user_id")
+  fullName          String?   @map("full_name")
+  stateId           String?   @map("state_id")
+  targetExamId      String?   @map("target_exam_id")
+  qualification     String?
+  dailyStudyMinutes Int?      @map("daily_study_minutes")
+  targetDate        DateTime? @map("target_date")
+  preferredSubjects String[]  @map("preferred_subjects")
+  onboardedAt       DateTime? @map("onboarded_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  state             State?    @relation(fields: [stateId], references: [id])
+  targetExam        Exam?     @relation(fields: [targetExamId], references: [id])
+
+  @@map("student_profiles")
+}
+
+enum ProgressStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum CurrentAffairScope {
+  NATIONAL
+  BIHAR
+  JHARKHAND
+}
+
+model LessonProgress {
+  id                   String         @id @default(uuid())
+  studentId            String         @map("student_id")
+  lessonId             String         @map("lesson_id")
+  status               ProgressStatus @default(IN_PROGRESS)
+  videoPositionSeconds Int            @default(0) @map("video_position_seconds")
+  percentComplete      Int            @default(0) @map("percent_complete")
+  completedAt          DateTime?      @map("completed_at")
+  lastAccessedAt       DateTime       @default(now()) @map("last_accessed_at")
+  createdAt            DateTime       @default(now()) @map("created_at")
+  updatedAt            DateTime       @updatedAt @map("updated_at")
+
+  student User   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  lesson  Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, lessonId])
+  @@index([studentId, status])
+  @@map("lesson_progress")
+}
+
+model Bookmark {
+  id        String   @id @default(uuid())
+  studentId String   @map("student_id")
+  lessonId  String   @map("lesson_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  student User   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  lesson  Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, lessonId])
+  @@index([studentId])
+  @@map("bookmarks")
+}
+
+model CurrentAffair {
+  id               String             @id @default(uuid())
+  dateFor          DateTime           @map("date_for")
+  titleHi          String             @map("title_hi")
+  titleEn          String             @map("title_en")
+  bodyHi           String             @map("body_hi")
+  bodyEn           String             @map("body_en")
+  category         String
+  scope            CurrentAffairScope @default(NATIONAL)
+  source           String?
+  status           ContentStatus      @default(DRAFT)
+  publishedAt      DateTime?          @map("published_at")
+  createdBy        String?            @map("created_by")
+  // Latest reviewer reason when sent back for correction — not a full
+  // threaded history (that's what ReviewComment is for lessons); a single
+  // field is proportionate for this flat, ephemeral, version-less content
+  // type. Cleared on resubmit.
+  correctionReason String?            @map("correction_reason")
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @updatedAt @map("updated_at")
+
+  @@index([status, dateFor])
+  @@map("current_affairs")
+}
+
+enum StudyPlanStatus {
+  ACTIVE
+  COMPLETED
+  ABANDONED
+}
+
+enum PlanItemKind {
+  LESSON
+  WEAK_TOPIC_DRILL
+  TEST // reserved for a future test-scheduling tie-in, unused today
+}
+
+enum PlanItemStatus {
+  PENDING
+  DONE
+  SKIPPED
+  MISSED
+  RESCHEDULED
+}
+
+// One ACTIVE plan per student at a time. Regenerating never deletes history —
+// it marks the current plan ABANDONED and creates a fresh one, so "what was
+// planned vs. actually done" stays queryable forever. courseId/targetExamId
+// are plain indexed columns (no FK), matching this schema's existing
+// cross-cutting-reference style (see Doubt.orgId/subjectId/lessonId).
+model StudyPlan {
+  id                String          @id @default(uuid())
+  studentId         String          @map("student_id")
+  courseId          String?         @map("course_id") // null = cross-course, target-exam-wide plan
+  targetExamId      String?         @map("target_exam_id")
+  status            StudyPlanStatus @default(ACTIVE)
+  dailyMinutesGoal  Int             @map("daily_minutes_goal") // snapshot at (re)generation time
+  targetDate        DateTime?       @map("target_date")
+  lastRegeneratedAt DateTime        @default(now()) @map("last_regenerated_at")
+  createdAt         DateTime        @default(now()) @map("created_at")
+  updatedAt         DateTime        @updatedAt @map("updated_at")
+
+  student User       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  items   PlanItem[]
+
+  @@index([studentId, status])
+  @@map("study_plans")
+}
+
+model PlanItem {
+  id                String         @id @default(uuid())
+  planId            String         @map("plan_id")
+  scheduledFor      DateTime       @map("scheduled_for") // date-only, stored at midnight UTC
+  sequence          Int            @default(0)
+  lessonId          String?        @map("lesson_id")
+  topicId           String?        @map("topic_id") // set for WEAK_TOPIC_DRILL slots
+  kind              PlanItemKind
+  estimatedMinutes  Int            @default(20) @map("estimated_minutes")
+  status            PlanItemStatus @default(PENDING)
+  completedAt       DateTime?      @map("completed_at")
+  rescheduledFromId String?        @map("rescheduled_from_id")
+  createdAt         DateTime       @default(now()) @map("created_at")
+  updatedAt         DateTime       @updatedAt @map("updated_at")
+
+  plan            StudyPlan  @relation(fields: [planId], references: [id], onDelete: Cascade)
+  rescheduledFrom PlanItem?  @relation("PlanItemReschedule", fields: [rescheduledFromId], references: [id])
+  rescheduledTo   PlanItem[] @relation("PlanItemReschedule")
+
+  @@index([planId, scheduledFor])
+  @@index([planId, status])
+  @@map("plan_items")
+}
+
+// ── Phase 5: question bank, tests, attempts ─────────────────────────────────
+
+enum QuestionType {
+  SINGLE_CHOICE
+  MULTIPLE_CHOICE
+  TRUE_FALSE
+  NUMERIC
+  MATCH
+  PASSAGE
+  ASSERTION_REASON
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum TestType {
+  DAILY_QUIZ
+  CHAPTER
+  TOPIC
+  SUBJECT
+  SECTIONAL
+  PREVIOUS_YEAR
+  FULL_MOCK
+  CUSTOM
+}
+
+enum ResultReleasePolicy {
+  IMMEDIATE
+  AFTER_WINDOW
+  MANUAL
+}
+
+enum AttemptStatus {
+  IN_PROGRESS
+  SUBMITTED
+  AUTO_SUBMITTED
+  EVALUATED
+  INVALIDATED
+}
+
+model Question {
+  id                   String    @id @default(uuid())
+  subjectId            String    @map("subject_id")
+  chapterId            String?   @map("chapter_id")
+  topicId              String?   @map("topic_id")
+  examId               String?   @map("exam_id")
+  currentVersionId     String?   @unique @map("current_version_id")
+  duplicateFingerprint String    @map("duplicate_fingerprint")
+  createdBy            String    @map("created_by")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+  deletedAt            DateTime? @map("deleted_at")
+
+  subject        Subject           @relation(fields: [subjectId], references: [id])
+  versions       QuestionVersion[] @relation("QuestionVersions")
+  currentVersion QuestionVersion?  @relation("QuestionCurrentVersion", fields: [currentVersionId], references: [id])
+
+  @@index([subjectId])
+  @@index([duplicateFingerprint])
+  @@map("questions")
+}
+
+model QuestionVersion {
+  id            String        @id @default(uuid())
+  questionId    String        @map("question_id")
+  versionNumber Int           @map("version_number")
+  status        ContentStatus @default(DRAFT)
+  type          QuestionType
+  textHi        String?       @map("text_hi")
+  textEn        String?       @map("text_en")
+  /// options: [{ key: "A", hi: "...", en: "..." }]
+  options       Json
+  /// correctAnswer: e.g. ["C"] | ["A","D"] | { numeric: 42 } | [{left,right}]
+  correctAnswer Json          @map("correct_answer")
+  explanationHi String?       @map("explanation_hi")
+  explanationEn String?       @map("explanation_en")
+  difficulty    Difficulty    @default(MEDIUM)
+  marks         Float         @default(1)
+  negativeMarks Float         @default(0) @map("negative_marks")
+  sourceType    String?       @map("source_type")
+  examYear      Int?          @map("exam_year")
+  createdBy     String        @map("created_by")
+  approvedBy    String?       @map("approved_by")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  question   Question       @relation("QuestionVersions", fields: [questionId], references: [id], onDelete: Cascade)
+  currentFor Question?      @relation("QuestionCurrentVersion")
+  testLinks  TestQuestion[]
+
+  @@unique([questionId, versionNumber])
+  @@index([status])
+  @@map("question_versions")
+}
+
+model Test {
+  id               String    @id @default(uuid())
+  examId           String    @map("exam_id")
+  orgId            String?   @map("org_id")
+  courseId         String?   @map("course_id")
+  type             TestType
+  titleHi          String    @map("title_hi")
+  titleEn          String    @map("title_en")
+  currentVersionId String?   @unique @map("current_version_id")
+  createdBy        String    @map("created_by")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  deletedAt        DateTime? @map("deleted_at")
+
+  exam           Exam          @relation(fields: [examId], references: [id])
+  versions       TestVersion[] @relation("TestVersions")
+  currentVersion TestVersion?  @relation("TestCurrentVersion", fields: [currentVersionId], references: [id])
+
+  @@index([examId])
+  @@map("tests")
+}
+
+model TestVersion {
+  id                 String              @id @default(uuid())
+  testId             String              @map("test_id")
+  versionNumber      Int                 @map("version_number")
+  status             ContentStatus       @default(DRAFT)
+  durationMinutes    Int                 @map("duration_minutes")
+  negativeMarking    Boolean             @default(true) @map("negative_marking")
+  randomizeQuestions Boolean             @default(false) @map("randomize_questions")
+  randomizeOptions   Boolean             @default(false) @map("randomize_options")
+  resultRelease      ResultReleasePolicy @default(IMMEDIATE) @map("result_release")
+  passingScore       Int?                @map("passing_score")
+  availableFrom      DateTime?           @map("available_from")
+  availableTo        DateTime?           @map("available_to")
+  attemptLimit       Int?                @map("attempt_limit")
+  createdBy          String              @map("created_by")
+  approvedBy         String?             @map("approved_by")
+  // Single-approval: a Mock Test reaches APPROVED as soon as either an
+  // Academic Head or an Academic Reviewer approves it — role-based, not tied
+  // to a specific assigned individual (see approve() in test-builder.service.ts).
+  // Both slots are still recorded (for the audit trail / UI badges) whenever
+  // that role happens to approve, but neither is a precondition for the other.
+  // rejectionReason and both slots are cleared on reject(), so a resubmission
+  // needs a fresh look.
+  headApprovedBy     String?             @map("head_approved_by")
+  headApprovedAt     DateTime?           @map("head_approved_at")
+  reviewerApprovedBy String?             @map("reviewer_approved_by")
+  reviewerApprovedAt DateTime?           @map("reviewer_approved_at")
+  rejectionReason    String?             @map("rejection_reason")
+  publishedAt        DateTime?           @map("published_at")
+  createdAt          DateTime            @default(now()) @map("created_at")
+  updatedAt          DateTime            @updatedAt @map("updated_at")
+
+  test       Test          @relation("TestVersions", fields: [testId], references: [id], onDelete: Cascade)
+  currentFor Test?         @relation("TestCurrentVersion")
+  sections   TestSection[]
+  attempts   Attempt[]
+
+  @@unique([testId, versionNumber])
+  @@index([status])
+  @@map("test_versions")
+}
+
+model TestSection {
+  id            String @id @default(uuid())
+  testVersionId String @map("test_version_id")
+  nameHi        String @map("name_hi")
+  nameEn        String @map("name_en")
+  sequence      Int    @default(0)
+
+  testVersion TestVersion    @relation(fields: [testVersionId], references: [id], onDelete: Cascade)
+  questions   TestQuestion[]
+
+  @@index([testVersionId])
+  @@map("test_sections")
+}
+
+model TestQuestion {
+  id                String @id @default(uuid())
+  testSectionId     String @map("test_section_id")
+  questionVersionId String @map("question_version_id")
+  sequence          Int    @default(0)
+  marks             Float?
+  negativeMarks     Float? @map("negative_marks")
+
+  section         TestSection     @relation(fields: [testSectionId], references: [id], onDelete: Cascade)
+  questionVersion QuestionVersion @relation(fields: [questionVersionId], references: [id])
+
+  @@unique([testSectionId, questionVersionId])
+  @@index([questionVersionId])
+  @@map("test_questions")
+}
+
+model Attempt {
+  id              String        @id @default(uuid())
+  studentId       String        @map("student_id")
+  testVersionId   String        @map("test_version_id")
+  status          AttemptStatus @default(IN_PROGRESS)
+  startedAt       DateTime      @default(now()) @map("started_at")
+  expiresAt       DateTime      @map("expires_at")
+  submittedAt     DateTime?     @map("submitted_at")
+  score           Float?
+  maxScore        Float         @map("max_score")
+  correctCount    Int           @default(0) @map("correct_count")
+  incorrectCount  Int           @default(0) @map("incorrect_count")
+  unansweredCount Int           @default(0) @map("unanswered_count")
+  accuracy        Float?
+  clientSessionId String?       @map("client_session_id")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  student     User            @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  testVersion TestVersion     @relation(fields: [testVersionId], references: [id])
+  answers     AttemptAnswer[]
+
+  @@index([studentId, status])
+  @@index([testVersionId])
+  @@map("attempts")
+}
+
+model AttemptAnswer {
+  id                String   @id @default(uuid())
+  attemptId         String   @map("attempt_id")
+  questionVersionId String   @map("question_version_id")
+  /// student's response, shape depends on question type
+  response          Json?
+  markedForReview   Boolean  @default(false) @map("marked_for_review")
+  sequenceNo        Int      @default(0) @map("sequence_no")
+  isCorrect         Boolean? @map("is_correct")
+  awarded           Float?
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  attempt Attempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+
+  @@unique([attemptId, questionVersionId])
+  @@map("attempt_answers")
+}
+
+// ── Phase 6: products, orders, payments, entitlements ───────────────────────
+
+enum ProductKind {
+  COURSE
+  TEST_SERIES
+  BUNDLE
+  SUBSCRIPTION
+}
+
+/// PUBLIC = anyone; INSTITUTE = only students whose orgId matches the course's
+/// owning institute. Lets one course carry two prices (public vs institute).
+enum ProductAudience {
+  PUBLIC
+  INSTITUTE
+}
+
+enum AccessType {
+  FREE
+  PAID
+  TRIAL
+  SCHOLARSHIP
+  COUPON
+  ADMIN_GRANTED
+  LIFETIME
+  EXAM_CYCLE
+  SUBSCRIPTION
+}
+
+enum OrderStatus {
+  CREATED
+  PENDING
+  PAID
+  FAILED
+  CANCELLED
+  REFUNDED_PARTIAL
+  REFUNDED_FULL
+}
+
+enum PaymentStatus {
+  CREATED
+  AUTHORISED
+  PAID
+  FAILED
+  REFUNDED_PARTIAL
+  REFUNDED_FULL
+  DISPUTED
+}
+
+enum EntitlementSource {
+  PURCHASE
+  PROMOTION
+  ADMIN
+  REFERRAL
+  SCHOLARSHIP
+  COUPON
+}
+
+enum EntitlementStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+  REFUNDED
+  SUSPENDED
+}
+
+enum CouponType {
+  PERCENT
+  FIXED
+}
+
+enum RefundStatus {
+  PENDING
+  PENDING_APPROVAL
+  PROCESSED
+  REJECTED
+  FAILED
+}
+
+model Product {
+  id                 String          @id @default(uuid())
+  kind               ProductKind
+  courseId           String?         @map("course_id")
+  examId             String?         @map("exam_id")
+  titleHi            String          @map("title_hi")
+  titleEn            String          @map("title_en")
+  priceMinor         Int             @map("price_minor") // paise
+  originalPriceMinor Int?            @map("original_price_minor") // paise, MRP for strikethrough display
+  currency           String          @default("INR")
+  validityDays       Int?            @map("validity_days")
+  accessType         AccessType      @default(PAID) @map("access_type")
+  audience           ProductAudience @default(PUBLIC)
+  active             Boolean         @default(true)
+  createdAt          DateTime        @default(now()) @map("created_at")
+  updatedAt          DateTime        @updatedAt @map("updated_at")
+
+  course       Course?       @relation(fields: [courseId], references: [id])
+  orders       Order[]
+  entitlements Entitlement[]
+
+  @@unique([courseId, kind, audience])
+  @@index([active])
+  @@map("products")
+}
+
+model Coupon {
+  id             String     @id @default(uuid())
+  code           String     @unique
+  type           CouponType
+  value          Int // percent (1-100) or fixed minor amount
+  validFrom      DateTime?  @map("valid_from")
+  validTo        DateTime?  @map("valid_to")
+  maxRedemptions Int?       @map("max_redemptions")
+  perUserLimit   Int        @default(1) @map("per_user_limit")
+  courseId       String?    @map("course_id")
+  redeemedCount  Int        @default(0) @map("redeemed_count")
+  active         Boolean    @default(true)
+  createdAt      DateTime   @default(now()) @map("created_at")
+
+  orders Order[]
+
+  @@map("coupons")
+}
+
+model Order {
+  id              String      @id @default(uuid())
+  userId          String      @map("user_id")
+  productId       String      @map("product_id")
+  amountMinor     Int         @map("amount_minor")
+  currency        String      @default("INR")
+  status          OrderStatus @default(CREATED)
+  couponId        String?     @map("coupon_id")
+  providerOrderId String?     @unique @map("provider_order_id")
+  idempotencyKey  String?     @unique @map("idempotency_key")
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product  Product   @relation(fields: [productId], references: [id])
+  coupon   Coupon?   @relation(fields: [couponId], references: [id])
+  payments Payment[]
+  transfer Transfer?
+
+  @@index([userId, status])
+  @@map("orders")
+}
+
+// ── Marketplace settlement / institute payouts (Razorpay Route). Splits each
+//    student sale between platform and institute, holds a refund reserve,
+//    and pays the institute's net share to their KYC-verified bank account. ──
+
+enum KycStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum TransferStatus {
+  CREATED
+  PROCESSED
+  REVERSED
+  ON_HOLD
+}
+
+model InstituteLinkedAccount {
+  id                String    @id @default(uuid())
+  orgId             String    @unique @map("org_id")
+  razorpayAccountId String?   @unique @map("razorpay_account_id")
+  kycStatus         KycStatus @default(PENDING)
+  payoutsEnabled    Boolean   @default(false) @map("payouts_enabled")
+  reserveHeldMinor  Int       @default(0) @map("reserve_held_minor")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  // ── Self-service KYC submission (Academic Head) ──────────────────────────
+  // panEnc/bankAccountNumberEnc are AES-256-GCM at rest (common/crypto.util,
+  // same pattern as MFA TOTP secrets) — never returned in full to the client,
+  // only masked (see SettlementsService). kycSubmittedAt is distinct from
+  // kycStatus: it's set the moment the Head submits, independent of whether
+  // Razorpay/Super Admin have since verified it — lets the UI distinguish
+  // "never submitted" from "submitted, awaiting verification".
+  legalBusinessName    String?   @map("legal_business_name")
+  panEnc               String?   @map("pan_enc")
+  gstin                String?
+  addressLine1         String?   @map("address_line1")
+  addressLine2         String?   @map("address_line2")
+  addressCity          String?   @map("address_city")
+  addressState         String?   @map("address_state")
+  addressPincode       String?   @map("address_pincode")
+  bankAccountNumberEnc String?   @map("bank_account_number_enc")
+  bankIfsc             String?   @map("bank_ifsc")
+  beneficiaryName      String?   @map("beneficiary_name")
+  kycSubmittedAt       DateTime? @map("kyc_submitted_at")
+  kycSubmittedBy       String?   @map("kyc_submitted_by")
+  // Set only by Super Admin's manual reject action; cleared automatically the
+  // next time the Head resubmits (see SettlementsService.submitKyc), so a
+  // corrected packet is never shown under a stale rejection reason.
+  kycRejectionReason   String?   @map("kyc_rejection_reason")
+
+  organization Organization           @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  transfers    Transfer[]
+  kycDocuments InstituteKycDocument[]
+
+  @@map("institute_linked_accounts")
+}
+
+enum KycDocType {
+  PAN_CARD
+  ADDRESS_PROOF
+  BANK_PROOF
+  GSTIN_CERTIFICATE
+  OTHER
+}
+
+/// KYC supporting documents, submitted by the Academic Head. Stored in our own
+/// private S3 (presigned PUT, same pattern as MediaAsset) — Super Admin
+/// reviews them (presigned GET) before manually verifying, or forwards them to
+/// Razorpay out-of-band. Not auto-forwarded to Razorpay's document API (its
+/// stakeholder/document endpoints need a real sandbox to integrate against
+/// correctly — out of scope for this pass, tracked as a known gap).
+model InstituteKycDocument {
+  id               String     @id @default(uuid())
+  linkedAccountId  String     @map("linked_account_id")
+  docType          KycDocType @map("doc_type")
+  storageKey       String     @map("storage_key")
+  originalFilename String     @map("original_filename")
+  mimeType         String     @map("mime_type")
+  sizeBytes        Int        @map("size_bytes")
+  uploadedAt       DateTime   @default(now()) @map("uploaded_at")
+  uploadedBy       String     @map("uploaded_by")
+
+  linkedAccount InstituteLinkedAccount @relation(fields: [linkedAccountId], references: [id], onDelete: Cascade)
+
+  @@index([linkedAccountId])
+  @@map("institute_kyc_documents")
+}
+
+model Transfer {
+  id                 String         @id @default(uuid())
+  orderId            String         @unique @map("order_id")
+  linkedAccountId    String         @map("linked_account_id")
+  grossMinor         Int            @map("gross_minor")
+  gatewayFeeMinor    Int            @map("gateway_fee_minor")
+  // The platform's cut for this sale (per the org's plan fee bps, by audience).
+  platformFeeMinor   Int            @map("platform_fee_minor")
+  reserveMinor       Int            @map("reserve_minor")
+  netMinor           Int            @map("net_minor")
+  razorpayTransferId String?        @unique @map("razorpay_transfer_id")
+  status             TransferStatus @default(CREATED)
+  createdAt          DateTime       @default(now()) @map("created_at")
+
+  order         Order                  @relation(fields: [orderId], references: [id])
+  linkedAccount InstituteLinkedAccount @relation(fields: [linkedAccountId], references: [id])
+
+  @@index([linkedAccountId, status])
+  @@map("transfers")
+}
+
+model Payment {
+  id                  String        @id @default(uuid())
+  orderId             String        @map("order_id")
+  provider            String        @default("RAZORPAY")
+  providerPaymentId   String?       @unique @map("provider_payment_id")
+  providerOrderId     String?       @map("provider_order_id")
+  status              PaymentStatus @default(CREATED)
+  amountMinor         Int           @map("amount_minor")
+  currency            String        @default("INR")
+  signatureVerifiedAt DateTime?     @map("signature_verified_at")
+  paidAt              DateTime?     @map("paid_at")
+  rawMetadata         Json?         @map("raw_metadata")
+  createdAt           DateTime      @default(now()) @map("created_at")
+  updatedAt           DateTime      @updatedAt @map("updated_at")
+
+  order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  refunds Refund[]
+
+  @@index([orderId])
+  @@map("payments")
+}
+
+/// Idempotent webhook log: unique provider event id prevents double-processing.
+model PaymentEvent {
+  id              String    @id @default(uuid())
+  provider        String    @default("RAZORPAY")
+  providerEventId String    @unique @map("provider_event_id")
+  type            String
+  payload         Json
+  processedAt     DateTime? @map("processed_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  @@map("payment_events")
+}
+
+model Entitlement {
+  id         String            @id @default(uuid())
+  userId     String            @map("user_id")
+  productId  String            @map("product_id")
+  courseId   String?           @map("course_id")
+  source     EntitlementSource
+  status     EntitlementStatus @default(ACTIVE)
+  accessType AccessType        @default(PAID) @map("access_type")
+  startsAt   DateTime          @default(now()) @map("starts_at")
+  endsAt     DateTime?         @map("ends_at")
+  orderId    String?           @map("order_id")
+  paymentId  String?           @map("payment_id")
+  reason     String?
+  createdAt  DateTime          @default(now()) @map("created_at")
+  updatedAt  DateTime          @updatedAt @map("updated_at")
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+
+  @@unique([userId, productId])
+  @@index([userId, courseId, status])
+  @@map("entitlements")
+}
+
+model Refund {
+  id               String       @id @default(uuid())
+  paymentId        String       @map("payment_id")
+  amountMinor      Int          @map("amount_minor")
+  reason           String?
+  status           RefundStatus @default(PENDING)
+  providerRefundId String?      @map("provider_refund_id")
+  createdBy        String?      @map("created_by")
+  // Set when an Academic Head requests a refund above the auto-approval
+  // ceiling (or on an already-settled order) — null for direct Super Admin
+  // refunds and auto-approved requests, which have no separate approval step.
+  requestedBy      String?      @map("requested_by")
+  approvedBy       String?      @map("approved_by")
+  createdAt        DateTime     @default(now()) @map("created_at")
+
+  payment Payment @relation(fields: [paymentId], references: [id])
+
+  @@index([paymentId])
+  @@map("refunds")
+}
+
+// ── Phase 7: doubts, support, notifications ─────────────────────────────────
+
+enum DoubtStatus {
+  OPEN
+  ASSIGNED
+  ANSWERED
+  RESOLVED
+  REOPENED
+  CLOSED
+}
+
+enum TicketCategory {
+  LOGIN_OTP
+  PAYMENT
+  ACCESS_ENTITLEMENT
+  VIDEO_PDF
+  TEST
+  CONTENT_CORRECTION
+  REFUND
+  ACCOUNT
+  OTHER
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_ON_STUDENT
+  RESOLVED
+  CLOSED
+}
+
+enum AnnouncementAudience {
+  ALL
+  STUDENTS
+  STAFF
+}
+
+model Announcement {
+  id             String               @id @default(uuid())
+  titleHi        String               @map("title_hi")
+  titleEn        String               @map("title_en")
+  bodyHi         String               @map("body_hi")
+  bodyEn         String               @map("body_en")
+  audience       AnnouncementAudience @default(ALL)
+  recipientCount Int                  @default(0) @map("recipient_count")
+  sentBy         String               @map("sent_by")
+  createdAt      DateTime             @default(now()) @map("created_at")
+
+  @@map("announcements")
+}
+
+enum ContactCategory {
+  GENERAL
+  INSTITUTION_PARTNERSHIP
+  STUDENT_SUPPORT
+  PRESS
+  OTHER
+}
+
+enum ContactStatus {
+  NEW
+  RESOLVED
+}
+
+// Public marketing-page "Contact Us" submissions — anonymous, no student/staff
+// principal required. Deliberately a separate model from SupportTicket (which
+// always requires an existing studentId): this is for prospective visitors
+// (institutions, press, general enquiries), not enrolled students.
+model ContactMessage {
+  id         String          @id @default(uuid())
+  name       String
+  email      String
+  phone      String?
+  category   ContactCategory @default(GENERAL)
+  message    String
+  status     ContactStatus   @default(NEW)
+  resolvedBy String?         @map("resolved_by")
+  resolvedAt DateTime?       @map("resolved_at")
+  createdAt  DateTime        @default(now()) @map("created_at")
+  updatedAt  DateTime        @updatedAt @map("updated_at")
+
+  @@index([status, createdAt])
+  @@map("contact_messages")
+}
+
+enum NotificationCategory {
+  SECURITY
+  PAYMENT
+  COURSE_ACCESS
+  NEW_LESSON
+  TEST_REMINDER
+  DAILY_PLAN
+  DOUBT_ANSWER
+  EXAM_NOTICE
+  EXPIRY
+  SUPPORT
+  CURRENT_AFFAIRS
+  ANNOUNCEMENT
+  CONTENT_WORKFLOW
+}
+
+// User ids are stored as indexed columns (no FK) to keep Phase 7 self-contained.
+model Doubt {
+  id                String      @id @default(uuid())
+  studentId         String      @map("student_id")
+  orgId             String?     @map("org_id")
+  subjectId         String?     @map("subject_id")
+  lessonId          String?     @map("lesson_id")
+  questionVersionId String?     @map("question_version_id")
+  testVersionId     String?     @map("test_version_id")
+  bodyText          String      @map("body_text")
+  imageAssetId      String?     @map("image_asset_id")
+  status            DoubtStatus @default(OPEN)
+  assignedToUserId  String?     @map("assigned_to_user_id")
+  createdAt         DateTime    @default(now()) @map("created_at")
+  updatedAt         DateTime    @updatedAt @map("updated_at")
+  resolvedAt        DateTime?   @map("resolved_at")
+
+  replies DoubtReply[]
+
+  @@index([studentId])
+  @@index([status])
+  @@index([assignedToUserId])
+  @@map("doubts")
+}
+
+model DoubtReply {
+  id           String   @id @default(uuid())
+  doubtId      String   @map("doubt_id")
+  authorUserId String   @map("author_user_id")
+  bodyText     String   @map("body_text")
+  imageAssetId String?  @map("image_asset_id")
+  videoAssetId String?  @map("video_asset_id")
+  lessonRefId  String?  @map("lesson_ref_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  doubt Doubt @relation(fields: [doubtId], references: [id], onDelete: Cascade)
+
+  @@index([doubtId, createdAt])
+  @@map("doubt_replies")
+}
+
+model SupportTicket {
+  id               String         @id @default(uuid())
+  studentId        String         @map("student_id")
+  orgId            String?        @map("org_id")
+  category         TicketCategory
+  subject          String
+  bodyText         String         @map("body_text")
+  status           TicketStatus   @default(OPEN)
+  assignedToUserId String?        @map("assigned_to_user_id")
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
+
+  replies TicketReply[]
+
+  @@index([studentId])
+  @@index([status])
+  @@map("support_tickets")
+}
+
+model TicketReply {
+  id           String   @id @default(uuid())
+  ticketId     String   @map("ticket_id")
+  authorUserId String   @map("author_user_id")
+  bodyText     String   @map("body_text")
+  internal     Boolean  @default(false) // internal notes not shown to the student
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId, createdAt])
+  @@map("ticket_replies")
+}
+
+model Notification {
+  id        String               @id @default(uuid())
+  userId    String               @map("user_id")
+  category  NotificationCategory
+  titleHi   String               @map("title_hi")
+  titleEn   String               @map("title_en")
+  bodyHi    String?              @map("body_hi")
+  bodyEn    String?              @map("body_en")
+  data      Json?
+  readAt    DateTime?            @map("read_at")
+  createdAt DateTime             @default(now()) @map("created_at")
+
+  @@index([userId, readAt])
+  @@map("notifications")
+}
+
+model NotificationPreference {
+  id              String   @id @default(uuid())
+  userId          String   @unique @map("user_id")
+  emailEnabled    Boolean  @default(true) @map("email_enabled")
+  smsEnabled      Boolean  @default(false) @map("sms_enabled")
+  pushEnabled     Boolean  @default(true) @map("push_enabled")
+  mutedCategories String[] @map("muted_categories")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("notification_preferences")
+}
+
+model StaffProfile {
+  id        String   @id @default(uuid())
+  userId    String   @unique @map("user_id")
+  fullName  String   @map("full_name")
+  workEmail String   @unique @map("work_email")
+  title     String?
+  invitedBy String?  @map("invited_by")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("staff_profiles")
+}
+
+model Role {
+  id          String           @id @default(uuid())
+  key         RoleKey          @unique
+  name        String
+  description String?
+  isSystem    Boolean          @default(true) @map("is_system")
+  permVersion Int              @default(1) @map("perm_version") // bump busts cached principals for every user holding this role
+  createdAt   DateTime         @default(now()) @map("created_at")
+  permissions RolePermission[]
+  users       UserRole[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id         String           @id @default(uuid())
+  code       String           @unique
+  category   String
+  isHighRisk Boolean          @default(false) @map("is_high_risk")
+  roles      RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String     @map("role_id")
+  permissionId String     @map("permission_id")
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model UserRole {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  roleId    String   @map("role_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  createdBy String?  @map("created_by")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      Role     @relation(fields: [roleId], references: [id])
+
+  @@unique([userId, roleId])
+  @@index([roleId])
+  @@map("user_roles")
+}
+
+model StaffAssignment {
+  id        String          @id @default(uuid())
+  userId    String          @map("user_id")
+  scope     AssignmentScope
+  orgId     String?         @map("org_id")
+  stateId   String?         @map("state_id")
+  examId    String?         @map("exam_id")
+  courseId  String?         @map("course_id") // FK in Phase 2
+  subjectId String?         @map("subject_id") // FK in Phase 2
+  batchId   String?         @map("batch_id") // FK in Phase 2
+  createdAt DateTime        @default(now()) @map("created_at")
+  createdBy String?         @map("created_by")
+  deletedAt DateTime?       @map("deleted_at")
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  state     State?          @relation(fields: [stateId], references: [id])
+  exam      Exam?           @relation(fields: [examId], references: [id])
+  course    Course?         @relation(fields: [courseId], references: [id])
+  subject   Subject?        @relation(fields: [subjectId], references: [id])
+  batch     Batch?          @relation(fields: [batchId], references: [id])
+
+  @@index([userId])
+  @@index([scope, stateId, examId, courseId, subjectId, batchId])
+  @@map("staff_assignments")
+}
+
+model State {
+  id        String            @id @default(uuid())
+  code      String            @unique
+  nameEn    String            @map("name_en")
+  nameHi    String            @map("name_hi")
+  createdAt DateTime          @default(now()) @map("created_at")
+  exams     Exam[]
+  students  StudentProfile[]
+  assigns   StaffAssignment[]
+  courses   Course[]
+
+  @@map("states")
+}
+
+model ExamBody {
+  id     String @id @default(uuid())
+  code   String @unique
+  nameEn String @map("name_en")
+  nameHi String @map("name_hi")
+  exams  Exam[]
+
+  @@map("exam_bodies")
+}
+
+model Exam {
+  id         String            @id @default(uuid())
+  code       String
+  nameEn     String            @map("name_en")
+  nameHi     String            @map("name_hi")
+  examBodyId String            @map("exam_body_id")
+  stateId    String?           @map("state_id")
+  createdAt  DateTime          @default(now()) @map("created_at")
+  examBody   ExamBody          @relation(fields: [examBodyId], references: [id])
+  state      State?            @relation(fields: [stateId], references: [id])
+  assigns    StaffAssignment[]
+  students   StudentProfile[]
+  courses    Course[]
+  tests      Test[]
+
+  // Institution-owned — an Academic Head's exams are private to their org
+  // (null = platform-seeded/global, created by Content Admin/Super Admin).
+  // Composite-unique (not a bare unique code) so two institutions can each
+  // have their own "BPSC_PT", same pattern as User's per-kind email/phone.
+  orgId        String?       @map("org_id")
+  organization Organization? @relation(fields: [orgId], references: [id])
+
+  @@unique([orgId, code])
+  @@index([examBodyId])
+  @@map("exams")
+}
+
+model LoginSession {
+  id               String         @id @default(uuid())
+  userId           String         @map("user_id")
+  status           SessionStatus  @default(ACTIVE)
+  refreshTokenHash String         @unique @map("refresh_token_hash")
+  familyId         String         @map("family_id")
+  assurance        AssuranceLevel @default(AAL1)
+  // "Remember me": whether this session (and its rotated successors) uses the
+  // long-lived refresh TTL vs. the short, not-remembered one.
+  remembered       Boolean        @default(false)
+  ip               String?
+  userAgent        String?        @map("user_agent")
+  createdAt        DateTime       @default(now()) @map("created_at")
+  lastUsedAt       DateTime       @default(now()) @map("last_used_at")
+  expiresAt        DateTime       @map("expires_at")
+  revokedAt        DateTime?      @map("revoked_at")
+  revokedReason    String?        @map("revoked_reason")
+  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([familyId])
+  @@map("login_sessions")
+}
+
+model OtpChallenge {
+  id          String     @id @default(uuid())
+  userId      String?    @map("user_id")
+  channel     OtpChannel
+  purpose     OtpPurpose
+  destination String
+  codeHash    String     @map("code_hash")
+  attempts    Int        @default(0)
+  maxAttempts Int        @default(5) @map("max_attempts")
+  consumedAt  DateTime?  @map("consumed_at")
+  expiresAt   DateTime   @map("expires_at")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  ip          String?
+
+  @@index([destination, purpose])
+  @@index([expiresAt])
+  @@map("otp_challenges")
+}
+
+model MfaFactor {
+  id          String    @id @default(uuid())
+  userId      String    @map("user_id")
+  type        MfaType   @default(TOTP)
+  status      MfaStatus @default(PENDING)
+  secretEnc   String    @map("secret_enc")
+  recoveryEnc String?   @map("recovery_enc")
+  confirmedAt DateTime? @map("confirmed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@map("mfa_factors")
+}
+
+model StaffInvitation {
+  id             String           @id @default(uuid())
+  email          String
+  // Nullable at the DB level (existing rows predate this column); the API
+  // contract (createInvitationSchema) requires it for every new invitation.
+  phone          String?
+  fullName       String           @map("full_name")
+  roleKey        RoleKey          @map("role_key")
+  orgId          String?          @map("org_id")
+  assignments    Json
+  tokenHash      String           @unique @map("token_hash")
+  status         InvitationStatus @default(PENDING)
+  expiresAt      DateTime         @map("expires_at")
+  acceptedUserId String?          @map("accepted_user_id")
+  invitedBy      String           @map("invited_by")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+  revokedAt      DateTime?        @map("revoked_at")
+
+  @@index([email, status])
+  @@index([status, expiresAt])
+  @@map("staff_invitations")
+}
+
+// Institution / tenant. Super Admin registers an organization and its head;
+// the head invites org-scoped staff and manages the org's courses & content.
+model Organization {
+  id         String             @id @default(uuid())
+  name       String
+  code       String             @unique
+  // Shared, non-secret institute price redemption code (like a coupon code,
+  // not a credential) — lets a student who isn't yet an org member unlock
+  // this institute's course pricing at checkout. Super Admin issues/rotates it.
+  accessCode String?            @unique @map("access_code")
+  status     OrganizationStatus @default(ACTIVE)
+  headUserId String?            @unique @map("head_user_id")
+  createdAt  DateTime           @default(now()) @map("created_at")
+  updatedAt  DateTime           @updatedAt @map("updated_at")
+  createdBy  String?            @map("created_by")
+
+  members          User[]                    @relation("OrgMembers")
+  head             User?                     @relation("OrgHead", fields: [headUserId], references: [id])
+  courses          Course[]
+  exams            Exam[]
+  subscription     OrganizationSubscription?
+  linkedAccount    InstituteLinkedAccount?
+  membershipEvents OrgMembershipEvent[]
+
+  @@map("organizations")
+}
+
+enum OrgMembershipAction {
+  JOINED
+  LEFT
+}
+
+enum OrgMembershipMethod {
+  ACCESS_CODE
+  ADMIN_ENROLL
+}
+
+// Queryable "who joined/left which institution, when, how" history — the
+// generic AuditLog is a poor fit for a per-student/per-org membership-history
+// UI query. Complements AuditLog (still written on every join/leave), doesn't
+// replace it.
+model OrgMembershipEvent {
+  id        String              @id @default(uuid())
+  userId    String              @map("user_id")
+  orgId     String              @map("org_id")
+  action    OrgMembershipAction
+  method    OrgMembershipMethod @default(ACCESS_CODE)
+  createdAt DateTime            @default(now()) @map("created_at")
+
+  user User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  org  Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([orgId])
+  @@map("org_membership_events")
+}
+
+// ── Institution → platform billing (Super Admin sells institutions a
+//    recurring licence; distinct from student → institute course commerce). ──
+
+enum BillingCycle {
+  MONTHLY
+  ANNUAL
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+}
+
+enum InvoiceStatus {
+  PENDING
+  PAID
+  OVERDUE
+  VOID
+}
+
+model SubscriptionPlan {
+  id                String   @id @default(uuid())
+  code              String   @unique
+  nameHi            String   @map("name_hi")
+  nameEn            String   @map("name_en")
+  priceMonthlyMinor Int      @map("price_monthly_minor")
+  priceAnnualMinor  Int      @map("price_annual_minor")
+  maxActiveStudents Int      @map("max_active_students")
+  maxStaffSeats     Int      @map("max_staff_seats")
+  storageGb         Int      @map("storage_gb")
+  // Platform's cut of student sales under this plan, in basis points
+  // (100 bps = 1%) — lower on higher plans, matching the prototype.
+  internalFeeBps    Int      @map("internal_fee_bps")
+  externalFeeBps    Int      @map("external_fee_bps")
+  active            Boolean  @default(true)
+  sequence          Int      @default(0)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  subscriptions OrganizationSubscription[]
+
+  @@map("subscription_plans")
+}
+
+model OrganizationSubscription {
+  id                     String             @id @default(uuid())
+  orgId                  String             @unique @map("org_id")
+  planId                 String             @map("plan_id")
+  billingCycle           BillingCycle       @map("billing_cycle")
+  status                 SubscriptionStatus @default(TRIALING)
+  // Null until the first Razorpay subscription charge succeeds (or always
+  // null in dev, when Razorpay Subscriptions isn't configured/enabled).
+  razorpaySubscriptionId String?            @unique @map("razorpay_subscription_id")
+  currentPeriodStart     DateTime?          @map("current_period_start")
+  currentPeriodEnd       DateTime?          @map("current_period_end")
+  createdAt              DateTime           @default(now()) @map("created_at")
+  updatedAt              DateTime           @updatedAt @map("updated_at")
+
+  organization Organization         @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  plan         SubscriptionPlan     @relation(fields: [planId], references: [id])
+  invoices     InstitutionInvoice[]
+
+  @@map("organization_subscriptions")
+}
+
+model InstitutionInvoice {
+  id                String        @id @default(uuid())
+  invoiceNumber     String        @unique @map("invoice_number")
+  subscriptionId    String        @map("subscription_id")
+  periodLabel       String        @map("period_label")
+  basePlanMinor     Int           @map("base_plan_minor")
+  addOnsMinor       Int           @default(0) @map("add_ons_minor")
+  taxMinor          Int           @default(0) @map("tax_minor")
+  totalMinor        Int           @map("total_minor")
+  status            InvoiceStatus @default(PENDING)
+  razorpayInvoiceId String?       @unique @map("razorpay_invoice_id")
+  dueAt             DateTime      @map("due_at")
+  paidAt            DateTime?     @map("paid_at")
+  createdAt         DateTime      @default(now()) @map("created_at")
+
+  subscription OrganizationSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([subscriptionId, status])
+  @@map("institution_invoices")
+}
+
+model AuditLog {
+  id            String      @id @default(uuid())
+  correlationId String?     @map("correlation_id")
+  actorUserId   String?     @map("actor_user_id")
+  actorRole     String?     @map("actor_role")
+  action        String
+  targetType    String?     @map("target_type")
+  targetId      String?     @map("target_id")
+  result        AuditResult
+  reasonCode    String?     @map("reason_code")
+  before        Json?
+  after         Json?
+  ip            String?
+  userAgent     String?     @map("user_agent")
+  createdAt     DateTime    @default(now()) @map("created_at")
+
+  @@index([actorUserId, createdAt])
+  @@index([action, createdAt])
+  @@index([targetType, targetId])
+  @@map("audit_logs")
+}
+
+// Marketing homepage content — admin-editable via /admin/marketing, publicly
+// readable (published rows only) for the homepage's Testimonials/FAQ/Study
+// Content teaser sections. No relations to core commerce/content models.
+model Testimonial {
+  id          String   @id @default(uuid())
+  quoteHi     String   @map("quote_hi")
+  quoteEn     String   @map("quote_en")
+  studentName String   @map("student_name")
+  initials    String
+  examLabel   String   @map("exam_label")
+  sequence    Int      @default(0)
+  published   Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdBy   String?  @map("created_by")
+
+  @@map("testimonials")
+}
+
+model Faq {
+  id         String   @id @default(uuid())
+  questionHi String   @map("question_hi")
+  questionEn String   @map("question_en")
+  answerHi   String   @map("answer_hi")
+  answerEn   String   @map("answer_en")
+  sequence   Int      @default(0)
+  published  Boolean  @default(true)
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+  createdBy  String?  @map("created_by")
+
+  @@map("faqs")
+}
+
+enum StudyContentKind {
+  VIDEO
+  PDF
+  TEST
+  PACK
+}
+
+model StudyContentTeaser {
+  id        String           @id @default(uuid())
+  kind      StudyContentKind
+  titleHi   String           @map("title_hi")
+  titleEn   String           @map("title_en")
+  descHi    String           @map("desc_hi")
+  descEn    String           @map("desc_en")
+  sequence  Int              @default(0)
+  published Boolean          @default(true)
+  createdAt DateTime         @default(now()) @map("created_at")
+  updatedAt DateTime         @updatedAt @map("updated_at")
+  createdBy String?          @map("created_by")
+
+  @@map("study_content_teasers")
+}
+
+// Promotion/SEO blog. Deliberately mirrors the lighter Testimonial/Faq/
+// StudyContentTeaser pattern (single `published` flag, marketing.manage
+// gate) rather than the CurrentAffair maker/checker state machine — blog
+// copy is marketing-owned, not academic content needing a reviewer sign-off.
+model BlogPost {
+  id                String    @id @default(uuid())
+  slug              String    @unique
+  titleHi           String    @map("title_hi")
+  titleEn           String    @map("title_en")
+  excerptHi         String    @map("excerpt_hi")
+  excerptEn         String    @map("excerpt_en")
+  bodyHi            String    @map("body_hi")
+  bodyEn            String    @map("body_en")
+  category          String
+  tags              String[]  @default([])
+  coverImageUrl     String?   @map("cover_image_url")
+  authorName        String    @default("Team RajyaRank") @map("author_name")
+  seoTitleHi        String?   @map("seo_title_hi")
+  seoTitleEn        String?   @map("seo_title_en")
+  seoDescriptionHi  String?   @map("seo_description_hi")
+  seoDescriptionEn  String?   @map("seo_description_en")
+  published         Boolean   @default(false)
+  publishedAt       DateTime? @map("published_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  createdBy         String?   @map("created_by")
+
+  @@index([published, publishedAt])
+  @@index([category])
+  @@map("blog_posts")
+}

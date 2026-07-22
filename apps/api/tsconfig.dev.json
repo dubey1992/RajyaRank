@@ -1,0 +1,21 @@
+{
+  "//": "Dev/seed only. Runs the API + seed via ts-node, aliasing @rajyarank/* to their",
+  "//2": "TypeScript source so everything is transpiled to CommonJS in-process (no ESM/CJS",
+  "//3": "interop mismatch, no separate build of the workspace packages required).",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@rajyarank/auth": ["../../packages/auth/src/index.ts"],
+      "@rajyarank/contracts": ["../../packages/contracts/src/index.ts"],
+      "@rajyarank/config/env": ["../../packages/config/env.ts"]
+    }
+  },
+  "ts-node": {
+    "transpileOnly": true,
+    "files": true,
+    "moduleTypes": {
+      "../../packages/**/*.ts": "cjs"
+    }
+  }
+}

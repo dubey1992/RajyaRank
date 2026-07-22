@@ -1,0 +1,67 @@
+{
+  "common": {
+    "appName": "RajyaRank",
+    "tagline": "Focused preparation for state government examinations.",
+    "loading": "Loading…",
+    "empty": "Nothing here yet.",
+    "error": "Something went wrong. Please try again.",
+    "retry": "Retry",
+    "save": "Save",
+    "cancel": "Cancel",
+    "continue": "Continue",
+    "back": "Back",
+    "offline": "You are offline. We will retry automatically.",
+    "languageName": "English"
+  },
+  "nav": {
+    "exams": "Exams",
+    "features": "Features",
+    "pricing": "Pricing",
+    "faq": "FAQ",
+    "login": "Login",
+    "startFree": "Start Free",
+    "dashboard": "Dashboard"
+  },
+  "auth": {
+    "studentLogin": "Student login",
+    "staffLogin": "Staff login",
+    "mobileNumber": "Mobile number",
+    "sendOtp": "Send OTP",
+    "enterOtp": "Enter the 6-digit code",
+    "verify": "Verify",
+    "continueWithGoogle": "Continue with Google",
+    "workEmail": "Work email",
+    "password": "Password",
+    "signInSecurely": "Sign in securely",
+    "forgotPassword": "Forgot password?",
+    "mfaTitle": "Two-factor authentication",
+    "mfaPrompt": "Enter the 6-digit code from your authenticator app",
+    "studentNotice": "Student accounts always receive the Student role. Course access is controlled by entitlements.",
+    "staffNotice": "There is no role selector. The backend loads your assigned role and permissions after sign-in.",
+    "otpSent": "We sent a verification code.",
+    "invalidCredentials": "Incorrect email or password.",
+    "accountLocked": "Too many attempts. Try again later.",
+    "sessionExpired": "Your session has expired. Please sign in again."
+  },
+  "invitation": {
+    "title": "Set up your staff account",
+    "invitedAs": "You have been invited as",
+    "createPassword": "Create a password",
+    "accept": "Activate account",
+    "expired": "This invitation has expired. Ask an administrator to resend it.",
+    "invalid": "This invitation link is invalid."
+  },
+  "dashboard": {
+    "greeting": "Hello",
+    "todayPlan": "Today's plan",
+    "examCountdown": "Exam countdown",
+    "whatToStudy": "What should I study today?"
+  },
+  "errors": {
+    "PERMISSION_DENIED": "You do not have permission to perform this action.",
+    "VALIDATION_FAILED": "Please check the highlighted fields.",
+    "RATE_LIMITED": "Too many requests. Please slow down.",
+    "NOT_FOUND": "Not found.",
+    "INTERNAL_ERROR": "Something went wrong on our side."
+  }
+}

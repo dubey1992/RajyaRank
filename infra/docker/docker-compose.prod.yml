@@ -1,0 +1,44 @@
+# Production-style composition. Postgres/Redis/S3 are managed services in real
+# deployments; images read config from the environment (see .env.production.example).
+services:
+  # One-shot release migration: prisma migrate deploy + idempotent constraints.sql.
+  # Runs to completion before api/worker start; never restarts. In K8s/ECS this is
+  # the equivalent pre-deploy Job/task (see infra/deployment/migrate.sh).
+  migrate:
+    build: { context: ../.., dockerfile: infra/docker/Dockerfile.api }
+    env_file: [../../.env]
+    command: ['sh', 'migrate.sh']
+    restart: 'no'
+
+  api:
+    build: { context: ../.., dockerfile: infra/docker/Dockerfile.api }
+    env_file: [../../.env]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    ports: ['4000:4000']
+    restart: unless-stopped
+
+  worker:
+    build: { context: ../.., dockerfile: infra/docker/Dockerfile.worker }
+    env_file: [../../.env]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.web
+      args: { NEXT_PUBLIC_API_URL: '${NEXT_PUBLIC_API_URL}' }
+    ports: ['3000:3000']
+    restart: unless-stopped
+
+  admin:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.admin
+      args: { NEXT_PUBLIC_API_URL: '${NEXT_PUBLIC_API_URL}' }
+    ports: ['3001:3001']
+    restart: unless-stopped

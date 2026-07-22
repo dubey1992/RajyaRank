@@ -1,0 +1,15 @@
+{
+  "name": "RajyaRank — Government Exam Prep",
+  "short_name": "RajyaRank",
+  "description": "Bilingual government-exam preparation, All Over India.",
+  "start_url": "/hi",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0b2f4f",
+  "lang": "hi",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/logo.svg", "sizes": "512x512", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

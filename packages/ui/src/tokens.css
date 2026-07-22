@@ -1,0 +1,38 @@
+/* RajyaRank design tokens — derived from the approved prototype palette.
+   Trustworthy, educational, high-contrast (WCAG AA). */
+:root {
+  --rr-navy-950: #071f35;
+  --rr-navy-900: #0b2f4f;
+  --rr-navy-800: #12476f;
+  --rr-navy-100: #eaf3f8;
+  --rr-orange-600: #ea580c;
+  --rr-orange-500: #f97316;
+  --rr-orange-100: #ffedd5;
+  --rr-teal-600: #0f8b78;
+  --rr-teal-500: #0ea58a;
+  --rr-teal-100: #ddf7f1;
+
+  --rr-ink: #102235;
+  --rr-muted: #607286;
+  --rr-line: #dfe8ee;
+  --rr-surface: #ffffff;
+  --rr-surface-soft: #f6f9fb;
+
+  --rr-success: #15803d;
+  --rr-danger: #be123c;
+  --rr-warning: #b45309;
+
+  --rr-radius-sm: 10px;
+  --rr-radius-md: 14px;
+  --rr-radius-lg: 22px;
+
+  --rr-font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --rr-font-deva: 'Noto Sans Devanagari', var(--rr-font-sans);
+
+  --rr-focus: 3px solid rgba(249, 115, 22, 0.45);
+}
+
+/* Devanagari-first rendering for Hindi content. */
+:lang(hi) {
+  font-family: var(--rr-font-deva);
+}

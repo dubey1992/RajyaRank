@@ -1,0 +1,16 @@
+# RajyaRank worker — queue consumers + scheduled jobs.
+FROM node:20-slim AS builder
+RUN corepack enable && apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY . .
+RUN pnpm install --frozen-lockfile=false
+RUN pnpm --filter @rajyarank/api exec prisma generate
+RUN pnpm --filter @rajyarank/worker build
+
+FROM node:20-slim AS runner
+RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+ENV NODE_ENV=production
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/apps/worker/dist ./dist
+CMD ["node", "dist/main.js"]

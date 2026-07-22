@@ -1,0 +1,44 @@
+# Registry-based deploy: pulls the CI-published images instead of building on
+# the host. On the target: set IMAGE_PREFIX + TAG + an .env for the tier, then
+#   docker compose -f infra/docker/docker-compose.deploy.yml pull
+#   docker compose -f infra/docker/docker-compose.deploy.yml up -d
+# The `migrate` one-shot runs prisma migrate deploy + constraints.sql and must
+# finish before api/worker start (service_completed_successfully).
+#
+# IMAGE_PREFIX example: ghcr.io/<owner>/<repo>   TAG example: v1.0.0 (default latest)
+
+services:
+  migrate:
+    image: ${IMAGE_PREFIX:-ghcr.io/OWNER/rajyarank}/api:${TAG:-latest}
+    env_file: [../../.env]
+    command: ['sh', 'migrate.sh']
+    restart: 'no'
+
+  api:
+    image: ${IMAGE_PREFIX:-ghcr.io/OWNER/rajyarank}/api:${TAG:-latest}
+    env_file: [../../.env]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    ports: ['4000:4000']
+    restart: unless-stopped
+
+  worker:
+    image: ${IMAGE_PREFIX:-ghcr.io/OWNER/rajyarank}/worker:${TAG:-latest}
+    env_file: [../../.env]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  web:
+    image: ${IMAGE_PREFIX:-ghcr.io/OWNER/rajyarank}/web:${TAG:-latest}
+    env_file: [../../.env]
+    ports: ['3000:3000']
+    restart: unless-stopped
+
+  admin:
+    image: ${IMAGE_PREFIX:-ghcr.io/OWNER/rajyarank}/admin:${TAG:-latest}
+    env_file: [../../.env]
+    ports: ['3001:3001']
+    restart: unless-stopped
