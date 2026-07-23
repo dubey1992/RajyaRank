@@ -2,8 +2,8 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { Alert, Button, Field } from '@rajyarank/ui';
-import { studentPasswordResetSchema } from '@rajyarank/contracts';
+import { Alert, Button, Field, PasswordChecklist } from '@rajyarank/ui';
+import { PASSWORD_RULES, studentPasswordResetSchema } from '@rajyarank/contracts';
 import { apiFetch, type ApiError } from '@/lib/api';
 import { resolveLocale } from '@/lib/i18n';
 import { serverFieldErrors, validate } from '@/lib/form';
@@ -84,6 +84,7 @@ export default function ForgotPasswordPage() {
           <div className="h-3" />
           <Field label={L('रीसेट कोड', 'Reset code')} name="code" inputMode="numeric" value={code} error={errors.code} onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))} />
           <Field label={L('नया पासवर्ड', 'New password')} name="password" type="password" autoComplete="new-password" value={password} error={errors.password} onChange={(e) => setPassword(e.target.value)} />
+          <PasswordChecklist rules={PASSWORD_RULES.map((r) => ({ label: hi ? r.labelHi : r.labelEn, met: r.test(password) }))} />
           <Button type="submit" loading={busy} className="w-full">{L('पासवर्ड रीसेट करें', 'Reset password')}</Button>
         </form>
       ) : null}

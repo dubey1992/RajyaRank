@@ -5,6 +5,10 @@ import type { ApiEnv } from '@rajyarank/config/env';
 import { PrismaService } from '../prisma/prisma.service';
 import { decryptField, encryptField } from '../common/crypto.util';
 
+// Standard TOTP time-step (RFC 6238 default), matches the `period: 30` passed
+// to authenticator.keyuri() at enrollment.
+const TOTP_STEP_SECONDS = 30;
+
 @Injectable()
 export class MfaService {
   constructor(
@@ -39,6 +43,15 @@ export class MfaService {
     const factor = await this.prisma.mfaFactor.findFirst({ where: { userId, status: 'ACTIVE' } });
     if (!factor) return false;
     const secret = decryptField(factor.secretEnc, this.env.FIELD_ENCRYPTION_KEY);
-    return authenticator.verify({ token: code, secret });
+    if (!authenticator.verify({ token: code, secret })) return false;
+
+    // Anti-replay: reject a code whose step isn't strictly newer than the
+    // last one accepted for this factor — otherwise the same code could be
+    // reused repeatedly within its ~90s validity window (otplib's default
+    // ±1 step tolerance).
+    const step = Math.floor(Date.now() / 1000 / TOTP_STEP_SECONDS);
+    if (factor.lastUsedStep != null && step <= factor.lastUsedStep) return false;
+    await this.prisma.mfaFactor.update({ where: { id: factor.id }, data: { lastUsedStep: step } });
+    return true;
   }
 }

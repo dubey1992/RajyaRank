@@ -1,15 +1,16 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Alert, Button, Field } from '@rajyarank/ui';
+import { Alert, Button, Field, PasswordChecklist } from '@rajyarank/ui';
 import { apiFetch, type ApiError } from '@/lib/api';
 import { type Locale } from '@/lib/i18n';
 import { makeT } from '@/lib/t';
-import { acceptInvitationSchema } from '@rajyarank/contracts';
+import { PASSWORD_RULES, acceptInvitationSchema } from '@rajyarank/contracts';
 import { serverFieldErrors, validate } from '@/lib/form';
 
 export function AcceptForm({ token, locale }: { token: string; locale: Locale }) {
   const t = makeT(locale);
+  const hi = locale === 'hi';
   const router = useRouter();
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -59,6 +60,7 @@ export function AcceptForm({ token, locale }: { token: string; locale: Locale })
         error={errors.password}
         onChange={(e) => setPassword(e.target.value)}
       />
+      <PasswordChecklist rules={PASSWORD_RULES.map((r) => ({ label: hi ? r.labelHi : r.labelEn, met: r.test(password) }))} />
       <Button type="submit" variant="secondary" loading={busy} className="w-full">
         {t('invitation.accept')}
       </Button>

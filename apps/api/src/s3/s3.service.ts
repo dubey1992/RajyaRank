@@ -48,4 +48,17 @@ export class S3Service {
       expiresIn,
     });
   }
+
+  /** Fetches just the first `byteCount` bytes of an object — used to sniff
+   *  real file content (magic bytes) without downloading the whole file. */
+  async getObjectHeadBytes(key: string, byteCount: number): Promise<Buffer> {
+    const res = await this.client.send(
+      new GetObjectCommand({ Bucket: this.bucket, Key: key, Range: `bytes=0-${byteCount - 1}` }),
+    );
+    const chunks: Buffer[] = [];
+    for await (const chunk of res.Body as AsyncIterable<Buffer>) {
+      chunks.push(Buffer.from(chunk));
+    }
+    return Buffer.concat(chunks);
+  }
 }

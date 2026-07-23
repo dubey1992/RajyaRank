@@ -54,7 +54,7 @@ export class AssetsService {
     const asset = await this.requireOwned(principal, assetId);
 
     // Malware / validity scan hook — quarantine on failure (§25).
-    const scan = await this.scanner.scan({ assetType: asset.assetType, mimeType: asset.mimeType, sizeBytes: asset.sizeBytes });
+    const scan = await this.scanner.scan({ assetType: asset.assetType, mimeType: asset.mimeType, sizeBytes: asset.sizeBytes, storageKey: asset.storageKey! });
     if (scan.verdict === 'INFECTED') {
       await this.prisma.mediaAsset.update({ where: { id: asset.id }, data: { status: 'QUARANTINED' } });
       await this.audit.record({

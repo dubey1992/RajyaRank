@@ -1,8 +1,8 @@
 'use client';
 import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Alert, Button, Field } from '@rajyarank/ui';
-import { studentSignupVerifySchema } from '@rajyarank/contracts';
+import { Alert, Button, Field, PasswordChecklist } from '@rajyarank/ui';
+import { PASSWORD_RULES, studentSignupVerifySchema } from '@rajyarank/contracts';
 import { apiFetch, type ApiError } from '@/lib/api';
 import { resolveLocale } from '@/lib/i18n';
 import { serverFieldErrors, validate } from '@/lib/form';
@@ -115,8 +115,8 @@ export default function SignupPage() {
             value={password}
             error={errors.password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder={L('कम से कम 10 अक्षर', 'At least 10 characters')}
           />
+          <PasswordChecklist rules={PASSWORD_RULES.map((r) => ({ label: hi ? r.labelHi : r.labelEn, met: r.test(password) }))} />
           <Button type="submit" loading={busy} className="w-full">{L('खाता बनाएँ', 'Create account')}</Button>
         </form>
       )}

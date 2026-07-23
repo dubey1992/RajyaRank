@@ -28,7 +28,10 @@ import { CurrentPrincipal } from '../common/decorators/current-principal.decorat
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 import { AuthService } from './auth.service';
 import { SessionService } from './session.service';
+import { TrustedDeviceService } from './trusted-device.service';
 import { MfaService } from './mfa.service';
+import { TRUSTED_DEVICE_COOKIE } from './cookies';
+import { sha256 } from '../common/crypto.util';
 import type { AccessClaims } from './token.service';
 
 @Controller('auth')
@@ -36,6 +39,7 @@ export class AuthController {
   constructor(
     private readonly auth: AuthService,
     private readonly sessions: SessionService,
+    private readonly trustedDevices: TrustedDeviceService,
     private readonly mfa: MfaService,
     @Inject(ENV) private readonly env: ApiEnv,
   ) {}
@@ -203,21 +207,36 @@ export class AuthController {
   @Post('staff/login')
   async staffLogin(
     @Body(new ZodValidationPipe(staffLoginSchema)) body: { workEmail: string; password: string; remember?: boolean },
-    @Req() req: Request,
+    @Req() req: Request & { cookies?: Record<string, string> },
     @Res({ passthrough: true }) res: Response,
   ) {
-    return this.auth.staffLogin(body.workEmail, body.password, res, req.ip, req.header('user-agent') ?? undefined, body.remember ?? false);
+    return this.auth.staffLogin(
+      body.workEmail,
+      body.password,
+      res,
+      req.ip,
+      req.header('user-agent') ?? undefined,
+      body.remember ?? false,
+      req.cookies?.[TRUSTED_DEVICE_COOKIE],
+    );
   }
 
   @Public()
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('staff/mfa/verify')
   async staffMfaVerify(
-    @Body(new ZodValidationPipe(staffMfaVerifySchema)) body: { mfaToken: string; totp: string },
+    @Body(new ZodValidationPipe(staffMfaVerifySchema)) body: { mfaToken: string; totp: string; trustDevice?: boolean },
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    return this.auth.staffMfaVerify(body.mfaToken, body.totp, res, req.ip, req.header('user-agent') ?? undefined);
+    return this.auth.staffMfaVerify(
+      body.mfaToken,
+      body.totp,
+      res,
+      req.ip,
+      req.header('user-agent') ?? undefined,
+      body.trustDevice ?? false,
+    );
   }
 
   // ── Session lifecycle ──
@@ -258,6 +277,18 @@ export class AuthController {
   @Delete('sessions/:id')
   async revokeSession(@CurrentPrincipal() principal: Principal, @Param('id') id: string) {
     await this.sessions.revoke(id, principal.userId);
+    return { revoked: true };
+  }
+
+  @Get('trusted-devices')
+  async listTrustedDevices(@CurrentPrincipal() principal: Principal, @Req() req: Request & { cookies?: Record<string, string> }) {
+    const raw = req.cookies?.[TRUSTED_DEVICE_COOKIE];
+    return this.trustedDevices.list(principal.userId, raw ? sha256(raw) : undefined);
+  }
+
+  @Delete('trusted-devices/:id')
+  async revokeTrustedDevice(@CurrentPrincipal() principal: Principal, @Param('id') id: string) {
+    await this.trustedDevices.revoke(id, principal.userId);
     return { revoked: true };
   }
 

@@ -45,6 +45,7 @@ import { ResponseInterceptor } from './common/envelope/response.interceptor';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { AccessGuard } from './auth/access.guard';
 import { PermissionsGuard } from './authz/permissions.guard';
+import { CsrfGuard } from './authz/csrf.guard';
 
 @Module({
   imports: [
@@ -94,6 +95,7 @@ import { PermissionsGuard } from './authz/permissions.guard';
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: CsrfGuard },
     { provide: APP_GUARD, useClass: AccessGuard },
     { provide: APP_GUARD, useClass: PermissionsGuard },
     { provide: APP_INTERCEPTOR, useClass: MetricsInterceptor },

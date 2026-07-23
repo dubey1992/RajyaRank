@@ -445,6 +445,7 @@ model User {
   roles             UserRole[]
   assignments       StaffAssignment[]
   sessions          LoginSession[]
+  trustedDevices    TrustedDevice[]
   mfaFactors        MfaFactor[]
   identities        UserIdentity[]
   lessonProgress    LessonProgress[]
@@ -1614,18 +1615,44 @@ model OtpChallenge {
 }
 
 model MfaFactor {
-  id          String    @id @default(uuid())
-  userId      String    @map("user_id")
-  type        MfaType   @default(TOTP)
-  status      MfaStatus @default(PENDING)
-  secretEnc   String    @map("secret_enc")
-  recoveryEnc String?   @map("recovery_enc")
-  confirmedAt DateTime? @map("confirmed_at")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id           String    @id @default(uuid())
+  userId       String    @map("user_id")
+  type         MfaType   @default(TOTP)
+  status       MfaStatus @default(PENDING)
+  secretEnc    String    @map("secret_enc")
+  recoveryEnc  String?   @map("recovery_enc")
+  // Anti-replay: the last accepted TOTP time-step. A code is only accepted
+  // if its step is strictly newer than this, so a captured/observed code
+  // can't be reused again within its own validity window.
+  lastUsedStep Int?      @map("last_used_step")
+  confirmedAt  DateTime? @map("confirmed_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, status])
   @@map("mfa_factors")
+}
+
+// A staff device that has completed MFA once and is trusted to skip the TOTP
+// challenge on subsequent logins for TRUSTED_DEVICE_TTL (default 60 days).
+// Password change/reset revokes all of a user's trusted devices (see
+// AuthService) so a compromised password can't inherit a standing MFA skip.
+model TrustedDevice {
+  id            String        @id @default(uuid())
+  userId        String        @map("user_id")
+  status        SessionStatus @default(ACTIVE)
+  tokenHash     String        @unique @map("token_hash")
+  ip            String?
+  userAgent     String?       @map("user_agent")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  lastUsedAt    DateTime      @default(now()) @map("last_used_at")
+  expiresAt     DateTime      @map("expires_at")
+  revokedAt     DateTime?     @map("revoked_at")
+  revokedReason String?       @map("revoked_reason")
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@map("trusted_devices")
 }
 
 model StaffInvitation {

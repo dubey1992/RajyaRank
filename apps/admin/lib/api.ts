@@ -6,11 +6,25 @@ export interface ApiError {
   fieldErrors?: { path: string; message: string }[];
 }
 
+/** Reads the double-submit CSRF cookie (see apps/api/src/authz/csrf.guard.ts)
+ *  — deliberately non-httpOnly so it can be read here and echoed back as a
+ *  header on state-changing requests. */
+function readCsrfCookie(): string | null {
+  if (typeof document === 'undefined') return null;
+  const match = document.cookie.match(/(?:^|; )rr_csrf=([^;]+)/);
+  return match?.[1] ? decodeURIComponent(match[1]) : null;
+}
+
 function rawFetch(path: string, init?: RequestInit): Promise<Response> {
+  const csrf = readCsrfCookie();
   return fetch(`${API_URL}/api/v1${path}`, {
     ...init,
     credentials: 'include',
-    headers: { 'content-type': 'application/json', ...(init?.headers ?? {}) },
+    headers: {
+      'content-type': 'application/json',
+      ...(csrf ? { 'x-csrf-token': csrf } : {}),
+      ...(init?.headers ?? {}),
+    },
   });
 }
 

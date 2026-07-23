@@ -39,6 +39,7 @@ export default function StaffLoginPage() {
   }, []);
   const [mfaToken, setMfaToken] = useState<string | null>(null);
   const [totp, setTotp] = useState('');
+  const [trustDevice, setTrustDevice] = useState(false);
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -81,7 +82,7 @@ export default function StaffLoginPage() {
     try {
       const res = await apiFetch<{ homeRoute: string }>('/auth/staff/mfa/verify', {
         method: 'POST',
-        body: JSON.stringify({ mfaToken, totp }),
+        body: JSON.stringify({ mfaToken, totp, trustDevice }),
       });
       router.push(`/${locale}${res.homeRoute}`);
     } catch (e) {
@@ -202,6 +203,15 @@ export default function StaffLoginPage() {
                 onChange={(e) => setTotp(e.target.value.replace(/\D/g, '').slice(0, 6))}
                 autoFocus
               />
+              <label className="mb-4 inline-flex cursor-pointer items-center gap-2 text-sm font-semibold text-navy-900">
+                <input
+                  type="checkbox"
+                  checked={trustDevice}
+                  onChange={(e) => setTrustDevice(e.target.checked)}
+                  className="h-4 w-4 rounded border-line accent-orange-500"
+                />
+                {L('इस डिवाइस पर 60 दिनों तक याद रखें', 'Trust this device for 60 days')}
+              </label>
               <Button type="submit" loading={busy} className="w-full">{t('auth.verify')}</Button>
               <div className="mt-3 text-center">
                 <button type="button" onClick={() => { setMfaToken(null); setTotp(''); setErrors({}); }} className="text-sm font-bold text-navy-900 hover:underline">

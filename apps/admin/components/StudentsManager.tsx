@@ -1,10 +1,10 @@
 'use client';
 import { useState } from 'react';
-import { Alert, Button, ConfirmDialog, Field, Toast } from '@rajyarank/ui';
+import { Alert, Button, ConfirmDialog, Field, PasswordChecklist, Toast } from '@rajyarank/ui';
 import { apiFetch, type ApiError } from '@/lib/api';
 import { serverFieldErrors } from '@/lib/form';
 import { SearchInput } from './SearchInput';
-import type { StudentListItem } from '@rajyarank/contracts';
+import { PASSWORD_RULES, type StudentListItem } from '@rajyarank/contracts';
 
 type Status = StudentListItem['status'];
 
@@ -35,9 +35,8 @@ export function StudentsManager({
   const L = (h: string, e: string) => (hi ? h : e);
   const [rows, setRows] = useState<StudentListItem[]>(initial);
   const [fullName, setFullName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [setUpLogin, setSetUpLogin] = useState(false);
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -70,10 +69,13 @@ export function StudentsManager({
   async function enroll() {
     const errs: Record<string, string> = {};
     if (fullName.trim().length < 2) errs.fullName = L('कृपया छात्र का नाम दर्ज करें।', 'Please enter the student’s name.');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errs.email = L('कृपया मान्य ईमेल पता दर्ज करें।', 'Please enter a valid email address.');
     if (!/^[6-9]\d{9}$/.test(phone)) errs.phone = L('कृपया मान्य 10-अंकीय मोबाइल नंबर दर्ज करें।', 'Enter a valid 10-digit mobile number.');
-    if (setUpLogin) {
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errs.email = L('कृपया मान्य ईमेल पता दर्ज करें।', 'Please enter a valid email address.');
-      if (password.length < 10) errs.password = L('पासवर्ड कम से कम 10 अक्षर का होना चाहिए।', 'Password must be at least 10 characters.');
+    if (!PASSWORD_RULES.every((r) => r.test(password))) {
+      errs.password = L(
+        'पासवर्ड कम से कम 10 अक्षर का हो और उसमें एक बड़ा अक्षर, एक छोटा अक्षर, एक अंक और एक विशेष चिह्न शामिल हो।',
+        'Password must be at least 10 characters and include an uppercase letter, a lowercase letter, a number and a special character.',
+      );
     }
     setErrors(errs);
     if (Object.keys(errs).length) return;
@@ -81,23 +83,17 @@ export function StudentsManager({
     try {
       const created = await apiFetch<StudentListItem>('/admin/students', {
         method: 'POST',
-        body: JSON.stringify({
-          fullName: fullName.trim(),
-          phone,
-          ...(setUpLogin ? { email: email.trim(), password } : {}),
-        }),
+        body: JSON.stringify({ fullName: fullName.trim(), email: email.trim(), phone, password }),
       });
       setRows((r) => [created, ...r.filter((x) => x.id !== created.id)]);
-      setFullName(''); setPhone(''); setEmail(''); setPassword(''); setSetUpLogin(false); setErrors({});
+      setFullName(''); setEmail(''); setPhone(''); setPassword(''); setErrors({});
       setToast(
         created.reattached
           ? L(
               'यह फ़ोन नंबर पहले से एक बिना-संस्थान वाले खाते में था — अब उसे आपके संस्थान से जोड़ दिया गया है।',
               'This phone number already had an account (not linked to any institution) — it has now been linked to your institution.',
             )
-          : setUpLogin
-          ? L('छात्र नामांकित। वे ईमेल व पासवर्ड से लॉगिन कर सकते हैं।', 'Student enrolled. They can log in with their email & password.')
-          : L('छात्र नामांकित। वे अपने फ़ोन OTP से लॉगिन कर सकते हैं।', 'Student enrolled. They can log in with their phone OTP.'),
+          : L('छात्र नामांकित। वे ईमेल व पासवर्ड से लॉगिन कर सकते हैं।', 'Student enrolled. They can log in with their email & password.'),
       );
     } catch (e) {
       setErrors(serverFieldErrors(e as ApiError));
@@ -227,31 +223,22 @@ export function StudentsManager({
 
       <section className="rounded-lg border border-line bg-white p-5">
         <h2 className="mb-1 text-lg font-extrabold text-navy-900">{L('छात्र नामांकित करें', 'Enroll student')}</h2>
-        <p className="mb-3 text-xs text-muted">{L('छात्र फ़ोन OTP से लॉगिन करेगा, या नीचे ईमेल व पासवर्ड सेट करें ताकि वे सीधे उससे लॉगिन कर सकें।', 'The student can log in with phone OTP, or set up email & password below so they can sign in directly with that instead.')}</p>
+        <p className="mb-3 text-xs text-muted">{L('छात्र ईमेल व पासवर्ड से लॉगिन करेगा। मोबाइल नंबर सूचनाओं और खाता पुनर्प्राप्ति के लिए रखा जाता है।', 'The student will log in with email & password. The mobile number is kept for notifications and account recovery.')}</p>
         {errors._form ? <div className="mb-3"><Alert tone="error">{errors._form}</Alert></div> : null}
         <form noValidate onSubmit={(e) => { e.preventDefault(); void enroll(); }}>
           <Field label={L('पूरा नाम', 'Full name')} name="fullName" value={fullName} error={errors.fullName} onChange={(e) => setFullName(e.target.value)} />
+          <Field label={L('ईमेल', 'Email')} name="email" type="email" value={email} error={errors.email} onChange={(e) => setEmail(e.target.value)} placeholder="student@example.com" />
           <Field label={L('मोबाइल नंबर', 'Mobile number')} name="phone" inputMode="numeric" maxLength={10} value={phone} error={errors.phone} onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))} />
-
-          <label className="mb-3 flex cursor-pointer items-center gap-2 text-sm font-bold text-ink">
-            <input type="checkbox" checked={setUpLogin} onChange={(e) => setSetUpLogin(e.target.checked)} className="h-4 w-4 rounded border-line accent-orange-500" />
-            {L('अभी ईमेल व पासवर्ड लॉगिन सेट करें', 'Set up email & password login now')}
-          </label>
-
-          {setUpLogin ? (
-            <>
-              <Field label={L('ईमेल', 'Email')} name="email" type="email" value={email} error={errors.email} onChange={(e) => setEmail(e.target.value)} placeholder="student@example.com" />
-              <Field
-                label={L('पासवर्ड सेट करें', 'Set a password')}
-                name="password"
-                type="text"
-                value={password}
-                error={errors.password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder={L('कम से कम 10 अक्षर — छात्र को बताएँ', 'At least 10 characters — share this with the student')}
-              />
-            </>
-          ) : null}
+          <Field
+            label={L('पासवर्ड सेट करें', 'Set a password')}
+            name="password"
+            type="password"
+            value={password}
+            error={errors.password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+          <PasswordChecklist rules={PASSWORD_RULES.map((r) => ({ label: hi ? r.labelHi : r.labelEn, met: r.test(password) }))} />
+          <p className="-mt-2 mb-3 text-xs text-muted">{L('यह पासवर्ड छात्र को बताएँ।', 'Share this password with the student.')}</p>
 
           <Button type="submit" loading={busy} className="w-full">{L('नामांकित करें', 'Enroll student')}</Button>
         </form>

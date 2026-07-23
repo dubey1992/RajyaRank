@@ -124,7 +124,7 @@ export class StaffAdminService {
   }
 
   async patchStatus(actor: Principal, id: string, status: 'ACTIVE' | 'SUSPENDED' | 'DISABLED', reason?: string) {
-    const user = await this.requireStaff(id);
+    const user = await this.requireStaff(actor, id);
     await this.prisma.user.update({ where: { id }, data: { status } });
     await this.authz.invalidate(id);
     if (status !== 'ACTIVE') await this.sessions.revokeAll(id);
@@ -153,7 +153,7 @@ export class StaffAdminService {
   }
 
   async setAssignments(actor: Principal, id: string, assignments: AssignmentInput[]) {
-    await this.requireStaff(id);
+    await this.requireStaff(actor, id);
     await this.prisma.$transaction(async (tx) => {
       await tx.staffAssignment.updateMany({ where: { userId: id, deletedAt: null }, data: { deletedAt: new Date() } });
       if (assignments.length) {
@@ -184,7 +184,7 @@ export class StaffAdminService {
   }
 
   async forcePasswordReset(actor: Principal, id: string) {
-    const user = await this.requireStaff(id);
+    const user = await this.requireStaff(actor, id);
     await this.sessions.revokeAll(id);
     const { subject, html } = staffForcedPasswordResetEmail('en', `${this.env.ADMIN_PUBLIC_URL}/admin/login`);
     await this.notifier.sendEmail({ to: user.email ?? '', subject, html, locale: 'en' });
@@ -193,7 +193,7 @@ export class StaffAdminService {
   }
 
   async revokeSessions(actor: Principal, id: string) {
-    await this.requireStaff(id);
+    await this.requireStaff(actor, id);
     await this.sessions.revokeAll(id);
     await this.authz.invalidate(id);
     await this.audit.record({ actorUserId: actor.userId, action: 'staff.revoke_sessions', targetType: 'User', targetId: id, result: 'SUCCESS' });
@@ -286,8 +286,9 @@ export class StaffAdminService {
     }));
   }
 
-  private async requireStaff(id: string) {
-    const user = await this.prisma.user.findFirst({ where: { id, kind: 'STAFF', deletedAt: null } });
+  private async requireStaff(actor: Principal, id: string) {
+    const orgFilter = actor.isSuperAdmin ? {} : { orgId: actor.orgId ?? '__none__' };
+    const user = await this.prisma.user.findFirst({ where: { id, kind: 'STAFF', deletedAt: null, ...orgFilter } });
     if (!user) throw AppError.notFound('Staff member not found.');
     return user;
   }

@@ -55,9 +55,11 @@ export class OtpService {
     if (challenge.expiresAt.getTime() < Date.now()) throw AppError.otpExpired();
     if (challenge.attempts >= challenge.maxAttempts) throw AppError.otpTooManyAttempts();
 
-    // TESTING ONLY: a fixed bypass code accepted on local/staging so QA can log in
-    // without reading the dev SMS log. Never active in preproduction/production.
-    const devBypass = (this.env.APP_ENV === 'local' || this.env.APP_ENV === 'staging') && code === '555555';
+    // TESTING ONLY: a fixed bypass code accepted on local dev only, so a
+    // developer doesn't need to read the dev SMS log. Staging is a real,
+    // internet-reachable deployment — this must never be reachable there
+    // (or in preproduction/production).
+    const devBypass = this.env.APP_ENV === 'local' && code === '555555';
 
     if (!devBypass && !safeEqualHex(challenge.codeHash, sha256(code))) {
       await this.prisma.otpChallenge.update({

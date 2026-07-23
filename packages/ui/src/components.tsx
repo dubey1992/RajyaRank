@@ -93,6 +93,24 @@ export function Field({ label, error, id, type, ...rest }: FieldProps) {
   );
 }
 
+/** Live password-strength guidance — pair with a password Field. Rendered
+ *  independent of any specific rule set (see @rajyarank/contracts's
+ *  PASSWORD_RULES for the canonical rules); each caller computes `met` per
+ *  rule against the current field value so this stays a dumb, reusable
+ *  presentational component. */
+export function PasswordChecklist({ rules }: { rules: { label: string; met: boolean }[] }) {
+  return (
+    <ul className="mb-3 -mt-2 grid gap-1 text-xs">
+      {rules.map((r) => (
+        <li key={r.label} className={cx('flex items-center gap-1.5', r.met ? 'text-success' : 'text-muted')}>
+          <span aria-hidden>{r.met ? '✓' : '○'}</span>
+          {r.label}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export function Alert({ tone = 'info', children }: { tone?: 'info' | 'error' | 'success'; children: React.ReactNode }) {
   const tones: Record<string, string> = {
     info: 'bg-navy-100 text-navy-900',

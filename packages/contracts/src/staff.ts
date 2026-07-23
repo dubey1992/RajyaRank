@@ -3,18 +3,15 @@ import { emailSchema, passwordSchema, phoneSchema } from './common';
 import { roleKeySchema, assignmentInputSchema } from './invitations';
 
 // ── Student enrollment (institution) ─────────────────────────────────────────
-// email + password are an optional pair — an Academic Head can enroll a
-// student by phone only (today's behaviour, unchanged), or additionally set
-// up email+password login for them directly (no self-serve step for the
-// student at all). A password with no email (or vice versa) is meaningless.
-export const enrollStudentSchema = z
-  .object({
-    fullName: z.string().trim().min(2).max(120),
-    phone: phoneSchema,
-    email: emailSchema.optional(),
-    password: passwordSchema.optional(),
-  })
-  .refine((d) => !!d.email === !!d.password, { message: 'Provide both an email and a password, or neither.', path: ['email'] });
+// Email + password is the primary login credential, always collected up
+// front by the Academic Head — phone stays mandatory too (SMS/contact,
+// account recovery) but is no longer the only guaranteed login method.
+export const enrollStudentSchema = z.object({
+  fullName: z.string().trim().min(2).max(120),
+  email: emailSchema,
+  password: passwordSchema,
+  phone: phoneSchema,
+});
 export type EnrollStudent = z.infer<typeof enrollStudentSchema>;
 
 export const studentListItemSchema = z.object({

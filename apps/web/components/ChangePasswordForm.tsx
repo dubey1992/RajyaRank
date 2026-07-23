@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
-import { Alert, Button, Field } from '@rajyarank/ui';
-import { changePasswordSchema } from '@rajyarank/contracts';
+import { Alert, Button, Field, PasswordChecklist } from '@rajyarank/ui';
+import { PASSWORD_RULES, changePasswordSchema } from '@rajyarank/contracts';
 import { apiFetch, type ApiError } from '@/lib/api';
 import { serverFieldErrors, validate } from '@/lib/form';
 
@@ -65,8 +65,8 @@ export function ChangePasswordForm({ locale }: { locale: 'hi' | 'en' }) {
           value={newPassword}
           error={errors.newPassword}
           onChange={(e) => setNewPassword(e.target.value)}
-          placeholder={L('कम से कम 10 अक्षर', 'At least 10 characters')}
         />
+        <PasswordChecklist rules={PASSWORD_RULES.map((r) => ({ label: hi ? r.labelHi : r.labelEn, met: r.test(newPassword) }))} />
         <Button type="submit" loading={busy}>{L('पासवर्ड बदलें', 'Change password')}</Button>
       </form>
     </div>

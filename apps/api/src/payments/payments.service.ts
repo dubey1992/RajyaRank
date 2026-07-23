@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import type { Prisma } from '@prisma/client';
 import type { Principal } from '@rajyarank/auth';
 import type { CreateOrder, CreateOrderResponse, VerifyPayment } from '@rajyarank/contracts';
 import { PrismaService } from '../prisma/prisma.service';
@@ -85,18 +86,26 @@ export class PaymentsService {
       }
     }
 
-    const { amountMinor, coupon } = await this.applyCoupon(principal.userId, product.priceMinor, dto.couponCode, product.courseId);
-
-    const order = await this.prisma.order.create({
-      data: {
-        userId: principal.userId,
-        productId: product.id,
-        amountMinor,
-        currency: product.currency,
-        status: 'CREATED',
-        couponId: coupon?.id ?? null,
-        idempotencyKey: dto.idempotencyKey ?? null,
-      },
+    // Coupon validation + redemption-slot reservation happen atomically with
+    // order creation, inside one transaction holding a row lock on the
+    // coupon — closes a TOCTOU race where concurrent checkouts could all
+    // pass the maxRedemptions/perUserLimit check before any of them had
+    // actually claimed a slot (previously only incremented at payment-
+    // success time, in markPaid, with nothing serializing the check).
+    const { order, amountMinor } = await this.prisma.$transaction(async (tx) => {
+      const { amountMinor, coupon } = await this.applyCoupon(tx, principal.userId, product.priceMinor, dto.couponCode, product.courseId);
+      const order = await tx.order.create({
+        data: {
+          userId: principal.userId,
+          productId: product.id,
+          amountMinor,
+          currency: product.currency,
+          status: 'CREATED',
+          couponId: coupon?.id ?? null,
+          idempotencyKey: dto.idempotencyKey ?? null,
+        },
+      });
+      return { order, amountMinor };
     });
 
     const providerOrderId = await this.razorpay.createOrder(amountMinor, product.currency, order.id);
@@ -469,7 +478,9 @@ export class PaymentsService {
             }),
           ]
         : []),
-      ...(order.couponId ? [this.prisma.coupon.update({ where: { id: order.couponId }, data: { redeemedCount: { increment: 1 } } })] : []),
+      // Note: redeemedCount is reserved at order-creation time (applyCoupon,
+      // under a row lock) rather than here — incrementing again on payment
+      // success would double-count the same redemption.
     ]);
     await this.entitlements.grantFromOrder(order, order.product, payment);
     await this.notifications.emit({
@@ -488,17 +499,30 @@ export class PaymentsService {
     await this.settlements.createTransferForOrder(orderId, providerPaymentId);
   }
 
-  private async applyCoupon(userId: string, priceMinor: number, code: string | undefined, courseId: string | null) {
+  private async applyCoupon(tx: Prisma.TransactionClient, userId: string, priceMinor: number, code: string | undefined, courseId: string | null) {
     if (!code) return { amountMinor: priceMinor, coupon: null };
-    const coupon = await this.prisma.coupon.findUnique({ where: { code } });
+    const found = await tx.coupon.findUnique({ where: { code } });
+    if (!found) throw AppError.couponInvalid();
+    // Row-lock the coupon for the rest of this transaction so concurrent
+    // checkouts against the same coupon serialize here — required for
+    // maxRedemptions/perUserLimit below to be race-safe (a plain SELECT +
+    // later UPDATE, without this lock, lets concurrent transactions both
+    // read the same pre-redemption state and both pass the checks).
+    await tx.$queryRaw`SELECT id FROM coupons WHERE id = ${found.id} FOR UPDATE`;
+    const coupon = await tx.coupon.findUniqueOrThrow({ where: { id: found.id } });
     const now = new Date();
-    if (!coupon || !coupon.active) throw AppError.couponInvalid();
+    if (!coupon.active) throw AppError.couponInvalid();
     if (coupon.validFrom && coupon.validFrom > now) throw AppError.couponInvalid('Coupon not yet active.');
     if (coupon.validTo && coupon.validTo < now) throw AppError.couponInvalid('Coupon expired.');
     if (coupon.courseId && courseId && coupon.courseId !== courseId) throw AppError.couponInvalid('Coupon not valid for this course.');
     if (coupon.maxRedemptions && coupon.redeemedCount >= coupon.maxRedemptions) throw AppError.couponInvalid('Coupon fully redeemed.');
-    const usedByUser = await this.prisma.order.count({ where: { userId, couponId: coupon.id, status: 'PAID' } });
+    const usedByUser = await tx.order.count({ where: { userId, couponId: coupon.id, status: 'PAID' } });
     if (usedByUser >= coupon.perUserLimit) throw AppError.couponInvalid('Coupon usage limit reached.');
+
+    // Reserve the redemption slot now, at order-creation time, while still
+    // holding the row lock — this (not the later payment-success increment
+    // that used to live in markPaid) is what actually closes the race.
+    await tx.coupon.update({ where: { id: coupon.id }, data: { redeemedCount: { increment: 1 } } });
 
     const discount = coupon.type === 'PERCENT' ? Math.round((priceMinor * coupon.value) / 100) : coupon.value;
     return { amountMinor: Math.max(0, priceMinor - discount), coupon };

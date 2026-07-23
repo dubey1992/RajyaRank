@@ -12,8 +12,9 @@ import { AuditService } from '../audit/audit.service';
 import { OtpService } from './otp.service';
 import { MfaService } from './mfa.service';
 import { SessionService } from './session.service';
+import { TrustedDeviceService } from './trusted-device.service';
 import { TokenService } from './token.service';
-import { clearAuthCookies, refreshCookieName, setAuthCookies } from './cookies';
+import { clearAuthCookies, clearTrustedDeviceCookie, refreshCookieName, setAuthCookies, setTrustedDeviceCookie } from './cookies';
 import { NotificationService } from '../notifications/notification.service';
 import { passwordChangedEmail } from '../notifications/email-templates/auth';
 import { AppError } from '../common/errors/app-error';
@@ -40,6 +41,7 @@ export class AuthService {
     private readonly otp: OtpService,
     private readonly mfa: MfaService,
     private readonly sessions: SessionService,
+    private readonly trustedDevices: TrustedDeviceService,
     private readonly tokens: TokenService,
     private readonly notifications: NotificationService,
   ) {}
@@ -148,6 +150,37 @@ export class AuthService {
   }
 
   /** Same shape as staffLogin, minus the MFA branch — no student MFA exists anywhere. */
+  /** Redis key for the destination-level (not user-level) failed-login
+   *  counter — see bumpDestinationFailure(). */
+  private destLoginKey(kind: 'STUDENT' | 'STAFF', destination: string): string {
+    return `login-fail:${kind}:${destination}`;
+  }
+
+  /**
+   * Increments the failure counter for this destination (email/phone, not
+   * user id) and returns whether THIS attempt reached the lockout threshold
+   * — mirrors the real-account logic below (`failed >= LOGIN_MAX_FAILURES`)
+   * exactly, tripping on the same Nth attempt rather than the (N+1)th, so
+   * timing can't distinguish the two cases. Without this, only REAL accounts
+   * can ever reach a lockout response at all (the `!user` branch always
+   * short-circuits straight to invalid-credentials) — an attacker could tell
+   * a registered destination apart from a made-up one just by seeing
+   * whether repeated attempts against it ever start returning
+   * ACCOUNT_LOCKED. Every subsequent attempt against an already-tripped
+   * destination re-derives the same "locked" answer from this same counter,
+   * so no separate "already locked" pre-check is needed.
+   */
+  private async bumpDestinationFailure(kind: 'STUDENT' | 'STAFF', destination: string): Promise<boolean> {
+    const key = this.destLoginKey(kind, destination);
+    const count = await this.redis.client.incr(key);
+    if (count === 1) await this.redis.client.expire(key, this.env.LOGIN_LOCKOUT_MINUTES * 60);
+    return count >= this.env.LOGIN_MAX_FAILURES;
+  }
+
+  private async clearDestinationFailures(kind: 'STUDENT' | 'STAFF', destination: string): Promise<void> {
+    await this.redis.client.del(this.destLoginKey(kind, destination));
+  }
+
   async studentLogin(
     email: string,
     password: string,
@@ -159,16 +192,18 @@ export class AuthService {
     const normalized = email.toLowerCase();
     const user = await this.prisma.user.findFirst({ where: { kind: 'STUDENT', email: normalized, deletedAt: null } });
     if (!user || !user.passwordHash) {
-      await this.audit.record({ action: 'auth.login', result: 'FAILED', reasonCode: 'AUTH_INVALID_CREDENTIALS', ip, userAgent });
-      throw AppError.invalidCredentials();
+      const destLocked = await this.bumpDestinationFailure('STUDENT', normalized);
+      await this.audit.record({ action: 'auth.login', result: 'FAILED', reasonCode: destLocked ? 'ACCOUNT_LOCKED' : 'AUTH_INVALID_CREDENTIALS', ip, userAgent });
+      throw destLocked ? AppError.accountLocked() : AppError.invalidCredentials();
     }
     if (user.status === 'DISABLED' || user.status === 'SUSPENDED') throw AppError.accountDisabled();
     if (user.lockedUntil && user.lockedUntil.getTime() > Date.now()) throw AppError.accountLocked();
 
     const ok = await argon2.verify(user.passwordHash, password);
     if (!ok) {
+      const destLocked = await this.bumpDestinationFailure('STUDENT', normalized);
       const failed = user.failedLogins + 1;
-      const lock = failed >= this.env.LOGIN_MAX_FAILURES;
+      const lock = destLocked || failed >= this.env.LOGIN_MAX_FAILURES;
       await this.prisma.user.update({
         where: { id: user.id },
         data: {
@@ -180,6 +215,7 @@ export class AuthService {
       throw lock ? AppError.accountLocked() : AppError.invalidCredentials();
     }
 
+    await this.clearDestinationFailures('STUDENT', normalized);
     await this.prisma.user.update({ where: { id: user.id }, data: { failedLogins: 0, lockedUntil: null } });
     await this.issue(res, user.id, 'STUDENT', 'AAL1', ip, userAgent, remember);
     await this.prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
@@ -205,6 +241,7 @@ export class AuthService {
       data: { passwordHash, failedLogins: 0, lockedUntil: null },
     });
     await this.sessions.revokeAll(user.id);
+    await this.trustedDevices.revokeAll(user.id);
     await this.notifications.emit({
       userId: user.id,
       category: 'SECURITY',
@@ -230,6 +267,7 @@ export class AuthService {
     const passwordHash = await argon2.hash(newPassword, { type: argon2.argon2id });
     await this.prisma.user.update({ where: { id: userId }, data: { passwordHash } });
     await this.sessions.revokeAll(userId);
+    await this.trustedDevices.revokeAll(userId);
     await this.notifications.emit({
       userId,
       category: 'SECURITY',
@@ -250,6 +288,7 @@ export class AuthService {
     ip?: string,
     userAgent?: string,
     remember = false,
+    trustedDeviceToken?: string,
   ): Promise<StaffLoginResult> {
     const email = workEmail.toLowerCase();
     const user = await this.prisma.user.findFirst({
@@ -257,16 +296,18 @@ export class AuthService {
       include: { roles: { include: { role: true } } },
     });
     if (!user || !user.passwordHash) {
-      await this.audit.record({ action: 'auth.login', result: 'FAILED', reasonCode: 'AUTH_INVALID_CREDENTIALS', ip, userAgent });
-      throw AppError.invalidCredentials();
+      const destLocked = await this.bumpDestinationFailure('STAFF', email);
+      await this.audit.record({ action: 'auth.login', result: 'FAILED', reasonCode: destLocked ? 'ACCOUNT_LOCKED' : 'AUTH_INVALID_CREDENTIALS', ip, userAgent });
+      throw destLocked ? AppError.accountLocked() : AppError.invalidCredentials();
     }
     if (user.status === 'DISABLED' || user.status === 'SUSPENDED') throw AppError.accountDisabled();
     if (user.lockedUntil && user.lockedUntil.getTime() > Date.now()) throw AppError.accountLocked();
 
     const ok = await argon2.verify(user.passwordHash, password);
     if (!ok) {
+      const destLocked = await this.bumpDestinationFailure('STAFF', email);
       const failed = user.failedLogins + 1;
-      const lock = failed >= this.env.LOGIN_MAX_FAILURES;
+      const lock = destLocked || failed >= this.env.LOGIN_MAX_FAILURES;
       await this.prisma.user.update({
         where: { id: user.id },
         data: {
@@ -278,11 +319,22 @@ export class AuthService {
       throw lock ? AppError.accountLocked() : AppError.invalidCredentials();
     }
 
+    await this.clearDestinationFailures('STAFF', email);
     await this.prisma.user.update({ where: { id: user.id }, data: { failedLogins: 0, lockedUntil: null } });
 
-    // TESTING ONLY: skip MFA and grant AAL2 directly. Hard-gated to non-prod.
-    const skipMfa = this.env.APP_ENV !== 'production' && this.env.AUTH_DEV_SKIP_MFA;
+    // TESTING ONLY: skip MFA and grant AAL2 directly. Hard-gated to local dev
+    // only — staging is a real, internet-reachable deployment.
+    const skipMfa = this.env.APP_ENV === 'local' && this.env.AUTH_DEV_SKIP_MFA;
     if (user.mfaEnabled && !skipMfa) {
+      // A previously-trusted device skips the TOTP challenge but still had to
+      // present the correct password above — trust never replaces auth, only MFA.
+      const trusted = trustedDeviceToken && (await this.trustedDevices.verify(trustedDeviceToken, user.id));
+      if (trusted) {
+        await this.issue(res, user.id, 'STAFF', 'AAL2', ip, userAgent, remember);
+        await this.prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
+        await this.audit.record({ actorUserId: user.id, action: 'auth.login.mfa_skipped_trusted_device', result: 'SUCCESS', ip, userAgent });
+        return { status: 'AUTHENTICATED', homeRoute: this.homeRouteFor(user.roles.map((r) => r.role.key as RoleKey)) };
+      }
       await this.audit.record({ actorUserId: user.id, action: 'auth.login.mfa_required', result: 'SUCCESS', ip, userAgent });
       return { status: 'MFA_REQUIRED', mfaToken: this.tokens.signMfaChallenge(user.id, remember) };
     }
@@ -305,6 +357,7 @@ export class AuthService {
     res: Response,
     ip?: string,
     userAgent?: string,
+    trustDevice = false,
   ): Promise<{ homeRoute: string }> {
     let sub: string;
     let remember: boolean;
@@ -313,17 +366,37 @@ export class AuthService {
     } catch {
       throw AppError.mfaRequired();
     }
-    const ok = await this.mfa.verify(sub, totp);
-    if (!ok) {
-      await this.audit.record({ actorUserId: sub, action: 'auth.mfa', result: 'FAILED', reasonCode: 'AUTH_MFA_INVALID', ip, userAgent });
-      throw AppError.mfaInvalid();
-    }
     const user = await this.prisma.user.findUniqueOrThrow({
       where: { id: sub },
       include: { roles: { include: { role: true } } },
     });
+    // Reuse the same account-lockout policy as password login — otherwise
+    // a stolen/reused password lets an attacker grind the 6-digit TOTP
+    // space indefinitely (the mfaToken's 5-min expiry + IP-keyed throttle
+    // are both trivially bypassed by rotating source IPs).
+    if (user.lockedUntil && user.lockedUntil.getTime() > Date.now()) throw AppError.accountLocked();
+
+    const ok = await this.mfa.verify(sub, totp);
+    if (!ok) {
+      const failed = user.failedLogins + 1;
+      const lock = failed >= this.env.LOGIN_MAX_FAILURES;
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          failedLogins: lock ? 0 : failed,
+          lockedUntil: lock ? new Date(Date.now() + this.env.LOGIN_LOCKOUT_MINUTES * 60_000) : null,
+        },
+      });
+      await this.audit.record({ actorUserId: sub, action: 'auth.mfa', result: 'FAILED', reasonCode: lock ? 'ACCOUNT_LOCKED' : 'AUTH_MFA_INVALID', ip, userAgent });
+      throw lock ? AppError.accountLocked() : AppError.mfaInvalid();
+    }
+
     await this.issue(res, user.id, 'STAFF', 'AAL2', ip, userAgent, remember);
-    await this.prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
+    if (trustDevice) {
+      const { rawToken, expiresAt } = await this.trustedDevices.create(user.id, ip, userAgent);
+      setTrustedDeviceCookie(res, this.env, rawToken, Math.round((expiresAt.getTime() - Date.now()) / 1000));
+    }
+    await this.prisma.user.update({ where: { id: user.id }, data: { failedLogins: 0, lockedUntil: null, lastLoginAt: new Date() } });
     await this.audit.record({ actorUserId: user.id, action: 'auth.login', result: 'SUCCESS', reasonCode: 'AAL2', ip, userAgent });
     return { homeRoute: this.homeRouteFor(user.roles.map((r) => r.role.key as RoleKey)) };
   }
@@ -371,7 +444,9 @@ export class AuthService {
 
   async logoutAll(userId: string, kind: 'STUDENT' | 'STAFF', res: Response) {
     await this.sessions.revokeAll(userId);
+    await this.trustedDevices.revokeAll(userId, 'logout-all');
     clearAuthCookies(res, this.env, kind);
+    if (kind === 'STAFF') clearTrustedDeviceCookie(res, this.env);
     return { ok: true };
   }
 
@@ -445,6 +520,7 @@ export class AuthService {
           }
         : null,
       hasPassword: !!u.passwordHash,
+      mfaEnabled: u.mfaEnabled,
     };
   }
 
@@ -487,6 +563,7 @@ export class AuthService {
       data: { passwordHash, failedLogins: 0, lockedUntil: null },
     });
     await this.sessions.revokeAll(user.id);
+    await this.trustedDevices.revokeAll(user.id);
     await this.notifications.emit({
       userId: user.id,
       category: 'SECURITY',

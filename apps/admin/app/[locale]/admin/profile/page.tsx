@@ -4,6 +4,7 @@ import { getMeOrRedirect } from '@/lib/auth';
 import { apiFetchServer } from '@/lib/api';
 import { Shell } from '@/components/Shell';
 import { ProfileForm } from '@/components/ProfileForm';
+import { TrustedDevicesManager, type TrustedDeviceView } from '@/components/TrustedDevicesManager';
 import { roleLabel } from '@/lib/labels';
 import type { ProfileResponse } from '@rajyarank/contracts';
 
@@ -30,6 +31,9 @@ export default async function ProfilePage({ params }: { params: { locale: string
   const title = L('अकाउंट सेटिंग्स', 'Account settings');
   const isHead = me.roleKeys.includes('ACADEMIC_HEAD');
   const plan = profile?.institution?.plan ?? null;
+  const trustedDevices = profile?.mfaEnabled
+    ? ((await apiFetchServer<TrustedDeviceView[]>('/auth/trusted-devices', cookies().toString())) ?? [])
+    : null;
 
   return (
     <Shell me={me} locale={locale} title={title}>
@@ -121,6 +125,8 @@ export default async function ProfilePage({ params }: { params: { locale: string
               )}
             </section>
           ) : null}
+
+          {trustedDevices ? <TrustedDevicesManager initial={trustedDevices} locale={locale} /> : null}
         </div>
       ) : (
         <p className="text-sm text-muted">{L('प्रोफ़ाइल लोड नहीं हो सकी।', 'Could not load your profile.')}</p>

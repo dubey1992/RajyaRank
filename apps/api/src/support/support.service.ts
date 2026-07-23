@@ -72,7 +72,7 @@ export class SupportService {
   }
 
   async staffReply(p: Principal, id: string, bodyText: string, internal: boolean) {
-    const ticket = await this.requireTicket(id);
+    const ticket = await this.requireTicket(p, id);
     await this.prisma.$transaction([
       this.prisma.ticketReply.create({ data: { ticketId: id, authorUserId: p.userId, bodyText, internal } }),
       this.prisma.supportTicket.update({ where: { id }, data: { status: internal ? ticket.status : 'WAITING_ON_STUDENT' } }),
@@ -94,7 +94,7 @@ export class SupportService {
   }
 
   async setStatus(p: Principal, id: string, status: string) {
-    const ticket = await this.requireTicket(id);
+    const ticket = await this.requireTicket(p, id);
     await this.prisma.supportTicket.update({ where: { id }, data: { status: status as never } });
     await this.notifications.emit({
       userId: ticket.studentId,
@@ -110,8 +110,9 @@ export class SupportService {
     return this.view(id, true);
   }
 
-  private async requireTicket(id: string) {
-    const ticket = await this.prisma.supportTicket.findUnique({ where: { id } });
+  private async requireTicket(p: Principal, id: string) {
+    const orgScoped = !p.isSuperAdmin && !!p.orgId;
+    const ticket = await this.prisma.supportTicket.findFirst({ where: { id, ...(orgScoped ? { orgId: p.orgId } : {}) } });
     if (!ticket) throw AppError.notFound('Ticket not found.');
     return ticket;
   }

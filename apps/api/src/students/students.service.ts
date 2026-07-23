@@ -14,11 +14,9 @@ import { studentAccountStatusChangedEmail, studentForcedPasswordResetEmail } fro
 import { AppError } from '../common/errors/app-error';
 
 /**
- * Institution-scoped student roster. An Institution Head enrolls students into
- * their org, optionally setting up email+password login directly (no
- * self-serve step for the student) — or phone-only, in which case the account
- * is already associated when the student later logs in via phone OTP. Super
- * Admin sees all students.
+ * Institution-scoped student roster. An Institution Head enrolls students
+ * into their org with email+password login set up directly (no self-serve
+ * step for the student). Super Admin sees all students.
  */
 @Injectable()
 export class StudentsService {
@@ -82,16 +80,12 @@ export class StudentsService {
       );
     }
 
-    const email = dto.email?.toLowerCase();
-    let passwordHash: string | undefined;
-    if (email) {
-      const emailTaken = await this.prisma.user.findFirst({
-        where: { kind: 'STUDENT', email, deletedAt: null, id: existing ? { not: existing.id } : undefined },
-      });
-      if (emailTaken) throw AppError.conflict('A student account with this email already exists.');
-      // dto.password is required alongside email by the schema's refine().
-      passwordHash = await argon2.hash(dto.password!, { type: argon2.argon2id });
-    }
+    const email = dto.email.toLowerCase();
+    const emailTaken = await this.prisma.user.findFirst({
+      where: { kind: 'STUDENT', email, deletedAt: null, id: existing ? { not: existing.id } : undefined },
+    });
+    if (emailTaken) throw AppError.conflict('A student account with this email already exists.');
+    const passwordHash = await argon2.hash(dto.password, { type: argon2.argon2id });
 
     const wasUnaffiliatedReattach = !!existing && !existing.orgId;
     const studentRole = await this.prisma.role.findUniqueOrThrow({ where: { key: 'STUDENT' } });
@@ -114,7 +108,9 @@ export class StudentsService {
               },
             },
             // Head-attested — same trust rationale as staff invite-accept setting emailVerified: true.
-            ...(email ? { email, emailVerified: true, passwordHash } : {}),
+            email,
+            emailVerified: true,
+            passwordHash,
           },
           include: { studentProfile: true },
         })
@@ -127,7 +123,9 @@ export class StudentsService {
             displayName: dto.fullName,
             studentProfile: { create: { fullName: dto.fullName, onboardedAt: new Date() } },
             roles: { create: { roleId: studentRole.id } },
-            ...(email ? { email, emailVerified: true, passwordHash } : {}),
+            email,
+            emailVerified: true,
+            passwordHash,
           },
           include: { studentProfile: true },
         });
@@ -138,7 +136,7 @@ export class StudentsService {
       targetType: 'User',
       targetId: user.id,
       result: 'SUCCESS',
-      after: { orgId, loginMethod: email ? 'email_password' : 'phone_otp', reattachedExistingAccount: wasUnaffiliatedReattach },
+      after: { orgId, loginMethod: 'email_password', reattachedExistingAccount: wasUnaffiliatedReattach },
     });
     return {
       id: user.id,

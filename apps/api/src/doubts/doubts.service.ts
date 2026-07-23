@@ -68,14 +68,14 @@ export class DoubtsService {
   }
 
   async assign(p: Principal, id: string, assignedToUserId: string) {
-    await this.requireDoubt(id);
+    await this.requireDoubt(p, id);
     await this.prisma.doubt.update({ where: { id }, data: { assignedToUserId, status: 'ASSIGNED' } });
     await this.audit.record({ actorUserId: p.userId, action: 'doubt.assigned', targetType: 'Doubt', targetId: id, result: 'SUCCESS', after: { assignedToUserId } });
     return this.view(id);
   }
 
   async reply(p: Principal, id: string, dto: DoubtReplyInput) {
-    const doubt = await this.requireDoubt(id);
+    const doubt = await this.requireDoubt(p, id);
     await this.prisma.$transaction([
       this.prisma.doubtReply.create({
         data: { doubtId: id, authorUserId: p.userId, bodyText: dto.bodyText, imageAssetId: dto.imageAssetId ?? null, videoAssetId: dto.videoAssetId ?? null, lessonRefId: dto.lessonRefId ?? null },
@@ -98,13 +98,14 @@ export class DoubtsService {
   }
 
   async resolve(p: Principal, id: string) {
-    await this.requireDoubt(id);
+    await this.requireDoubt(p, id);
     await this.prisma.doubt.update({ where: { id }, data: { status: 'RESOLVED', resolvedAt: new Date() } });
     return this.view(id);
   }
 
-  private async requireDoubt(id: string) {
-    const doubt = await this.prisma.doubt.findUnique({ where: { id } });
+  private async requireDoubt(p: Principal, id: string) {
+    const orgScoped = !p.isSuperAdmin && !!p.orgId;
+    const doubt = await this.prisma.doubt.findFirst({ where: { id, ...(orgScoped ? { orgId: p.orgId } : {}) } });
     if (!doubt) throw AppError.notFound('Doubt not found.');
     return doubt;
   }

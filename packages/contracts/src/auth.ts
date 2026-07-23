@@ -57,6 +57,8 @@ export type StaffLogin = z.infer<typeof staffLoginSchema>;
 export const staffMfaVerifySchema = z.object({
   mfaToken: z.string().min(1),
   totp: z.string().regex(/^\d{6}$/, 'Enter the 6-digit authenticator code'),
+  // Opt in to skipping the TOTP challenge on this device for TRUSTED_DEVICE_TTL.
+  trustDevice: z.boolean().optional().default(false),
 });
 export type StaffMfaVerify = z.infer<typeof staffMfaVerifySchema>;
 
@@ -123,6 +125,8 @@ export interface ProfileResponse {
   institution: { id: string; name: string; accessCode: string | null; plan: ProfileInstitutionPlan | null } | null;
   /** Whether this account has a password set (email+password login/signup, or staff). */
   hasPassword: boolean;
+  /** Whether TOTP MFA is enabled — STAFF only, always false for students. */
+  mfaEnabled: boolean;
 }
 
 export const staffLoginResultSchema = z.discriminatedUnion('status', [

@@ -46,8 +46,8 @@ export default async function ManageStudentsPage({ params }: { params: { locale:
         <>
           <p className="mb-4 max-w-2xl text-sm text-muted">
             {hi
-              ? 'अपने संस्थान के छात्रों को नामांकित व प्रबंधित करें। नामांकित छात्र अपने फ़ोन OTP से लॉगिन करते हैं।'
-              : 'Enroll and manage your institution’s students. Enrolled students sign in with their phone OTP.'}
+              ? 'अपने संस्थान के छात्रों को नामांकित व प्रबंधित करें। नामांकित छात्र ईमेल व पासवर्ड से लॉगिन करते हैं।'
+              : 'Enroll and manage your institution’s students. Enrolled students sign in with their email & password.'}
           </p>
           <StudentsManager initial={students ?? []} locale={locale} canDisable={can(me, 'user.disable')} />
         </>

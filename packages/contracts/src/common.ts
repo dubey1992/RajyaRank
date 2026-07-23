@@ -71,8 +71,29 @@ export const emailSchema = z
   .string()
   .min(1, 'Please enter your email address')
   .email('Please enter a valid email address');
+export interface PasswordRule {
+  id: string;
+  test: (password: string) => boolean;
+  labelHi: string;
+  labelEn: string;
+}
+
+/** Single source of truth for password strength — both `passwordSchema`
+ *  below AND every password-setting form's live UI checklist are built
+ *  from this same list, so what the UI shows a user is exactly what the
+ *  backend enforces. */
+export const PASSWORD_RULES: PasswordRule[] = [
+  { id: 'length', test: (p) => p.length >= 10, labelHi: 'कम से कम 10 अक्षर', labelEn: 'At least 10 characters' },
+  { id: 'upper', test: (p) => /[A-Z]/.test(p), labelHi: 'एक बड़ा अक्षर (A-Z)', labelEn: 'One uppercase letter (A-Z)' },
+  { id: 'lower', test: (p) => /[a-z]/.test(p), labelHi: 'एक छोटा अक्षर (a-z)', labelEn: 'One lowercase letter (a-z)' },
+  { id: 'digit', test: (p) => /[0-9]/.test(p), labelHi: 'एक अंक (0-9)', labelEn: 'One number (0-9)' },
+  { id: 'special', test: (p) => /[^A-Za-z0-9]/.test(p), labelHi: 'एक विशेष चिह्न (!@#$ आदि)', labelEn: 'One special character (!@#$ etc.)' },
+];
+
 export const passwordSchema = z
   .string()
   .min(1, 'Please enter a password')
-  .min(10, 'Password must be at least 10 characters')
-  .max(128);
+  .max(128, 'Password must be at most 128 characters')
+  .refine((p) => PASSWORD_RULES.every((r) => r.test(p)), {
+    message: 'Password must be at least 10 characters and include an uppercase letter, a lowercase letter, a number and a special character.',
+  });

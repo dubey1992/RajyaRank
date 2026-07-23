@@ -19,6 +19,10 @@ export const apiEnvSchema = z.object({
   JWT_REFRESH_SECRET: z.string().min(32),
   ACCESS_TOKEN_TTL: z.coerce.number().int().positive().default(600),
   REFRESH_TOKEN_TTL: z.coerce.number().int().positive().default(2_592_000),
+  // How long a staff "trust this device" MFA-skip lasts. Independent of
+  // REFRESH_TOKEN_TTL — a device can stay trusted for MFA well past when its
+  // refresh session naturally expires.
+  TRUSTED_DEVICE_TTL: z.coerce.number().int().positive().default(60 * 24 * 60 * 60),
   // Empty means "host-only" (no shared-subdomain cookie scoping) — the safe
   // default for a schema meant to serve every environment. Local dev sets
   // this explicitly to 'localhost' in .env.
@@ -75,7 +79,7 @@ export const apiEnvSchema = z.object({
   MAX_CONCURRENT_SESSIONS: z.coerce.number().int().positive().default(5),
 
   // TESTING ONLY: skip the staff MFA step and issue an AAL2 session directly.
-  // Hard-ignored when APP_ENV=production. Never enable in production.
+  // Only honored when APP_ENV=local — never staging/preproduction/production.
   AUTH_DEV_SKIP_MFA: z
     .enum(['true', 'false'])
     .default('false')
