@@ -15,6 +15,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuthorizationService } from '../authz/authorization.service';
 import { AuditService } from '../audit/audit.service';
 import { TokenService } from '../auth/token.service';
+import { NotificationService } from '../notifications/notification.service';
 import { AppError } from '../common/errors/app-error';
 
 interface Scope {
@@ -37,6 +38,7 @@ export class CoursesService {
     private readonly authz: AuthorizationService,
     private readonly audit: AuditService,
     private readonly tokens: TokenService,
+    private readonly notifications: NotificationService,
   ) {}
 
   private assertScope(principal: Principal, scope: Scope) {
@@ -79,12 +81,14 @@ export class CoursesService {
     // touches status/visibility AND the course wasn't already live — so
     // unrelated edits (e.g. a title tweak) to an already-live course never get
     // retroactively blocked by a gate added after real data existed.
+    let isGoingLive = false;
     if (dto.status !== undefined || dto.visibility !== undefined) {
       const current = await this.prisma.course.findUniqueOrThrow({ where: { id } });
       const nextStatus = dto.status ?? current.status;
       const nextVisibility = dto.visibility ?? current.visibility;
       const wasAlreadyLive = current.status === 'ACTIVE' && current.visibility === 'PUBLIC';
-      if (nextStatus === 'ACTIVE' && nextVisibility === 'PUBLIC' && !wasAlreadyLive) {
+      isGoingLive = nextStatus === 'ACTIVE' && nextVisibility === 'PUBLIC' && !wasAlreadyLive;
+      if (isGoingLive) {
         const readiness = await this.readiness(principal, id);
         if (!readiness.hardGatesPassed) {
           const failed = readiness.gates.filter((g) => g.hard && !g.passed).map((g) => g.labelEn);
@@ -105,6 +109,28 @@ export class CoursesService {
       result: 'SUCCESS',
       after: dto,
     });
+
+    // Notify students targeting this exam — only on the first time the
+    // course goes live, not on later edits to an already-live course.
+    if (isGoingLive) {
+      const targeted = await this.prisma.studentProfile.findMany({
+        where: { targetExamId: course.examId, user: { status: 'ACTIVE', deletedAt: null } },
+        select: { userId: true },
+      });
+      await Promise.all(
+        targeted.map(({ userId }) =>
+          this.notifications.emit({
+            userId,
+            category: 'NEW_COURSE',
+            titleHi: 'नया कोर्स उपलब्ध',
+            titleEn: 'New course available',
+            bodyHi: `${course.titleHi} अब उपलब्ध है।`,
+            bodyEn: `${course.titleEn} is now available.`,
+            data: { courseId: course.id },
+          }),
+        ),
+      );
+    }
     return course;
   }
 
@@ -373,7 +399,7 @@ export class CoursesService {
       where: { id: courseId, deletedAt: null },
       select: {
         id: true, code: true, titleHi: true, titleEn: true, descHi: true, descEn: true,
-        stateId: true, examId: true, orgId: true,
+        stateId: true, examId: true, orgId: true, createdAt: true, organization: { select: { name: true } },
         coursePromiseHi: true, coursePromiseEn: true, learningOutcomes: true,
         subjects: {
           where: { deletedAt: null },
@@ -418,6 +444,8 @@ export class CoursesService {
       stateId: course.stateId,
       examId: course.examId,
       orgId: course.orgId,
+      orgName: course.organization?.name ?? null,
+      createdAt: course.createdAt.toISOString(),
       coursePromiseHi: course.coursePromiseHi,
       coursePromiseEn: course.coursePromiseEn,
       learningOutcomes: course.learningOutcomes,

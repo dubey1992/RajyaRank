@@ -10,7 +10,7 @@ import {
 import { CurrentPrincipal } from '../common/decorators/current-principal.decorator';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 import { RequirePermission } from '../authz/decorators';
-import { StaffAdminService } from './staff-admin.service';
+import { StaffAdminService, type AuditEventFilters } from './staff-admin.service';
 
 @Controller('admin')
 export class StaffAdminController {
@@ -85,7 +85,38 @@ export class StaffAdminController {
 
   @Get('audit-events')
   @RequirePermission('audit.view')
-  audit(@Query('action') action?: string, @Query('orgId') orgId?: string) {
-    return this.staff.auditEvents(action, orgId);
+  audit(
+    @Query('action') action?: string,
+    @Query('orgId') orgId?: string,
+    @Query('result') result?: 'SUCCESS' | 'FAILED' | 'DENIED',
+    @Query('actor') actorQuery?: string,
+    @Query('from') dateFrom?: string,
+    @Query('to') dateTo?: string,
+    @Query('skip') skip?: string,
+    @Query('take') take?: string,
+  ) {
+    const filters: AuditEventFilters = {
+      action,
+      orgId,
+      result,
+      actorQuery,
+      dateFrom,
+      dateTo,
+      skip: skip ? Number(skip) : undefined,
+      take: take ? Number(take) : undefined,
+    };
+    return this.staff.auditEvents(filters);
+  }
+
+  @Get('audit-events/summary')
+  @RequirePermission('audit.view')
+  auditSummary(
+    @Query('action') action?: string,
+    @Query('orgId') orgId?: string,
+    @Query('actor') actorQuery?: string,
+    @Query('from') dateFrom?: string,
+    @Query('to') dateTo?: string,
+  ) {
+    return this.staff.auditSummary({ action, orgId, actorQuery, dateFrom, dateTo });
   }
 }

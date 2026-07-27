@@ -5,13 +5,14 @@ import { usePathname, useRouter } from 'next/navigation';
 import { LogoMark } from '@rajyarank/ui';
 import { apiFetch } from '@/lib/api';
 
-type IconName = 'home' | 'book' | 'clipboard' | 'bookmark' | 'newspaper' | 'help' | 'bell' | 'user' | 'headphones' | 'search' | 'menu';
+type IconName = 'home' | 'book' | 'clipboard' | 'bookmark' | 'heart' | 'newspaper' | 'help' | 'bell' | 'user' | 'headphones' | 'search' | 'menu';
 
 const ICONS: Record<IconName, ReactNode> = {
   home: <><path d="m3 11 9-8 9 8" /><path d="M5 10v10h14V10M9 20v-6h6v6" /></>,
   book: <><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z" /></>,
   clipboard: <><rect x="5" y="4" width="14" height="17" rx="2" /><path d="M9 4V2h6v2M9 10h6M9 14h6M9 18h4" /></>,
   bookmark: <path d="M6 3h12v18l-6-4-6 4V3Z" />,
+  heart: <path d="M12 20.5s-7-4.4-9.5-8.8C.8 8.4 2.4 4.5 6.2 4.5c2.1 0 3.5 1.2 4.5 2.4C11.7 5.7 13.1 4.5 15.2 4.5c3.8 0 5.4 3.9 3.7 7.2C19.5 16.1 12 20.5 12 20.5Z" />,
   newspaper: <><path d="M4 5h14v14H4z" /><path d="M18 8h2v11a2 2 0 0 1-2 2H6M7 9h4v4H7zM13 9h2M13 12h2M7 16h8" /></>,
   help: <><circle cx="12" cy="12" r="9" /><path d="M9.8 9a2.4 2.4 0 1 1 3.4 2.2c-.8.4-1.2.9-1.2 1.8M12 17h.01" /></>,
   bell: <><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></>,
@@ -66,6 +67,7 @@ export function StudentShell({
     { href: '/dashboard', label: L('डैशबोर्ड', 'Dashboard'), icon: 'home' },
     { href: '/study-plan', label: L('स्टडी प्लान', 'Study Plan'), icon: 'clipboard' },
     { href: '/my-courses', label: L('मेरे कोर्स', 'My Courses'), icon: 'book' },
+    { href: '/wishlist', label: L('विशलिस्ट', 'Wishlist'), icon: 'heart' },
     { href: '/tests', label: L('टेस्ट और अभ्यास', 'Tests & Practice'), icon: 'clipboard' },
     { href: '/revision', label: L('रिवीज़न', 'Revision'), icon: 'bookmark' },
     { href: '/current-affairs', label: L('करंट अफेयर्स', 'Current Affairs'), icon: 'newspaper' },

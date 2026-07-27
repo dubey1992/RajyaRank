@@ -42,9 +42,10 @@ export default async function AllCoursesPage({ params }: { params: { locale: str
     apiFetchServer<Exam[]>('/exams', ''),
   ]);
   const courses = toFilterableCourses(courseList ?? [], products ?? []);
+  const isStudent = !!me && me.kind === 'STUDENT';
 
   const heading = L('सभी कोर्स', 'All courses');
-  const grid = <CoursesFilterGrid courses={courses} states={states ?? []} exams={exams ?? []} locale={locale} mode="buy" />;
+  const grid = <CoursesFilterGrid courses={courses} states={states ?? []} exams={exams ?? []} locale={locale} mode="buy" isStudent={isStudent} />;
 
   if (me && me.kind === 'STUDENT') {
     return (

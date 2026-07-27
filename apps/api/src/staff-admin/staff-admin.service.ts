@@ -12,6 +12,33 @@ import { NotificationService } from '../notifications/notification.service';
 import { staffForcedPasswordResetEmail, staffAccountStatusChangedEmail } from '../notifications/email-templates/staff';
 import { AppError } from '../common/errors/app-error';
 
+export interface AuditEventFilters {
+  action?: string;
+  orgId?: string;
+  result?: 'SUCCESS' | 'FAILED' | 'DENIED';
+  actorQuery?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  skip?: number;
+  take?: number;
+}
+
+export interface AuditEventView {
+  id: string;
+  actorUserId: string | null;
+  actorRole: string | null;
+  actorName: string | null;
+  action: string;
+  targetType: string | null;
+  targetId: string | null;
+  result: string;
+  reasonCode: string | null;
+  correlationId: string | null;
+  before: unknown;
+  after: unknown;
+  createdAt: string;
+}
+
 @Injectable()
 export class StaffAdminService {
   constructor(
@@ -258,32 +285,85 @@ export class StaffAdminService {
     return { id: roleId, key: role.key, permissionCodes: after };
   }
 
-  async auditEvents(action?: string, orgId?: string) {
-    // Institution filter: restrict to actions performed by members of that org.
+/** Resolves the shared `where` clause for both auditEvents() and
+   *  auditSummary() — keeps the two queries' filtering in exact sync.
+   *  Returns `null` when an actor filter (org or name/email search) matches
+   *  no one, so the caller can short-circuit to an empty result instead of
+   *  running a pointless full-table query. */
+  private async buildAuditWhere(filters: AuditEventFilters) {
     let actorIds: string[] | undefined;
-    if (orgId) {
-      const members = await this.prisma.user.findMany({ where: { orgId }, select: { id: true } });
+    if (filters.orgId || filters.actorQuery) {
+      const members = await this.prisma.user.findMany({
+        where: {
+          ...(filters.orgId ? { orgId: filters.orgId } : {}),
+          ...(filters.actorQuery
+            ? { OR: [{ displayName: { contains: filters.actorQuery, mode: 'insensitive' as const } }, { email: { contains: filters.actorQuery, mode: 'insensitive' as const } }] }
+            : {}),
+        },
+        select: { id: true },
+      });
       actorIds = members.map((u) => u.id);
+      if (actorIds.length === 0) return null;
     }
-    const events = await this.prisma.auditLog.findMany({
-      where: {
-        ...(action ? { action: { contains: action } } : {}),
-        ...(actorIds ? { actorUserId: { in: actorIds } } : {}),
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 100,
-    });
-    return events.map((e) => ({
-      id: e.id,
-      actorUserId: e.actorUserId,
-      actorRole: e.actorRole,
-      action: e.action,
-      targetType: e.targetType,
-      targetId: e.targetId,
-      result: e.result,
-      reasonCode: e.reasonCode,
-      createdAt: e.createdAt.toISOString(),
-    }));
+    return {
+      // startsWith (not contains): the frontend only ever sends a fixed
+      // category prefix ('auth.', 'payment.', etc.), and startsWith can use
+      // the existing @@index([action, createdAt]) via a range scan; a
+      // substring contains match cannot use that index at all.
+      ...(filters.action ? { action: { startsWith: filters.action } } : {}),
+      ...(filters.result ? { result: filters.result } : {}),
+      ...(actorIds ? { actorUserId: { in: actorIds } } : {}),
+      ...(filters.dateFrom || filters.dateTo
+        ? { createdAt: { ...(filters.dateFrom ? { gte: new Date(filters.dateFrom) } : {}), ...(filters.dateTo ? { lte: new Date(filters.dateTo) } : {}) } }
+        : {}),
+    };
+  }
+
+  async auditEvents(filters: AuditEventFilters): Promise<{ events: AuditEventView[]; total: number }> {
+    const where = await this.buildAuditWhere(filters);
+    if (!where) return { events: [], total: 0 };
+
+    const take = Math.min(filters.take ?? 50, 200);
+    const [rows, total] = await Promise.all([
+      this.prisma.auditLog.findMany({ where, orderBy: { createdAt: 'desc' }, skip: filters.skip ?? 0, take }),
+      this.prisma.auditLog.count({ where }),
+    ]);
+
+    // Resolve actor names in one batched query — avoids an N+1 lookup per row.
+    const actorUserIds = [...new Set(rows.map((r) => r.actorUserId).filter((id): id is string => !!id))];
+    const actors = actorUserIds.length
+      ? await this.prisma.user.findMany({ where: { id: { in: actorUserIds } }, select: { id: true, displayName: true, email: true } })
+      : [];
+    const actorMap = new Map(actors.map((a) => [a.id, a]));
+
+    return {
+      events: rows.map((e) => ({
+        id: e.id,
+        actorUserId: e.actorUserId,
+        actorRole: e.actorRole,
+        actorName: e.actorUserId ? (actorMap.get(e.actorUserId)?.displayName ?? actorMap.get(e.actorUserId)?.email ?? null) : null,
+        action: e.action,
+        targetType: e.targetType,
+        targetId: e.targetId,
+        result: e.result,
+        reasonCode: e.reasonCode,
+        correlationId: e.correlationId,
+        before: e.before,
+        after: e.after,
+        createdAt: e.createdAt.toISOString(),
+      })),
+      total,
+    };
+  }
+
+  async auditSummary(filters: AuditEventFilters): Promise<{ total: number; success: number; failed: number; denied: number }> {
+    const where = await this.buildAuditWhere(filters);
+    if (!where) return { total: 0, success: 0, failed: 0, denied: 0 };
+
+    const grouped = await this.prisma.auditLog.groupBy({ by: ['result'], where, _count: { _all: true } });
+    const byResult = Object.fromEntries(grouped.map((g) => [g.result, g._count._all]));
+    const total = grouped.reduce((sum, g) => sum + g._count._all, 0);
+    return { total, success: byResult.SUCCESS ?? 0, failed: byResult.FAILED ?? 0, denied: byResult.DENIED ?? 0 };
   }
 
   private async requireStaff(actor: Principal, id: string) {

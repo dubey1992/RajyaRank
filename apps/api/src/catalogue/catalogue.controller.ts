@@ -51,24 +51,66 @@ export class CatalogueController {
   /** Public free resource (§8.5): published current affairs, newest first. */
   @Public()
   @Get('current-affairs')
-  currentAffairs() {
-    return this.prisma.currentAffair.findMany({
+  async currentAffairs() {
+    const rows = await this.prisma.currentAffair.findMany({
       where: { status: 'PUBLISHED' },
       orderBy: { dateFor: 'desc' },
       take: 40,
-      select: { id: true, dateFor: true, titleHi: true, titleEn: true, bodyHi: true, bodyEn: true, category: true, scope: true },
+      select: {
+        id: true, dateFor: true, titleHi: true, titleEn: true, bodyHi: true, bodyEn: true, category: true, scope: true,
+        publishedAt: true, createdBy: true,
+      },
     });
+    const orgNameByCreator = await this.orgNamesByCreator(rows.map((r) => r.createdBy));
+    return rows.map(({ publishedAt, createdBy, ...c }) => ({
+      ...c,
+      publishedAt: publishedAt?.toISOString() ?? null,
+      orgName: (createdBy && orgNameByCreator.get(createdBy)) ?? null,
+    }));
+  }
+
+  /** CurrentAffair.createdBy has no Prisma relation to User (plain scalar
+   *  FK, no schema change needed for this feature) — resolve institute
+   *  attribution with a small side query instead of a relational include. */
+  private async orgNamesByCreator(createdByIds: (string | null)[]): Promise<Map<string, string>> {
+    const ids = [...new Set(createdByIds.filter((id): id is string => !!id))];
+    if (ids.length === 0) return new Map();
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, org: { select: { name: true } } },
+    });
+    const map = new Map<string, string>();
+    for (const u of users) if (u.org?.name) map.set(u.id, u.org.name);
+    return map;
   }
 
   /** Publicly discoverable courses (active + public only). */
   @Public()
   @Get('courses')
-  courses() {
-    return this.prisma.course.findMany({
+  async courses() {
+    const rows = await this.prisma.course.findMany({
       where: { deletedAt: null, status: 'ACTIVE', visibility: 'PUBLIC' },
       orderBy: { sequence: 'asc' },
-      select: { id: true, code: true, titleHi: true, titleEn: true, stateId: true, examId: true, orgId: true },
+      select: {
+        id: true, code: true, titleHi: true, titleEn: true, stateId: true, examId: true, orgId: true,
+        createdAt: true, organization: { select: { name: true } },
+      },
     });
+    const courseIds = rows.map((r) => r.id);
+    const [ratingAgg, enrollmentAgg] = await Promise.all([
+      this.prisma.courseRating.groupBy({ by: ['courseId'], where: { courseId: { in: courseIds }, status: 'VISIBLE' }, _avg: { rating: true }, _count: { rating: true } }),
+      this.prisma.entitlement.groupBy({ by: ['courseId'], where: { courseId: { in: courseIds }, status: 'ACTIVE' }, _count: { courseId: true } }),
+    ]);
+    const ratingByCourse = new Map(ratingAgg.map((r) => [r.courseId, { avgRating: r._avg.rating ?? 0, ratingCount: r._count.rating }]));
+    const enrollmentByCourse = new Map(enrollmentAgg.map((e) => [e.courseId as string, e._count.courseId]));
+    return rows.map(({ organization, createdAt, ...c }) => ({
+      ...c,
+      createdAt: createdAt.toISOString(),
+      orgName: organization?.name ?? null,
+      avgRating: ratingByCourse.get(c.id)?.avgRating ?? 0,
+      ratingCount: ratingByCourse.get(c.id)?.ratingCount ?? 0,
+      enrollmentCount: enrollmentByCourse.get(c.id) ?? 0,
+    }));
   }
 
   /** Partner-institutes directory: active orgs with at least one active
@@ -165,6 +207,8 @@ export class CatalogueController {
         stateId: true,
         examId: true,
         orgId: true,
+        createdAt: true,
+        organization: { select: { name: true } },
         coursePromiseHi: true,
         coursePromiseEn: true,
         learningOutcomes: true,
@@ -208,8 +252,11 @@ export class CatalogueController {
       },
     });
     if (!course) return null;
+    const { organization, createdAt, ...rest } = course;
     return {
-      ...course,
+      ...rest,
+      createdAt: createdAt.toISOString(),
+      orgName: organization?.name ?? null,
       subjects: course.subjects.map((s) => ({
         ...s,
         chapters: s.chapters.map((c) => ({

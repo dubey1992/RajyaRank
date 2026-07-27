@@ -4,6 +4,7 @@ import type { CurrentAffairView, UpsertCurrentAffair } from '@rajyarank/contract
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { AuthorizationService } from '../authz/authorization.service';
+import { NotificationService } from '../notifications/notification.service';
 import { AppError } from '../common/errors/app-error';
 
 const EDITABLE_FROM = ['DRAFT', 'CORRECTION_REQUIRED'] as const;
@@ -22,6 +23,7 @@ export class CurrentAffairsService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly authz: AuthorizationService,
+    private readonly notifications: NotificationService,
   ) {}
 
   private toView(row: {
@@ -55,6 +57,10 @@ export class CurrentAffairsService {
       publishedAt: row.publishedAt?.toISOString() ?? null,
       correctionReason: row.correctionReason,
       createdBy: row.createdBy,
+      // Institute-name tagging is a public-page feature (see catalogue/student
+      // read paths) — the maker/checker table doesn't need it, staff already
+      // work within their own org's scope.
+      orgName: null,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };
@@ -144,6 +150,21 @@ export class CurrentAffairsService {
     if (existing.status !== 'SUBMITTED') throw AppError.contentStateInvalid('Only submitted items can be published.');
     const row = await this.prisma.currentAffair.update({ where: { id }, data: { status: 'PUBLISHED', publishedAt: new Date() } });
     await this.audit.record({ actorUserId: principal.userId, action: 'current_affair.published', targetType: 'CurrentAffair', targetId: id, result: 'SUCCESS' });
+
+    const students = await this.prisma.user.findMany({ where: { kind: 'STUDENT', status: 'ACTIVE', deletedAt: null }, select: { id: true } });
+    await Promise.all(
+      students.map(({ id: userId }) =>
+        this.notifications.emit({
+          userId,
+          category: 'CURRENT_AFFAIRS',
+          titleHi: 'नया करंट अफेयर्स',
+          titleEn: 'New current affairs update',
+          bodyHi: row.titleHi,
+          bodyEn: row.titleEn,
+          data: { currentAffairId: row.id },
+        }),
+      ),
+    );
     return this.toView(row);
   }
 

@@ -14,6 +14,7 @@ import { InvitationsModule } from './invitations/invitations.module';
 import { StaffAdminModule } from './staff-admin/staff-admin.module';
 import { OrganizationsModule } from './organizations/organizations.module';
 import { StudentsModule } from './students/students.module';
+import { CustomerLookupModule } from './customer-lookup/customer-lookup.module';
 import { CatalogueModule } from './catalogue/catalogue.module';
 import { MarketingModule } from './marketing/marketing.module';
 import { SearchModule } from './search/search.module';
@@ -34,6 +35,8 @@ import { BlogModule } from './blog/blog.module';
 import { SettlementsModule } from './settlements/settlements.module';
 import { DoubtsModule } from './doubts/doubts.module';
 import { SupportModule } from './support/support.module';
+import { RatingsModule } from './ratings/ratings.module';
+import { WishlistModule } from './wishlist/wishlist.module';
 import { S3Module } from './s3/s3.module';
 import { AnnouncementsModule } from './announcements/announcements.module';
 import { MonitoringModule } from './monitoring/monitoring.module';
@@ -68,6 +71,7 @@ import { CsrfGuard } from './authz/csrf.guard';
     StaffAdminModule,
     OrganizationsModule,
     StudentsModule,
+    CustomerLookupModule,
     CatalogueModule,
     MarketingModule,
     SearchModule,
@@ -89,6 +93,8 @@ import { CsrfGuard } from './authz/csrf.guard';
     SettlementsModule,
     DoubtsModule,
     SupportModule,
+    RatingsModule,
+    WishlistModule,
     AnnouncementsModule,
     MonitoringModule,
     HealthModule,

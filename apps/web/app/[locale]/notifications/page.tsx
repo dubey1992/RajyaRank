@@ -12,6 +12,7 @@ export const dynamic = 'force-dynamic';
 
 const CATEGORY_ICON: Record<string, string> = {
   DOUBT_ANSWER: '💬', CONTENT: '📄', TEST: '📝', PAYMENT: '💳', SUPPORT: '🎧', SECURITY: '🔒', SYSTEM: '📅',
+  NEW_COURSE: '🎓', NEW_CONTENT: '📚', CURRENT_AFFAIRS: '📰',
 };
 
 export default async function NotificationsPage({ params }: { params: { locale: string } }) {

@@ -223,6 +223,8 @@ model Course {
   subjects     Subject[]
   assigns      StaffAssignment[]
   products     Product[]
+  ratings      CourseRating[]
+  wishlistedBy Wishlist[]
 
   @@index([stateId, examId, status])
   @@index([orgId])
@@ -456,6 +458,8 @@ model User {
   pushSubscriptions PushSubscription[]
   membershipEvents  OrgMembershipEvent[]
   studyPlans        StudyPlan[]
+  courseRatings     CourseRating[]
+  wishlist          Wishlist[]
 
   orgId     String?       @map("org_id")
   org       Organization? @relation("OrgMembers", fields: [orgId], references: [id])
@@ -1329,9 +1333,54 @@ enum NotificationCategory {
   CURRENT_AFFAIRS
   ANNOUNCEMENT
   CONTENT_WORKFLOW
+  NEW_COURSE
+  NEW_CONTENT
 }
 
 // User ids are stored as indexed columns (no FK) to keep Phase 7 self-contained.
+enum RatingStatus {
+  VISIBLE
+  HIDDEN
+}
+
+// Student ratings/comments on a purchased course — one row per student per
+// course (resubmitting edits it, see @@unique). Auto-published on submit;
+// reactive moderation via reportCount rather than pre-moderation queue.
+model CourseRating {
+  id          String       @id @default(uuid())
+  courseId    String       @map("course_id")
+  userId      String       @map("user_id")
+  rating      Int
+  comment     String?
+  status      RatingStatus @default(VISIBLE)
+  reportCount Int          @default(0) @map("report_count")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([courseId, userId])
+  @@index([courseId, status])
+  @@map("course_ratings")
+}
+
+// Pre-purchase "save for later" — distinct from Bookmark (which saves a
+// lesson inside a course the student already owns).
+model Wishlist {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  courseId  String   @map("course_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, courseId])
+  @@index([userId])
+  @@map("wishlists")
+}
+
 model Doubt {
   id                String      @id @default(uuid())
   studentId         String      @map("student_id")

@@ -195,7 +195,10 @@ export class StudentsService {
     return { id };
   }
 
-  private async requireStudent(actor: Principal, id: string) {
+  /** Not private: also reused by CustomerLookupService for the same
+   *  org-scoped ownership check before assembling a customer's full detail
+   *  view. */
+  async requireStudent(actor: Principal, id: string) {
     const user = await this.prisma.user.findFirst({
       where: {
         id,
@@ -203,6 +206,7 @@ export class StudentsService {
         deletedAt: null,
         ...(this.orgScoped(actor) ? { orgId: actor.orgId } : {}),
       },
+      include: { studentProfile: true },
     });
     if (!user) throw AppError.notFound('Student not found.');
     return user;

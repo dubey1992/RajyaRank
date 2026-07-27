@@ -21,6 +21,7 @@ export interface CurrentAffairView {
   publishedAt: string | null;
   correctionReason: string | null;
   createdBy: string | null;
+  orgName: string | null;
   createdAt: string;
   updatedAt: string;
 }

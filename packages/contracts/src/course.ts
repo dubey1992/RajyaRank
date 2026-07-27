@@ -88,6 +88,8 @@ export interface CourseOutlineView {
   stateId: string;
   examId: string;
   orgId: string | null;
+  orgName: string | null;
+  createdAt: string;
   coursePromiseHi: string | null;
   coursePromiseEn: string | null;
   learningOutcomes: string[];

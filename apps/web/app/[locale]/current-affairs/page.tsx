@@ -17,6 +17,8 @@ interface CurrentAffair {
   bodyEn: string | null;
   category: string;
   scope: string;
+  publishedAt: string | null;
+  orgName: string | null;
 }
 
 export function generateMetadata({ params }: { params: { locale: string } }): Metadata {
@@ -57,6 +59,14 @@ export default async function CurrentAffairsPage({ params }: { params: { locale:
             <div className="mb-1 flex flex-wrap items-center gap-2 text-xs">
               <span className="rounded-full bg-navy-100 px-2 py-0.5 font-extrabold text-navy-900">{c.category}</span>
               <span className="rounded-full bg-teal-100 px-2 py-0.5 font-extrabold text-teal-600">{c.scope}</span>
+              {c.orgName ? (
+                <span className="rounded-full bg-orange-100 px-2 py-0.5 font-extrabold text-orange-600">{c.orgName}</span>
+              ) : (
+                <span className="rounded-full bg-surface-soft px-2 py-0.5 font-extrabold text-muted">{L('RajyaRank संपादकीय', 'RajyaRank Editorial')}</span>
+              )}
+              {c.publishedAt && Date.now() - new Date(c.publishedAt).getTime() < 2 * 24 * 60 * 60 * 1000 ? (
+                <span className="rounded-full bg-navy-100 px-2 py-0.5 font-extrabold text-navy-800">{L('नया', 'New')}</span>
+              ) : null}
               <span className="text-muted">{new Date(c.dateFor).toLocaleDateString(hi ? 'hi-IN' : 'en-IN')}</span>
             </div>
             <h2 className="text-lg font-black text-navy-900">{hi ? c.titleHi : c.titleEn}</h2>

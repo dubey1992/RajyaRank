@@ -1,11 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import type { UpsertTestimonial, UpsertFaq, UpsertStudyContentTeaser } from '@rajyarank/contracts';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationService } from '../notifications/notification.service';
 import { AppError } from '../common/errors/app-error';
 
 @Injectable()
 export class MarketingService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationService,
+  ) {}
 
   // ── Testimonials ──
   publicTestimonials() {
@@ -58,13 +62,35 @@ export class MarketingService {
   adminListStudyContentTeasers() {
     return this.prisma.studyContentTeaser.findMany({ orderBy: { sequence: 'asc' } });
   }
-  createStudyContentTeaser(actorUserId: string, dto: UpsertStudyContentTeaser) {
-    return this.prisma.studyContentTeaser.create({ data: { ...dto, createdBy: actorUserId } });
+  async createStudyContentTeaser(actorUserId: string, dto: UpsertStudyContentTeaser) {
+    const row = await this.prisma.studyContentTeaser.create({ data: { ...dto, createdBy: actorUserId } });
+    if (row.published) await this.notifyNewContent(row);
+    return row;
   }
   async updateStudyContentTeaser(id: string, dto: Partial<UpsertStudyContentTeaser>) {
-    const row = await this.prisma.studyContentTeaser.findUnique({ where: { id } });
-    if (!row) throw AppError.notFound('Study content teaser not found.');
-    return this.prisma.studyContentTeaser.update({ where: { id }, data: dto });
+    const existing = await this.prisma.studyContentTeaser.findUnique({ where: { id } });
+    if (!existing) throw AppError.notFound('Study content teaser not found.');
+    const row = await this.prisma.studyContentTeaser.update({ where: { id }, data: dto });
+    // Only the false→true edge notifies — re-saving an already-published
+    // teaser (e.g. a typo fix) shouldn't re-blast every student.
+    if (dto.published === true && !existing.published) await this.notifyNewContent(row);
+    return row;
+  }
+  private async notifyNewContent(row: { id: string; titleHi: string; titleEn: string }) {
+    const students = await this.prisma.user.findMany({ where: { kind: 'STUDENT', status: 'ACTIVE', deletedAt: null }, select: { id: true } });
+    await Promise.all(
+      students.map(({ id: userId }) =>
+        this.notifications.emit({
+          userId,
+          category: 'NEW_CONTENT',
+          titleHi: 'नई अध्ययन सामग्री',
+          titleEn: 'New study content',
+          bodyHi: row.titleHi,
+          bodyEn: row.titleEn,
+          data: { studyContentTeaserId: row.id },
+        }),
+      ),
+    );
   }
   async deleteStudyContentTeaser(id: string) {
     const row = await this.prisma.studyContentTeaser.findUnique({ where: { id } });

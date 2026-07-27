@@ -111,11 +111,29 @@ export const auditEventSchema = z.object({
   id: z.string().uuid(),
   actorUserId: z.string().nullable(),
   actorRole: z.string().nullable(),
+  actorName: z.string().nullable(),
   action: z.string(),
   targetType: z.string().nullable(),
   targetId: z.string().nullable(),
   result: z.enum(['SUCCESS', 'DENIED', 'FAILED']),
   reasonCode: z.string().nullable(),
+  correlationId: z.string().nullable(),
+  before: z.unknown().nullable(),
+  after: z.unknown().nullable(),
   createdAt: z.string(),
 });
 export type AuditEvent = z.infer<typeof auditEventSchema>;
+
+export const auditEventsResponseSchema = z.object({
+  events: z.array(auditEventSchema),
+  total: z.number(),
+});
+export type AuditEventsResponse = z.infer<typeof auditEventsResponseSchema>;
+
+export const auditSummarySchema = z.object({
+  total: z.number(),
+  success: z.number(),
+  failed: z.number(),
+  denied: z.number(),
+});
+export type AuditSummary = z.infer<typeof auditSummarySchema>;

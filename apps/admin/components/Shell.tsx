@@ -47,6 +47,8 @@ const NAV: NavItem[] = [
   { href: '/admin/mock-tests', label: { hi: 'मॉक टेस्ट', en: 'Mock Tests' }, show: (me) => can(me, 'test.create') || can(me, 'content.approve') },
   { href: '/admin/payments', label: { hi: 'भुगतान प्रबंधन', en: 'Manage Payments' }, show: (me) => can(me, 'payment.manage') },
   { href: '/admin/support', label: { hi: 'सहायता', en: 'Support' }, show: (me) => can(me, 'support.manage') },
+  { href: '/admin/customer-lookup', label: { hi: 'ग्राहक खोज', en: 'Customer Lookup' }, show: (me) => can(me, 'support.manage') },
+  { href: '/admin/ratings', label: { hi: 'रेटिंग मॉडरेशन', en: 'Ratings Moderation' }, show: (me) => can(me, 'support.manage') },
   { href: '/admin/refunds', label: { hi: 'धनवापसी प्रबंधन', en: 'Refund Management' }, show: (me) => can(me, 'payment.manage') },
   { href: '/admin/activities', label: { hi: 'हाल की गतिविधियाँ', en: 'Recent Activities' }, show: (me) => can(me, 'audit.view') },
 ];
@@ -59,6 +61,8 @@ const SUPER_ADMIN_NAV = new Set([
   '/admin/roles',
   '/admin/payments',
   '/admin/support',
+  '/admin/customer-lookup',
+  '/admin/ratings',
   '/admin/refunds',
   '/admin/activities',
   '/admin/marketing',

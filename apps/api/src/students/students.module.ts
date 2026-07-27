@@ -7,5 +7,6 @@ import { StudentsService } from './students.service';
   imports: [AuthModule], // for SessionService
   controllers: [StudentsController],
   providers: [StudentsService],
+  exports: [StudentsService],
 })
 export class StudentsModule {}

@@ -1,6 +1,10 @@
 import type { ProductView } from '@rajyarank/contracts';
 
-export interface CourseListItem { id: string; code: string; titleHi: string; titleEn: string; stateId: string; examId: string; orgId: string | null }
+export interface CourseListItem {
+  id: string; code: string; titleHi: string; titleEn: string; stateId: string; examId: string;
+  orgId: string | null; orgName: string | null; createdAt: string;
+  avgRating: number; ratingCount: number; enrollmentCount: number;
+}
 
 export interface FilterableCourse {
   id: string;
@@ -10,6 +14,11 @@ export interface FilterableCourse {
   stateId: string;
   examId: string;
   orgId: string | null;
+  orgName: string | null;
+  createdAt: string;
+  avgRating: number;
+  ratingCount: number;
+  enrollmentCount: number;
   priceMinor: number;
   originalPriceMinor: number | null;
   validityDays: number | null;
@@ -34,6 +43,11 @@ export function toFilterableCourses(courseList: CourseListItem[], products: Prod
         stateId: c.stateId,
         examId: c.examId,
         orgId: c.orgId,
+        orgName: c.orgName,
+        createdAt: c.createdAt,
+        avgRating: c.avgRating,
+        ratingCount: c.ratingCount,
+        enrollmentCount: c.enrollmentCount,
         priceMinor: product.priceMinor,
         originalPriceMinor: product.originalPriceMinor,
         validityDays: product.validityDays,

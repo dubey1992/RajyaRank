@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { cookies } from 'next/headers';
 import { Logo } from '@rajyarank/ui';
 import { resolveLocale, getT } from '@/lib/i18n';
 import { PublicHeader } from '@/components/PublicHeader';
@@ -6,6 +7,7 @@ import { DemoQuiz } from '@/components/DemoQuiz';
 import { CoursesFilterGrid } from '@/components/CoursesFilterGrid';
 import { toFilterableCourses, type CourseListItem } from '@/lib/courses';
 import { apiFetchServer } from '@/lib/api';
+import { getMe } from '@/lib/student';
 import type { ProductView, PartnerInstituteView, State, Exam, TestimonialView, FaqView, StudyContentTeaserView } from '@rajyarank/contracts';
 
 const TEASER_STYLE: Record<StudyContentTeaserView['kind'], { icon: string; color: string; fg: string }> = {
@@ -27,7 +29,9 @@ export default async function LandingPage({ params }: { params: { locale: string
   const hi = locale === 'hi';
   const L = (h: string, e: string) => (hi ? h : e);
 
-  const [courseList, products, institutes, states, examList, testimonials, faqRows, teasers] = await Promise.all([
+  const cookie = cookies().toString();
+  const [me, courseList, products, institutes, states, examList, testimonials, faqRows, teasers] = await Promise.all([
+    getMe(cookie),
     apiFetchServer<CourseListItem[]>('/courses', ''),
     apiFetchServer<ProductView[]>('/products', ''),
     apiFetchServer<PartnerInstituteView[]>('/institutes', ''),
@@ -37,6 +41,7 @@ export default async function LandingPage({ params }: { params: { locale: string
     apiFetchServer<FaqView[]>('/faqs', ''),
     apiFetchServer<StudyContentTeaserView[]>('/study-content-teasers', ''),
   ]);
+  const isStudent = !!me && me.kind === 'STUDENT';
   const courses = toFilterableCourses(courseList ?? [], products ?? []).slice(0, 24);
   const plans = (products ?? []).filter((p) => p.kind === 'SUBSCRIPTION');
 
@@ -190,7 +195,7 @@ export default async function LandingPage({ params }: { params: { locale: string
               <h2 className="mt-3 text-3xl font-black tracking-tight text-navy-950 md:text-[40px]">{L('अभी उपलब्ध कोर्स', 'Courses available now')}</h2>
               <p className="mt-2 text-muted">{L('संस्थान के छात्रों के लिए विशेष मूल्य के साथ, सभी के लिए खुला।', 'Open to everyone, with a special price for the owning institute’s own students.')}</p>
             </div>
-            <CoursesFilterGrid courses={courses} states={states ?? []} exams={examList ?? []} locale={locale} mode="browse" />
+            <CoursesFilterGrid courses={courses} states={states ?? []} exams={examList ?? []} locale={locale} mode="browse" isStudent={isStudent} />
             <div className="mt-8 text-center">
               <Link href={`/${locale}/courses`} className="inline-flex items-center gap-2 text-sm font-extrabold text-navy-900 hover:underline">
                 {L('सभी कोर्स देखें', 'View all courses')} →

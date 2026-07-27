@@ -10,6 +10,8 @@ import { StudentShell } from '@/components/StudentShell';
 import { BuyButton } from '@/components/BuyButton';
 import { InstitutePriceToggle } from '@/components/InstitutePriceToggle';
 import { CourseSyllabus } from '@/components/CourseSyllabus';
+import { CourseRatings } from '@/components/CourseRatings';
+import { WishlistToggle } from '@/components/WishlistToggle';
 import { CourseCurriculumPanel } from '@/components/CourseCurriculumPanel';
 import { CourseProgressCard } from '@/components/CourseProgressCard';
 import type { ProductView, CoursePricingResolved, CourseOutlineView, CoursePreviewResponse } from '@rajyarank/contracts';
@@ -96,6 +98,17 @@ export default async function CourseDetailPage({
 
       <div className="mb-1 text-xs font-extrabold uppercase text-teal-600">{course.code}</div>
       <h1 className="text-3xl font-black text-navy-950">{title}</h1>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {course.orgName ? (
+          <span className="rounded-full bg-orange-100 px-2 py-1 text-[10px] font-extrabold text-orange-600">{course.orgName}</span>
+        ) : (
+          <span className="rounded-full bg-teal-100 px-2 py-1 text-[10px] font-extrabold text-success">{L('सार्वजनिक', 'Public')}</span>
+        )}
+        {Date.now() - new Date(course.createdAt).getTime() < 14 * 24 * 60 * 60 * 1000 ? (
+          <span className="rounded-full bg-navy-100 px-2 py-1 text-[10px] font-extrabold text-navy-800">{L('नया', 'New')}</span>
+        ) : null}
+      </div>
+      {isStudent ? <WishlistToggle courseId={course.id} locale={locale} /> : null}
       {desc ? <p className="mt-3 max-w-2xl text-muted">{desc}</p> : null}
 
       {course.orgId ? (
@@ -134,6 +147,8 @@ export default async function CourseDetailPage({
       )}
 
       <CourseSyllabus course={course} locale={locale} />
+
+      {preview ? null : <CourseRatings courseId={course.id} isStudent={isStudent} locale={locale} />}
 
       {preview ? (
         <div className="mt-10">

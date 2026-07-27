@@ -614,6 +614,12 @@ export class StudentService {
       orderBy: { dateFor: 'desc' },
       take: 30,
     });
+    const createdByIds = [...new Set(items.map((a) => a.createdBy).filter((id): id is string => !!id))];
+    const orgNameByCreator = new Map<string, string>();
+    if (createdByIds.length > 0) {
+      const users = await this.prisma.user.findMany({ where: { id: { in: createdByIds } }, select: { id: true, org: { select: { name: true } } } });
+      for (const u of users) if (u.org?.name) orgNameByCreator.set(u.id, u.org.name);
+    }
     return items.map((a) => ({
       id: a.id,
       dateFor: a.dateFor.toISOString(),
@@ -623,6 +629,8 @@ export class StudentService {
       bodyEn: a.bodyEn,
       category: a.category,
       scope: a.scope,
+      publishedAt: a.publishedAt?.toISOString() ?? null,
+      orgName: (a.createdBy && orgNameByCreator.get(a.createdBy)) ?? null,
     }));
   }
 
