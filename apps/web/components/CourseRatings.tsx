@@ -33,7 +33,7 @@ export function CourseRatings({ courseId, isStudent, locale }: { courseId: strin
         .then((r) => setCanRate(r.hasAccess))
         .catch(() => setCanRate(false));
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only depends on identity of the course/viewer, not on data itself
+    // intentionally depends only on the course/viewer identity, not on `data`
   }, [courseId, isStudent]);
 
   async function onSubmit() {

@@ -87,7 +87,7 @@ export function ActivityLogManager({ locale }: { locale: 'hi' | 'en' }) {
 
   useEffect(() => {
     void load(0, false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch only when a filter actually changes
+    // intentionally refetches only when a filter actually changes
   }, [orgId, action, result, datePreset, actorQuery]);
 
   function fmt(iso: string): string {

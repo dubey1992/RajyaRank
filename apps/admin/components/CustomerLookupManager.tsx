@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { Alert, Button, ConfirmDialog, Toast } from '@rajyarank/ui';
+import { Alert, ConfirmDialog, Toast } from '@rajyarank/ui';
 import { apiFetch, type ApiError } from '@/lib/api';
 import { SearchInput } from './SearchInput';
 import type { CustomerDetail, CustomerSearchResult } from '@rajyarank/contracts';
