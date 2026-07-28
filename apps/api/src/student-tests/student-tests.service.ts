@@ -175,7 +175,13 @@ export class StudentTestsService {
     const answeredTotal = correct + incorrect;
     const accuracy = answeredTotal ? Math.round((correct / answeredTotal) * 100) : 0;
     const autoSubmitted = attempt.expiresAt.getTime() < Date.now();
+    const now = new Date();
 
+    // Concept-mastery upserts run in the SAME transaction as the score write.
+    // submit() short-circuits to a cached result for any non-IN_PROGRESS
+    // attempt (see the early return above), so once the attempt is marked
+    // SUBMITTED there is no later retry path that could redo a mastery update
+    // dropped by a partial failure — it must all commit atomically or not at all.
     await this.prisma.$transaction([
       this.prisma.attempt.update({
         where: { id: attemptId },
@@ -192,21 +198,17 @@ export class StudentTestsService {
       ...perAnswerUpdates.map((u) =>
         this.prisma.attemptAnswer.update({ where: { id: u.id }, data: { isCorrect: u.isCorrect, awarded: u.awarded } }),
       ),
-    ]);
-
-    // Each linked concept gets its own upsert (not batched into one write) —
-    // a question can map to several concepts, and each needs an independent
-    // attemptsCount/correctCount increment.
-    const now = new Date();
-    await Promise.all(
-      conceptUpdates.map((cu) =>
+      // Each linked concept gets its own upsert (not batched into one write) —
+      // a question can map to several concepts, and each needs an independent
+      // attemptsCount/correctCount increment.
+      ...conceptUpdates.map((cu) =>
         this.prisma.studentConceptMastery.upsert({
           where: { studentId_conceptId: { studentId, conceptId: cu.conceptId } },
           create: { studentId, conceptId: cu.conceptId, attemptsCount: 1, correctCount: cu.isCorrect ? 1 : 0, lastPracticedAt: now },
           update: { attemptsCount: { increment: 1 }, correctCount: { increment: cu.isCorrect ? 1 : 0 }, lastPracticedAt: now },
         }),
       ),
-    );
+    ]);
 
     return this.result(p, attemptId);
   }

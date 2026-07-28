@@ -40,6 +40,18 @@ export class ConceptsController {
     return this.concepts.remove(p, id);
   }
 
+  @Get(':id/lessons')
+  @RequirePermission('course.manage')
+  listLessons(@Param('id') id: string) {
+    return this.concepts.listLessonLinks(id);
+  }
+
+  @Get(':id/questions')
+  @RequirePermission('course.manage')
+  listQuestions(@Param('id') id: string) {
+    return this.concepts.listQuestionLinks(id);
+  }
+
   @Post(':id/lessons/:lessonId')
   @RequirePermission('course.manage')
   attachLesson(@CurrentPrincipal() p: Principal, @Param('id') id: string, @Param('lessonId') lessonId: string) {

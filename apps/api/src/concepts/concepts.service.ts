@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { Principal } from '@rajyarank/auth';
-import type { ConceptView, UpsertConcept } from '@rajyarank/contracts';
+import type { ConceptLessonLink, ConceptQuestionLink, ConceptView, UpsertConcept } from '@rajyarank/contracts';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { AppError } from '../common/errors/app-error';
@@ -74,6 +74,32 @@ export class ConceptsService {
     await this.prisma.concept.delete({ where: { id } });
     await this.audit.record({ actorUserId: principal.userId, action: 'concept.deleted', targetType: 'Concept', targetId: id, result: 'SUCCESS' });
     return { ok: true };
+  }
+
+  /** Backs the admin UI's "linked lessons" list — lets an admin see (and then
+   *  detach) exactly which lessons a concept is tagged to, not just a count. */
+  async listLessonLinks(conceptId: string): Promise<ConceptLessonLink[]> {
+    const links = await this.prisma.lessonConcept.findMany({
+      where: { conceptId },
+      include: { lesson: { include: { currentVersion: true } } },
+    });
+    return links.map((l) => ({
+      lessonId: l.lessonId,
+      titleHi: l.lesson.currentVersion?.titleHi ?? l.lessonId,
+      titleEn: l.lesson.currentVersion?.titleEn ?? l.lessonId,
+    }));
+  }
+
+  async listQuestionLinks(conceptId: string): Promise<ConceptQuestionLink[]> {
+    const links = await this.prisma.questionConcept.findMany({
+      where: { conceptId },
+      include: { question: { include: { currentVersion: true } } },
+    });
+    return links.map((l) => ({
+      questionId: l.questionId,
+      textHi: l.question.currentVersion?.textHi ?? null,
+      textEn: l.question.currentVersion?.textEn ?? null,
+    }));
   }
 
   async attachLesson(principal: Principal, conceptId: string, lessonId: string): Promise<{ ok: true }> {

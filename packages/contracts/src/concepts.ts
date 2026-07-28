@@ -37,3 +37,15 @@ export interface ReadinessBreakdown {
 export type ReadinessView =
   | { available: true; score: number; breakdown: ReadinessBreakdown }
   | { available: false; reason: 'ONBOARDING_INCOMPLETE' | 'NO_CONCEPTS_AUTHORED' };
+
+export interface ConceptLessonLink {
+  lessonId: string;
+  titleHi: string;
+  titleEn: string;
+}
+
+export interface ConceptQuestionLink {
+  questionId: string;
+  textHi: string | null;
+  textEn: string | null;
+}
