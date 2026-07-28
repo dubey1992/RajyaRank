@@ -44,6 +44,7 @@ const NAV: NavItem[] = [
   { href: '/admin/review-queue', label: { hi: 'समीक्षा क़तार', en: 'Review Queue' }, show: (me) => can(me, 'content.review') },
   { href: '/admin/current-affairs', label: { hi: 'करेंट अफेयर्स', en: 'Current Affairs' }, show: (me) => can(me, 'content.create') || can(me, 'content.review') },
   { href: '/admin/question-bank', label: { hi: 'प्रश्न बैंक', en: 'Question Bank' }, show: (me) => can(me, 'question.create') },
+  { href: '/admin/concepts', label: { hi: 'कॉन्सेप्ट ग्राफ़', en: 'Concept Graph' }, show: (me) => can(me, 'course.manage') },
   { href: '/admin/mock-tests', label: { hi: 'मॉक टेस्ट', en: 'Mock Tests' }, show: (me) => can(me, 'test.create') || can(me, 'content.approve') },
   { href: '/admin/payments', label: { hi: 'भुगतान प्रबंधन', en: 'Manage Payments' }, show: (me) => can(me, 'payment.manage') },
   { href: '/admin/support', label: { hi: 'सहायता', en: 'Support' }, show: (me) => can(me, 'support.manage') },

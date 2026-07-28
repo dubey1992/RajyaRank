@@ -18,6 +18,7 @@ import { CurrentPrincipal } from '../common/decorators/current-principal.decorat
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 import { StudentService } from './student.service';
 import { StudyPlanService } from './study-plan.service';
+import { ReadinessService } from './readiness.service';
 
 /**
  * Student endpoints. Authentication is enforced globally by AccessGuard; there
@@ -30,6 +31,7 @@ export class StudentController {
   constructor(
     private readonly student: StudentService,
     private readonly studyPlan: StudyPlanService,
+    private readonly readinessService: ReadinessService,
   ) {}
 
   @Post('onboarding')
@@ -48,6 +50,11 @@ export class StudentController {
   @Get('dashboard')
   dashboard(@CurrentPrincipal() p: Principal) {
     return this.student.dashboard(p);
+  }
+
+  @Get('readiness')
+  readiness(@CurrentPrincipal() p: Principal) {
+    return this.readinessService.readiness(p);
   }
 
   @Post('institution/join')

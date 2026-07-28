@@ -325,6 +325,7 @@ model Lesson {
   currentVersion LessonVersion?   @relation("CurrentVersion", fields: [currentVersionId], references: [id])
   progress       LessonProgress[]
   bookmarks      Bookmark[]
+  concepts       LessonConcept[]
 
   @@index([topicId])
   @@index([batchId])
@@ -460,6 +461,7 @@ model User {
   studyPlans        StudyPlan[]
   courseRatings     CourseRating[]
   wishlist          Wishlist[]
+  conceptMastery    StudentConceptMastery[]
 
   orgId     String?       @map("org_id")
   org       Organization? @relation("OrgMembers", fields: [orgId], references: [id])
@@ -719,6 +721,7 @@ model Question {
   subject        Subject           @relation(fields: [subjectId], references: [id])
   versions       QuestionVersion[] @relation("QuestionVersions")
   currentVersion QuestionVersion?  @relation("QuestionCurrentVersion", fields: [currentVersionId], references: [id])
+  concepts       QuestionConcept[]
 
   @@index([subjectId])
   @@index([duplicateFingerprint])
@@ -1381,6 +1384,76 @@ model Wishlist {
   @@map("wishlists")
 }
 
+// Exam-syllabus-scoped concept graph (Exam Readiness OS Phase 1) — deliberately
+// separate from the Course→Subject→Chapter→Topic authoring tree: a concept can
+// be reinforced by lessons/questions across different courses/topics that all
+// teach the same exam.
+model Concept {
+  id              String   @id @default(uuid())
+  examId          String   @map("exam_id")
+  parentConceptId String?  @map("parent_concept_id")
+  code            String
+  nameHi          String   @map("name_hi")
+  nameEn          String   @map("name_en")
+  syllabusVersion String?  @map("syllabus_version")
+  sequence        Int      @default(0)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  exam     Exam      @relation(fields: [examId], references: [id], onDelete: Cascade)
+  parent   Concept?  @relation("ConceptHierarchy", fields: [parentConceptId], references: [id])
+  children Concept[] @relation("ConceptHierarchy")
+
+  lessons   LessonConcept[]
+  questions QuestionConcept[]
+  masteries StudentConceptMastery[]
+
+  @@index([examId])
+  @@map("concepts")
+}
+
+model LessonConcept {
+  id        String @id @default(uuid())
+  lessonId  String @map("lesson_id")
+  conceptId String @map("concept_id")
+
+  lesson  Lesson  @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  concept Concept @relation(fields: [conceptId], references: [id], onDelete: Cascade)
+
+  @@unique([lessonId, conceptId])
+  @@map("lesson_concepts")
+}
+
+model QuestionConcept {
+  id         String @id @default(uuid())
+  questionId String @map("question_id")
+  conceptId  String @map("concept_id")
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  concept  Concept  @relation(fields: [conceptId], references: [id], onDelete: Cascade)
+
+  @@unique([questionId, conceptId])
+  @@map("question_concepts")
+}
+
+// masteryScore is deliberately NOT stored — always derived as
+// correctCount/attemptsCount at read time, so there is only one source of truth.
+model StudentConceptMastery {
+  id              String    @id @default(uuid())
+  studentId       String    @map("student_id")
+  conceptId       String    @map("concept_id")
+  attemptsCount   Int       @default(0) @map("attempts_count")
+  correctCount    Int       @default(0) @map("correct_count")
+  lastPracticedAt DateTime? @map("last_practiced_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  user    User    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  concept Concept @relation(fields: [conceptId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, conceptId])
+  @@map("student_concept_mastery")
+}
+
 model Doubt {
   id                String      @id @default(uuid())
   studentId         String      @map("student_id")
@@ -1607,6 +1680,7 @@ model Exam {
   students   StudentProfile[]
   courses    Course[]
   tests      Test[]
+  concepts   Concept[]
 
   // Institution-owned — an Academic Head's exams are private to their org
   // (null = platform-seeded/global, created by Content Admin/Super Admin).

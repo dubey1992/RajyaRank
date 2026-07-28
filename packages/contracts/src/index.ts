@@ -20,3 +20,4 @@ export * from './blog';
 export * from './settlements';
 export * from './announcements';
 export * from './ratings';
+export * from './concepts';

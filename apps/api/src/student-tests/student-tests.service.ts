@@ -14,7 +14,7 @@ const FULL_VERSION_INCLUDE = Prisma.validator<Prisma.TestVersionDefaultArgs>()({
       include: {
         questions: {
           orderBy: { sequence: 'asc' },
-          include: { questionVersion: { include: { question: { include: { subject: true } } } } },
+          include: { questionVersion: { include: { question: { include: { subject: true, concepts: true } } } } },
         },
       },
     },
@@ -147,6 +147,9 @@ export class StudentTestsService {
     let incorrect = 0;
     let unanswered = 0;
     const perAnswerUpdates: { id: string; isCorrect: boolean; awarded: number }[] = [];
+    // Concept-mastery signal (Exam Readiness OS): one row per answered
+    // question's linked concept(s) — a question can map to multiple concepts.
+    const conceptUpdates: { conceptId: string; isCorrect: boolean }[] = [];
 
     for (const section of tv.sections) {
       for (const tq of section.questions) {
@@ -165,6 +168,7 @@ export class StudentTestsService {
         if (ok) correct += 1;
         else incorrect += 1;
         perAnswerUpdates.push({ id: ans!.id, isCorrect: ok, awarded });
+        for (const qc of qv.question.concepts) conceptUpdates.push({ conceptId: qc.conceptId, isCorrect: ok });
       }
     }
 
@@ -189,6 +193,20 @@ export class StudentTestsService {
         this.prisma.attemptAnswer.update({ where: { id: u.id }, data: { isCorrect: u.isCorrect, awarded: u.awarded } }),
       ),
     ]);
+
+    // Each linked concept gets its own upsert (not batched into one write) —
+    // a question can map to several concepts, and each needs an independent
+    // attemptsCount/correctCount increment.
+    const now = new Date();
+    await Promise.all(
+      conceptUpdates.map((cu) =>
+        this.prisma.studentConceptMastery.upsert({
+          where: { studentId_conceptId: { studentId, conceptId: cu.conceptId } },
+          create: { studentId, conceptId: cu.conceptId, attemptsCount: 1, correctCount: cu.isCorrect ? 1 : 0, lastPracticedAt: now },
+          update: { attemptsCount: { increment: 1 }, correctCount: { increment: cu.isCorrect ? 1 : 0 }, lastPracticedAt: now },
+        }),
+      ),
+    );
 
     return this.result(p, attemptId);
   }

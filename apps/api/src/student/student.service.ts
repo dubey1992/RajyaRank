@@ -271,14 +271,7 @@ export class StudentService {
     // Last-7-days activity flags (oldest first) + minutes done this week for the goal ring.
     const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
     const today = startOfDay(new Date());
-    const dayKeys: string[] = [];
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(today.getDate() - i);
-      dayKeys.push(d.toISOString().slice(0, 10));
-    }
-    const activeDays = new Set(progress.map((pr) => startOfDay(pr.lastAccessedAt).toISOString().slice(0, 10)));
-    const streakWeek = dayKeys.map((k) => activeDays.has(k));
+    const streakWeek = computeStreakWeek(progress);
     const weekStart = new Date(today);
     weekStart.setDate(today.getDate() - 6);
     const doneMinutes = Math.round(
@@ -659,6 +652,22 @@ export class StudentService {
     });
     return lesson?.topic.chapter.subject.courseId ?? null;
   }
+}
+
+/** Last-7-calendar-days activity flags (oldest first) — shared with
+ *  ReadinessService's "Consistency" dimension so both read the exact same
+ *  definition of an "active day". */
+export function computeStreakWeek(progress: { lastAccessedAt: Date }[]): boolean[] {
+  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const today = startOfDay(new Date());
+  const dayKeys: string[] = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    dayKeys.push(d.toISOString().slice(0, 10));
+  }
+  const activeDays = new Set(progress.map((pr) => startOfDay(pr.lastAccessedAt).toISOString().slice(0, 10)));
+  return dayKeys.map((k) => activeDays.has(k));
 }
 
 /** Consecutive days (ending today or yesterday) with any learning activity. */
