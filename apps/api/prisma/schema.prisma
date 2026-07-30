@@ -603,7 +603,20 @@ enum StudyPlanStatus {
 enum PlanItemKind {
   LESSON
   WEAK_TOPIC_DRILL
+  MISTAKE_DRILL // concept-targeted remediation slot, driven by recent AttemptAnswer.mistakeType volume
   TEST // reserved for a future test-scheduling tie-in, unused today
+}
+
+// Classification of a wrong test answer (Mistake Coach, Phase 2). Deliberately
+// 4 types, not the original prototype's 5 — LANGUAGE_CONFUSION was dropped, no
+// honest signal for it exists anywhere in this schema. MISREAD is a residual/
+// process-of-elimination bucket, not a positively-detected signal — see
+// classifyMistake()'s doc comment in student-tests/mistake-classifier.ts.
+enum MistakeType {
+  CONCEPT_GAP
+  MISREAD
+  SLOW_CALCULATION
+  GUESSING
 }
 
 enum PlanItemStatus {
@@ -645,6 +658,8 @@ model PlanItem {
   sequence          Int            @default(0)
   lessonId          String?        @map("lesson_id")
   topicId           String?        @map("topic_id") // set for WEAK_TOPIC_DRILL slots
+  conceptId         String?        @map("concept_id") // set for MISTAKE_DRILL slots
+  triggerMistakeType MistakeType?  @map("trigger_mistake_type") // which mistake type drove a MISTAKE_DRILL slot, for display
   kind              PlanItemKind
   estimatedMinutes  Int            @default(20) @map("estimated_minutes")
   status            PlanItemStatus @default(PENDING)
@@ -890,8 +905,17 @@ model AttemptAnswer {
   response          Json?
   markedForReview   Boolean  @default(false) @map("marked_for_review")
   sequenceNo        Int      @default(0) @map("sequence_no")
+  /// Cumulative ms the student spent viewing this question. Same convention as
+  /// sequenceNo: the frontend owns the authoritative absolute value and sends
+  /// it on every save; the server upsert-overwrites, never increments.
+  timeSpentMs       Int      @default(0) @map("time_spent_ms")
   isCorrect         Boolean? @map("is_correct")
   awarded           Float?
+  /// Set once, only when isCorrect === false, in the same submit()-time update
+  /// that sets isCorrect/awarded — immutable after (submit() has no retry path
+  /// for an already-SUBMITTED attempt). Null for correct/unanswered questions
+  /// and for any answer submitted before this feature shipped.
+  mistakeType       MistakeType? @map("mistake_type")
   updatedAt         DateTime @updatedAt @map("updated_at")
 
   attempt Attempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)

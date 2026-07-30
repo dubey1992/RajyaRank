@@ -14,6 +14,13 @@ const TRUE_FALSE_OPTIONS = [
   { key: 'FALSE', hi: 'ग़लत', en: 'False' },
 ];
 
+const MISTAKE_LABEL: Record<string, { hi: string; en: string }> = {
+  CONCEPT_GAP: { hi: 'कॉन्सेप्ट गैप', en: 'Concept gap' },
+  SLOW_CALCULATION: { hi: 'धीमी गणना', en: 'Slow calculation' },
+  GUESSING: { hi: 'अंदाज़ा', en: 'Guessing' },
+  MISREAD: { hi: 'गलत पढ़ाई', en: 'Misread' },
+};
+
 function asKeySet(v: unknown): Set<string> {
   if (Array.isArray(v)) return new Set(v.map(String));
   if (typeof v === 'string' || typeof v === 'number') return new Set([String(v)]);
@@ -83,6 +90,11 @@ export default async function TestReviewPage({
                     {q.isCorrect ? L('सही', 'Correct') : answered ? L('ग़लत', 'Incorrect') : L('अनुत्तरित', 'Unanswered')} · {q.awarded != null ? (q.awarded >= 0 ? `+${q.awarded}` : q.awarded) : '—'}
                   </span>
                 </div>
+                {!q.isCorrect && q.mistakeType ? (
+                  <p className="mb-3 text-[10.5px] font-bold text-muted">
+                    {L('क्यों ग़लत हुआ', 'Why this went wrong')}: {hi ? MISTAKE_LABEL[q.mistakeType]!.hi : MISTAKE_LABEL[q.mistakeType]!.en}
+                  </p>
+                ) : null}
 
                 {choiceBased ? (
                   <ul className="grid gap-2">

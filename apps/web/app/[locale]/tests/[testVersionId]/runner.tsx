@@ -33,15 +33,58 @@ export function TestRunner({ testVersionId, locale }: { testVersionId: string; l
   const [errorCode, setErrorCode] = useState<string | null>(null);
   const seq = useRef(0);
   const submittedRef = useRef(false);
+  // Per-question timing (Mistake Coach): cumulative ms spent viewing each
+  // question, banked into `timeSpent` whenever the active question changes,
+  // the tab is backgrounded, or the attempt is submitted. Mirrors seq.current
+  // in spirit — the client owns the authoritative value and sends it as-is.
+  const activeQidRef = useRef<string | null>(null);
+  const questionEnteredAt = useRef(Date.now());
+  const timeSpent = useRef<Record<string, number>>({});
 
   const flat: FlatQ[] = useMemo(
     () => (attempt ? attempt.sections.flatMap((s) => s.questions.map((q) => ({ ...q, section: hi ? s.nameHi : s.nameEn }))) : []),
     [attempt, hi],
   );
 
+  const flushElapsed = useCallback(() => {
+    const qid = activeQidRef.current;
+    if (!qid) return;
+    const now = Date.now();
+    timeSpent.current[qid] = (timeSpent.current[qid] ?? 0) + Math.max(0, now - questionEnteredAt.current);
+    questionEnteredAt.current = now;
+  }, []);
+
+  const goToIndex = useCallback(
+    (newIdx: number) => {
+      flushElapsed();
+      activeQidRef.current = flat[newIdx]?.questionVersionId ?? null;
+      setIdx(newIdx);
+    },
+    [flat, flushElapsed],
+  );
+
+  // First question becomes "active" once the attempt loads.
+  useEffect(() => {
+    if (flat.length && activeQidRef.current === null) {
+      activeQidRef.current = flat[0]?.questionVersionId ?? null;
+      questionEnteredAt.current = Date.now();
+    }
+  }, [flat]);
+
+  // Backgrounded time shouldn't count as "time spent" on a question.
+  useEffect(() => {
+    function onVisibilityChange() {
+      if (document.hidden) flushElapsed();
+      else questionEnteredAt.current = Date.now();
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, [flushElapsed]);
+
   const submit = useCallback(async () => {
     if (submittedRef.current || !attempt) return;
     submittedRef.current = true;
+    flushElapsed();
     try {
       const res = await apiFetch<AttemptResult>(`/student/attempts/${attempt.attemptId}/submit`, { method: 'POST' });
       setResult(res);
@@ -50,7 +93,7 @@ export function TestRunner({ testVersionId, locale }: { testVersionId: string; l
       setError((e as ApiError).message);
       setPhase('error');
     }
-  }, [attempt]);
+  }, [attempt, flushElapsed]);
 
   // Start the attempt.
   useEffect(() => {
@@ -94,12 +137,14 @@ export function TestRunner({ testVersionId, locale }: { testVersionId: string; l
       if (!attempt) return;
       setAnswers((a) => ({ ...a, [q.questionVersionId]: { response, marked } }));
       seq.current += 1;
+      flushElapsed();
+      const timeSpentMs = timeSpent.current[q.questionVersionId] ?? 0;
       await apiFetch(`/student/attempts/${attempt.attemptId}/answers/${q.questionVersionId}`, {
         method: 'PUT',
-        body: JSON.stringify({ response, markedForReview: marked, sequenceNo: seq.current }),
+        body: JSON.stringify({ response, markedForReview: marked, sequenceNo: seq.current, timeSpentMs }),
       }).catch(() => undefined); // offline-tolerant; timer/submit will re-sync final state
     },
-    [attempt],
+    [attempt, flushElapsed],
   );
 
   if (phase === 'loading') return <p className="py-16 text-center text-muted">{L('टेस्ट तैयार हो रहा है…', 'Preparing your test…')}</p>;
@@ -140,7 +185,7 @@ export function TestRunner({ testVersionId, locale }: { testVersionId: string; l
         <QuestionInput q={q} value={current?.response} onChange={(resp) => void save(q, resp, current?.marked ?? false)} locale={locale} />
 
         <div className="mt-6 flex flex-wrap justify-between gap-2.5 border-t border-line pt-4">
-          <button type="button" className={BTN_OUTLINE} onClick={() => setIdx((i) => Math.max(0, i - 1))} disabled={idx === 0}>← {L('पिछला', 'Previous')}</button>
+          <button type="button" className={BTN_OUTLINE} onClick={() => goToIndex(Math.max(0, idx - 1))} disabled={idx === 0}>← {L('पिछला', 'Previous')}</button>
           <div className="flex flex-wrap gap-2.5">
             <button type="button" className={BTN_SOFT} onClick={() => void save(q, current?.response ?? null, !(current?.marked ?? false))}>
               🔖 {current?.marked ? L('रिव्यू हटाएँ', 'Unmark') : L('रिव्यू हेतु चिह्नित', 'Mark for review')}
@@ -150,7 +195,7 @@ export function TestRunner({ testVersionId, locale }: { testVersionId: string; l
               <button
                 type="button"
                 className={BTN_PRIMARY}
-                onClick={() => setIdx((i) => Math.min(flat.length - 1, i + 1))}
+                onClick={() => goToIndex(Math.min(flat.length - 1, idx + 1))}
                 disabled={!canAdvance}
                 title={canAdvance ? undefined : L('अगले प्रश्न पर जाने के लिए उत्तर दें या रिव्यू हेतु चिह्नित करें।', 'Answer this question or mark it for review to continue.')}
               >
@@ -191,7 +236,7 @@ export function TestRunner({ testVersionId, locale }: { testVersionId: string; l
                     ? 'bg-teal-100 border-[#a8e7da] text-teal-700'
                     : 'bg-white border-line text-navy-900';
               return (
-                <button key={fq.questionVersionId} onClick={() => setIdx(i)} className={`h-[34px] rounded-[9px] border text-[10px] font-black ${tone}`}>{i + 1}</button>
+                <button key={fq.questionVersionId} onClick={() => goToIndex(i)} className={`h-[34px] rounded-[9px] border text-[10px] font-black ${tone}`}>{i + 1}</button>
               );
             })}
           </div>

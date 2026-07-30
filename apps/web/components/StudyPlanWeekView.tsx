@@ -12,6 +12,13 @@ const STATUS_TONE: Record<string, string> = {
   PENDING: 'bg-orange-100 text-orange-600',
 };
 
+const MISTAKE_TONE: Record<string, { hi: string; en: string; tone: string }> = {
+  CONCEPT_GAP: { hi: 'कॉन्सेप्ट गैप ठीक करें', en: 'Concept-gap fix', tone: 'bg-[#fff1f2] text-danger' },
+  SLOW_CALCULATION: { hi: 'धीमी गणना ड्रिल', en: 'Slow-calc drill', tone: 'bg-orange-100 text-orange-600' },
+  GUESSING: { hi: 'अंदाज़ा जाँच', en: 'Guessing check', tone: 'bg-[#f1e9ff] text-[#7c3aed]' },
+  MISREAD: { hi: 'लापरवाही सुधार', en: 'Careless-mistake fix', tone: 'bg-teal-100 text-teal-600' },
+};
+
 export function StudyPlanWeekView({ initial, locale }: { initial: StudyPlanDay[]; locale: 'hi' | 'en' }) {
   const hi = locale === 'hi';
   const L = (h: string, e: string) => (hi ? h : e);
@@ -107,6 +114,11 @@ export function StudyPlanWeekView({ initial, locale }: { initial: StudyPlanDay[]
                 <div className="flex items-center gap-2">
                   {item.kind === 'WEAK_TOPIC_DRILL' ? (
                     <span className="rounded-full bg-[#f1e9ff] px-2 py-0.5 text-[9px] font-black text-[#7c3aed]">{L('फोकस क्षेत्र', 'Focus area')}</span>
+                  ) : null}
+                  {item.kind === 'MISTAKE_DRILL' && item.triggerMistakeType ? (
+                    <span className={`rounded-full px-2 py-0.5 text-[9px] font-black ${MISTAKE_TONE[item.triggerMistakeType]!.tone}`}>
+                      {hi ? MISTAKE_TONE[item.triggerMistakeType]!.hi : MISTAKE_TONE[item.triggerMistakeType]!.en}
+                    </span>
                   ) : null}
                   <span className={`rounded-full px-2 py-0.5 text-[9px] font-black ${STATUS_TONE[item.status] ?? STATUS_TONE.PENDING}`}>{item.status}</span>
                 </div>

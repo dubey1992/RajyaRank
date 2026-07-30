@@ -129,10 +129,16 @@ export interface TestListItem {
 }
 
 // ── Attempts (student) ────────────────────────────────────────────────────────
+export const mistakeTypeSchema = z.enum(['CONCEPT_GAP', 'MISREAD', 'SLOW_CALCULATION', 'GUESSING']);
+export type MistakeType = z.infer<typeof mistakeTypeSchema>;
+
 export const saveAnswerSchema = z.object({
   response: z.unknown(),
   markedForReview: z.boolean().optional(),
   sequenceNo: z.number().int().min(0),
+  /** Cumulative ms spent viewing this question so far — same convention as
+   *  sequenceNo: the client sends its current absolute value on every save. */
+  timeSpentMs: z.number().int().min(0),
 });
 export type SaveAnswer = z.infer<typeof saveAnswerSchema>;
 
@@ -181,6 +187,9 @@ export interface AttemptResult {
     correctAnswer: unknown;
     explanationHi: string | null;
     explanationEn: string | null;
+    /** Only ever set when isCorrect === false; null for correct/unanswered
+     *  questions and for any attempt submitted before this feature shipped. */
+    mistakeType: MistakeType | null;
   }[];
 }
 
@@ -212,3 +221,10 @@ export interface WeakTopic {
   total: number;
   accuracy: number;
 }
+
+/** "Mistake DNA" — a breakdown of the student's recent classified wrong
+ *  answers by type (Mistake Coach, Phase 2). Explicit unavailable state (not a
+ *  misleading empty chart) when there's no classified mistake history yet. */
+export type MistakeDnaView =
+  | { available: true; windowDays: number; totalWrong: number; byType: { type: MistakeType; count: number; percent: number }[] }
+  | { available: false; reason: 'NO_RECENT_MISTAKES' };

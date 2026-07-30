@@ -19,6 +19,7 @@ import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 import { StudentService } from './student.service';
 import { StudyPlanService } from './study-plan.service';
 import { ReadinessService } from './readiness.service';
+import { MistakeDnaService } from './mistake-dna.service';
 
 /**
  * Student endpoints. Authentication is enforced globally by AccessGuard; there
@@ -32,6 +33,7 @@ export class StudentController {
     private readonly student: StudentService,
     private readonly studyPlan: StudyPlanService,
     private readonly readinessService: ReadinessService,
+    private readonly mistakeDnaService: MistakeDnaService,
   ) {}
 
   @Post('onboarding')
@@ -55,6 +57,11 @@ export class StudentController {
   @Get('readiness')
   readiness(@CurrentPrincipal() p: Principal) {
     return this.readinessService.readiness(p);
+  }
+
+  @Get('mistake-dna')
+  mistakeDna(@CurrentPrincipal() p: Principal) {
+    return this.mistakeDnaService.mistakeDna(p);
   }
 
   @Post('institution/join')

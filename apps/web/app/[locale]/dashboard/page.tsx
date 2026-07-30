@@ -1,12 +1,13 @@
 import Link from 'next/link';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import type { DashboardResponse, ReadinessView, WeakTopic } from '@rajyarank/contracts';
+import type { DashboardResponse, MistakeDnaView, ReadinessView, StudyPlanDay, WeakTopic } from '@rajyarank/contracts';
 import { resolveLocale } from '@/lib/i18n';
 import { apiFetchServer } from '@/lib/api';
 import { StudentShell } from '@/components/StudentShell';
 import { ExamCountdown } from '@/components/ExamCountdown';
 import { ReadinessGauge } from '@/components/ReadinessGauge';
+import { MistakeDnaCard } from '@/components/MistakeDnaCard';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,6 +29,12 @@ export default async function DashboardPage({ params }: { params: { locale: stri
 
   const weakTopics = (await apiFetchServer<WeakTopic[]>('/student/weak-topics', cookie)) ?? [];
   const readiness = (await apiFetchServer<ReadinessView>('/student/readiness', cookie)) ?? { available: false, reason: 'ONBOARDING_INCOMPLETE' as const };
+  const mistakeDna = (await apiFetchServer<MistakeDnaView>('/student/mistake-dna', cookie)) ?? { available: false, reason: 'NO_RECENT_MISTAKES' as const };
+  const studyWeek = (await apiFetchServer<StudyPlanDay[]>('/student/study-plan/week', cookie)) ?? [];
+  const coachItems = studyWeek
+    .flatMap((d) => d.items.map((i) => ({ ...i, date: d.date })))
+    .filter((i) => i.kind === 'MISTAKE_DRILL' && i.status === 'PENDING')
+    .slice(0, 3);
 
   const name = data.greetingName ?? L('विद्यार्थी', 'Student');
   const initials = initialsOf(data.greetingName);
@@ -186,6 +193,9 @@ export default async function DashboardPage({ params }: { params: { locale: stri
         <aside className="grid content-start gap-[18px] sm:grid-cols-2 lg:grid-cols-1">
           {/* Exam readiness score */}
           <ReadinessGauge readiness={readiness} locale={locale} />
+
+          {/* Mistake DNA + Mistake Coach */}
+          <MistakeDnaCard dna={mistakeDna} coachItems={coachItems} locale={locale} />
 
           {/* Weekly goal ring */}
           <article className="rounded-[20px] border border-line bg-white p-5 text-center shadow-[0_7px_22px_rgba(6,29,49,0.04)]">

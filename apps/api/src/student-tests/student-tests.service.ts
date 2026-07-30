@@ -1,10 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import type { Principal } from '@rajyarank/auth';
-import type { AttemptResult, SaveAnswer, StartAttemptResponse, StudentTestListItem } from '@rajyarank/contracts';
+import type { AttemptResult, MistakeType, SaveAnswer, StartAttemptResponse, StudentTestListItem } from '@rajyarank/contracts';
 import { PrismaService } from '../prisma/prisma.service';
 import { AppError } from '../common/errors/app-error';
 import { isResponseCorrect } from '../question-bank/answer-shape';
+import { classifyMistake } from './mistake-classifier';
 
 const FULL_VERSION_INCLUDE = Prisma.validator<Prisma.TestVersionDefaultArgs>()({
   include: {
@@ -126,8 +127,8 @@ export class StudentTestsService {
 
     await this.prisma.attemptAnswer.upsert({
       where: { attemptId_questionVersionId: { attemptId, questionVersionId } },
-      update: { response: dto.response as object, markedForReview: dto.markedForReview ?? false, sequenceNo: dto.sequenceNo },
-      create: { attemptId, questionVersionId, response: dto.response as object, markedForReview: dto.markedForReview ?? false, sequenceNo: dto.sequenceNo },
+      update: { response: dto.response as object, markedForReview: dto.markedForReview ?? false, sequenceNo: dto.sequenceNo, timeSpentMs: dto.timeSpentMs },
+      create: { attemptId, questionVersionId, response: dto.response as object, markedForReview: dto.markedForReview ?? false, sequenceNo: dto.sequenceNo, timeSpentMs: dto.timeSpentMs },
     });
     return { saved: true };
   }
@@ -142,11 +143,24 @@ export class StudentTestsService {
     const answers = await this.prisma.attemptAnswer.findMany({ where: { attemptId } });
     const answerByQ = new Map(answers.map((a) => [a.questionVersionId, a]));
 
+    // Pre-submission concept mastery (Mistake Coach) — read BEFORE this
+    // submission's own mastery upserts below mutate it, so "usually strong/
+    // weak on this concept" reflects history prior to this attempt, not
+    // including it.
+    const allConceptIds = new Set<string>();
+    for (const section of tv.sections) for (const tq of section.questions) for (const qc of tq.questionVersion.question.concepts) allConceptIds.add(qc.conceptId);
+    const preMasteries = allConceptIds.size
+      ? await this.prisma.studentConceptMastery.findMany({ where: { studentId, conceptId: { in: [...allConceptIds] } } })
+      : [];
+    const preMasteryByConcept = new Map(preMasteries.map((m) => [m.conceptId, m]));
+    const totalQuestions = tv.sections.reduce((n, s) => n + s.questions.length, 0);
+    const parTimeMs = totalQuestions > 0 ? Math.round((tv.durationMinutes * 60_000) / totalQuestions) : 0;
+
     let score = 0;
     let correct = 0;
     let incorrect = 0;
     let unanswered = 0;
-    const perAnswerUpdates: { id: string; isCorrect: boolean; awarded: number }[] = [];
+    const perAnswerUpdates: { id: string; isCorrect: boolean; awarded: number; mistakeType: MistakeType | null }[] = [];
     // Concept-mastery signal (Exam Readiness OS): one row per answered
     // question's linked concept(s) — a question can map to multiple concepts.
     const conceptUpdates: { conceptId: string; isCorrect: boolean }[] = [];
@@ -167,7 +181,15 @@ export class StudentTestsService {
         score += awarded;
         if (ok) correct += 1;
         else incorrect += 1;
-        perAnswerUpdates.push({ id: ans!.id, isCorrect: ok, awarded });
+        const mistakeType = ok
+          ? null
+          : classifyMistake({
+              timeSpentMs: ans!.timeSpentMs,
+              concepts: qv.question.concepts.map((c) => c.conceptId),
+              preMasteryByConcept,
+              parTimeMs,
+            });
+        perAnswerUpdates.push({ id: ans!.id, isCorrect: ok, awarded, mistakeType });
         for (const qc of qv.question.concepts) conceptUpdates.push({ conceptId: qc.conceptId, isCorrect: ok });
       }
     }
@@ -196,7 +218,7 @@ export class StudentTestsService {
         },
       }),
       ...perAnswerUpdates.map((u) =>
-        this.prisma.attemptAnswer.update({ where: { id: u.id }, data: { isCorrect: u.isCorrect, awarded: u.awarded } }),
+        this.prisma.attemptAnswer.update({ where: { id: u.id }, data: { isCorrect: u.isCorrect, awarded: u.awarded, mistakeType: u.mistakeType } }),
       ),
       // Each linked concept gets its own upsert (not batched into one write) —
       // a question can map to several concepts, and each needs an independent
@@ -247,6 +269,7 @@ export class StudentTestsService {
             response: ans?.response ?? null,
             isCorrect: ans?.isCorrect ?? null,
             awarded: ans?.awarded ?? null,
+            mistakeType: ans?.mistakeType ?? null,
             correctAnswer: qv.correctAnswer,
             explanationHi: qv.explanationHi,
             explanationEn: qv.explanationEn,

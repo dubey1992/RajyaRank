@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { localeSchema } from './common';
+import type { MistakeType } from './test';
 
 export const qualificationSchema = z.enum(['10TH', '12TH', 'GRADUATE', 'POSTGRADUATE', 'TECHNICAL']);
 
@@ -43,12 +44,16 @@ export type PlanItemReschedule = z.infer<typeof planItemRescheduleSchema>;
 
 export interface PlanItemView {
   id: string;
-  kind: 'LESSON' | 'WEAK_TOPIC_DRILL' | 'TEST';
+  kind: 'LESSON' | 'WEAK_TOPIC_DRILL' | 'MISTAKE_DRILL' | 'TEST';
   status: 'PENDING' | 'DONE' | 'SKIPPED' | 'MISSED' | 'RESCHEDULED';
   titleHi: string;
   titleEn: string;
   lessonId: string | null;
   topicId: string | null;
+  /** Set for MISTAKE_DRILL slots — the remediation target's concept id. */
+  conceptId: string | null;
+  /** Which mistake type drove a MISTAKE_DRILL slot, for display. */
+  triggerMistakeType: MistakeType | null;
   estimatedMinutes: number;
   freePreview: boolean;
 }
