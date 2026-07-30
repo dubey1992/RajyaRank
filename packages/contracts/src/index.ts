@@ -21,3 +21,4 @@ export * from './settlements';
 export * from './announcements';
 export * from './ratings';
 export * from './concepts';
+export * from './institutions';

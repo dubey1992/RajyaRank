@@ -21,6 +21,14 @@ export class AnalyticsController {
     return this.analytics.institutionOverview(principal);
   }
 
+  /** Institute Intervention Radar — throws (403) if the caller has no orgId,
+   *  same gate as institution-overview. */
+  @Get('at-risk-students')
+  @RequirePermission('user.manage')
+  atRiskStudents(@CurrentPrincipal() principal: Principal) {
+    return this.analytics.atRiskStudents(principal);
+  }
+
   /** Content Admin / Academic Head dashboard — org-scoped automatically. */
   @Get('content-pipeline')
   @RequirePermission('content.edit_all')

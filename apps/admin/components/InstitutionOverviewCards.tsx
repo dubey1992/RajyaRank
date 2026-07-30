@@ -1,15 +1,5 @@
 import type { Locale } from '@/lib/i18n';
-
-export interface InstitutionOverview {
-  staff: number;
-  students: number;
-  courses: number;
-  lessonsPublished: number;
-  lessonsPendingReview: number;
-  tests: number;
-  openDoubts: number;
-  openTickets: number;
-}
+import type { InstitutionOverview } from '@rajyarank/contracts';
 
 /** Academic Head's institution snapshot — strictly scoped to their own org. */
 export function InstitutionOverviewCards({ data, locale }: { data: InstitutionOverview; locale: Locale }) {

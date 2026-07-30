@@ -9,11 +9,12 @@
  *   rr:queue:email → deliver via SMTP (mailhog in dev)
  *   rr:queue:sms   → deliver via SMS gateway (logged in dev)
  * Scheduled:
- *   expire stale staff invitations; purge expired login sessions.
+ *   expire stale staff invitations; purge expired login sessions;
+ *   institute risk-signal sweep (Institute Intervention Radar, Phase 3).
  */
 import Redis from 'ioredis';
 import nodemailer from 'nodemailer';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, RiskLevel, MistakeType } from '@prisma/client';
 
 // The worker is a separate process; it reads only the few vars it needs
 // directly from the environment (no cross-package source coupling).
@@ -307,6 +308,146 @@ async function sweepStudyPlans() {
   if (regenerated) console.log(`[worker] auto-replanned ${regenerated} study plan(s)`);
 }
 
+/** Same duplicated-shell convention as entitlementExpiringHtml/planBehindHtml above. */
+function atRiskAlertHtml(locale: 'hi' | 'en', studentName: string): { subject: string; html: string } {
+  const hi = locale === 'hi';
+  const heading = hi ? 'एक छात्र को ध्यान देने की ज़रूरत है' : 'A student needs attention';
+  const subject = hi ? 'RajyaRank — छात्र जोखिम में है' : 'RajyaRank — student at risk';
+  const body = hi
+    ? `<strong>${studentName}</strong> निष्क्रियता, स्टडी प्लान में पिछड़ने, स्कोर में गिरावट या दोहराई जा रही ग़लतियों के कारण अभी उच्च जोखिम में है। इंटरवेंशन रडार में विवरण देखें।`
+    : `<strong>${studentName}</strong> is currently flagged HIGH risk — inactivity, falling behind their study plan, a score decline, or a concentrated mistake pattern. See the Intervention Radar for details.`;
+  const html = `<!doctype html><html lang="${locale}"><body style="margin:0;padding:0;background:#F4F6F8;font-family:Arial,Helvetica,sans-serif;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F4F6F8;padding:24px 12px;"><tr><td align="center">
+<table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#ffffff;border-radius:12px;overflow:hidden;">
+<tr><td style="background:#0B2F4F;padding:20px 28px;"><span style="font-size:20px;font-weight:900;color:#ffffff;">Rajya<span style="color:#F97316;">Rank</span></span></td></tr>
+<tr><td style="padding:32px 28px;"><h1 style="margin:0 0 16px;font-size:19px;font-weight:900;color:#0B2F4F;">${heading}</h1><p style="margin:0;font-size:14px;line-height:1.6;color:#334155;">${body}</p></td></tr>
+</table></td></tr></table></body></html>`;
+  return { subject, html };
+}
+
+/** Computes one student's explainable risk flags — four independent,
+ *  plain-threshold signals (no opaque composite score), reusing data the
+ *  API's own services already maintain (PlanItem, Attempt, AttemptAnswer.
+ *  mistakeType from Phase 2) rather than introducing new tracking. */
+async function computeStudentRisk(studentId: string) {
+  const MISTAKE_LOOKBACK_DAYS = 14;
+  const now = new Date();
+  const flags: ('INACTIVE' | 'PLAN_BEHIND' | 'SCORE_DECLINE' | 'MISTAKE_CONCENTRATION')[] = [];
+
+  const user = await prisma.user.findUnique({ where: { id: studentId }, select: { createdAt: true } });
+  const [lastProgress, lastAttempt] = await Promise.all([
+    prisma.lessonProgress.findFirst({ where: { studentId }, orderBy: { lastAccessedAt: 'desc' }, select: { lastAccessedAt: true } }),
+    prisma.attempt.findFirst({ where: { studentId }, orderBy: { startedAt: 'desc' }, select: { startedAt: true } }),
+  ]);
+  const lastActive = [lastProgress?.lastAccessedAt, lastAttempt?.startedAt]
+    .filter((d): d is Date => !!d)
+    .sort((a, b) => b.getTime() - a.getTime())[0];
+  // No activity ever recorded: fall back to "days since enrolled" — more
+  // meaningful than a magic sentinel for a student who never engaged at all.
+  const referenceDate = lastActive ?? user!.createdAt;
+  const inactiveDays = Math.floor((now.getTime() - referenceDate.getTime()) / 86_400_000);
+  if (inactiveDays > 7) flags.push('INACTIVE');
+
+  const weekAgo = new Date(now.getTime() - 7 * 86_400_000);
+  const recentPlanItems = await prisma.planItem.findMany({
+    where: { plan: { studentId, status: 'ACTIVE' }, scheduledFor: { gte: weekAgo, lt: now } },
+    select: { status: true },
+  });
+  let planAdherencePercent: number | null = null;
+  if (recentPlanItems.length) {
+    const done = recentPlanItems.filter((i) => i.status === 'DONE').length;
+    planAdherencePercent = Math.round((done / recentPlanItems.length) * 100);
+    if (planAdherencePercent < 50) flags.push('PLAN_BEHIND');
+  }
+
+  const recentAttempts = await prisma.attempt.findMany({
+    where: { studentId, status: { in: ['SUBMITTED', 'AUTO_SUBMITTED', 'EVALUATED'] }, maxScore: { gt: 0 } },
+    orderBy: { submittedAt: 'desc' },
+    take: 10,
+    select: { score: true, maxScore: true },
+  });
+  let avgScoreRecentPercent: number | null = null;
+  let avgScorePriorPercent: number | null = null;
+  const recentHalf = recentAttempts.slice(0, 5);
+  const priorHalf = recentAttempts.slice(5, 10);
+  if (recentHalf.length >= 2 && priorHalf.length >= 2) {
+    avgScoreRecentPercent = Math.round((recentHalf.reduce((s, a) => s + ((a.score ?? 0) / a.maxScore) * 100, 0) / recentHalf.length));
+    avgScorePriorPercent = Math.round((priorHalf.reduce((s, a) => s + ((a.score ?? 0) / a.maxScore) * 100, 0) / priorHalf.length));
+    if (avgScorePriorPercent - avgScoreRecentPercent >= 15) flags.push('SCORE_DECLINE');
+  }
+
+  const mistakeCutoff = new Date(now.getTime() - MISTAKE_LOOKBACK_DAYS * 86_400_000);
+  const wrongAnswers = await prisma.attemptAnswer.findMany({
+    where: { attempt: { studentId, submittedAt: { gte: mistakeCutoff } }, mistakeType: { not: null } },
+    select: { mistakeType: true },
+  });
+  let dominantMistakeType: MistakeType | null = null;
+  if (wrongAnswers.length >= 3) {
+    const counts = new Map<MistakeType, number>();
+    for (const w of wrongAnswers) counts.set(w.mistakeType!, (counts.get(w.mistakeType!) ?? 0) + 1);
+    const [topType, topCount] = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]!;
+    if (topCount / wrongAnswers.length >= 0.5) {
+      flags.push('MISTAKE_CONCENTRATION');
+      dominantMistakeType = topType;
+    }
+  }
+
+  const riskLevel: RiskLevel = flags.length >= 3 ? 'HIGH' : flags.length === 2 ? 'MEDIUM' : 'LOW';
+  return { flags, riskLevel, inactiveDays, planAdherencePercent, avgScoreRecentPercent, avgScorePriorPercent, dominantMistakeType };
+}
+
+/** Institute Intervention Radar (Phase 3) — for every ACTIVE (non-SUSPENDED)
+ *  organization's roster, upserts a pre-aggregated StudentRiskSignal row read
+ *  cheaply by the admin dashboard. Computed every hourly tick (risk should
+ *  stay reasonably fresh — unlike sweepStudyPlans, this is NOT deduped to
+ *  once/day); only the "student just crossed into HIGH" NOTIFICATION is
+ *  deduped to once/day via the same Redis SETNX idiom as the other sweeps. */
+async function sweepInstituteRisk() {
+  const now = new Date();
+  const todayKey = now.toISOString().slice(0, 10);
+  const orgs = await prisma.organization.findMany({ where: { status: 'ACTIVE' }, select: { id: true, headUserId: true } });
+
+  let newlyHigh = 0;
+  for (const org of orgs) {
+    const students = await prisma.user.findMany({
+      where: { kind: 'STUDENT', orgId: org.id, deletedAt: null, studentProfile: { targetExamId: { not: null } } },
+      select: { id: true, displayName: true },
+    });
+    for (const student of students) {
+      const existing = await prisma.studentRiskSignal.findUnique({ where: { studentId: student.id } });
+      const risk = await computeStudentRisk(student.id);
+      await prisma.studentRiskSignal.upsert({
+        where: { studentId: student.id },
+        create: { studentId: student.id, orgId: org.id, ...risk },
+        update: { orgId: org.id, ...risk },
+      });
+
+      if (risk.riskLevel !== 'HIGH' || existing?.riskLevel === 'HIGH' || !org.headUserId) continue;
+      const claimed = await redis.set(`rr:riskalert:${student.id}:${todayKey}`, '1', 'EX', 2 * 86_400, 'NX');
+      if (!claimed) continue;
+      const head = await prisma.user.findUnique({ where: { id: org.headUserId }, select: { email: true, locale: true } });
+      if (!head?.email) continue;
+      const pref = await prisma.notificationPreference.findUnique({ where: { userId: org.headUserId } });
+      if (pref?.mutedCategories?.includes('AT_RISK_ALERT') || pref?.emailEnabled === false) continue;
+      const locale: 'hi' | 'en' = head.locale === 'en' ? 'en' : 'hi';
+      const { subject, html } = atRiskAlertHtml(locale, student.displayName ?? 'Student');
+      await mailer.sendMail({ from: env.EMAIL_FROM, to: head.email, subject, html });
+      await prisma.notification.create({
+        data: {
+          userId: org.headUserId,
+          category: 'AT_RISK_ALERT',
+          titleHi: 'एक छात्र को ध्यान देने की ज़रूरत है',
+          titleEn: 'A student needs attention',
+          bodyHi: `${student.displayName ?? 'छात्र'} अभी उच्च जोखिम में है।`,
+          bodyEn: `${student.displayName ?? 'A student'} is currently HIGH risk.`,
+        },
+      });
+      newlyHigh++;
+    }
+  }
+  if (newlyHigh) console.log(`[worker] institute-risk: ${newlyHigh} student(s) newly flagged HIGH`);
+}
+
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
@@ -316,13 +457,16 @@ async function main() {
   const sweepTimer = setInterval(() => void scheduledSweeps(), 60_000);
   const expiryTimer = setInterval(() => void sweepEntitlementExpiry(), 3_600_000);
   const planTimer = setInterval(() => void sweepStudyPlans(), 3_600_000);
+  const riskTimer = setInterval(() => void sweepInstituteRisk(), 3_600_000);
   void sweepEntitlementExpiry();
   void sweepStudyPlans();
+  void sweepInstituteRisk();
   const shutdown = async () => {
     running = false;
     clearInterval(sweepTimer);
     clearInterval(expiryTimer);
     clearInterval(planTimer);
+    clearInterval(riskTimer);
     await Promise.allSettled([redis.quit(), prisma.$disconnect()]);
     process.exit(0);
   };

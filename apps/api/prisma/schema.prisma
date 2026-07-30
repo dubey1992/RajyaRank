@@ -462,6 +462,7 @@ model User {
   courseRatings     CourseRating[]
   wishlist          Wishlist[]
   conceptMastery    StudentConceptMastery[]
+  riskSignal        StudentRiskSignal?
 
   orgId     String?       @map("org_id")
   org       Organization? @relation("OrgMembers", fields: [orgId], references: [id])
@@ -1362,6 +1363,7 @@ enum NotificationCategory {
   CONTENT_WORKFLOW
   NEW_COURSE
   NEW_CONTENT
+  AT_RISK_ALERT
 }
 
 // User ids are stored as indexed columns (no FK) to keep Phase 7 self-contained.
@@ -1476,6 +1478,36 @@ model StudentConceptMastery {
 
   @@unique([studentId, conceptId])
   @@map("student_concept_mastery")
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+// Pre-aggregated per-student risk signal (Institute Intervention Radar, Phase
+// 3) — written by the worker's hourly sweep (sweepInstituteRisk), read
+// cheaply by the admin dashboard. Never computed live across a whole roster —
+// unlike the single-student Readiness Score/Mistake DNA, an org's full
+// roster is too expensive to recompute on every dashboard load.
+model StudentRiskSignal {
+  id                    String       @id @default(uuid())
+  studentId             String       @unique @map("student_id")
+  orgId                 String       @map("org_id") // denormalized for cheap org-scoped reads, matches Test.orgId's existing convention
+  riskLevel             RiskLevel    @map("risk_level")
+  flags                 String[] // e.g. ["INACTIVE","PLAN_BEHIND"] — matches StudentProfile.preferredSubjects' existing String[] convention
+  inactiveDays          Int          @map("inactive_days")
+  planAdherencePercent  Int?         @map("plan_adherence_percent")
+  avgScoreRecentPercent Int?         @map("avg_score_recent_percent")
+  avgScorePriorPercent  Int?         @map("avg_score_prior_percent")
+  dominantMistakeType   MistakeType? @map("dominant_mistake_type")
+  computedAt            DateTime     @updatedAt @map("computed_at")
+
+  user User @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, riskLevel])
+  @@map("student_risk_signals")
 }
 
 model Doubt {

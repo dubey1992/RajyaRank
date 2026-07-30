@@ -28,6 +28,7 @@ const NAV: NavItem[] = [
   // instead of the standalone pages below — see MERGE_GROUPS, which hides
   // the standalone ones for them.
   { href: '/admin/manage-students', label: { hi: 'छात्र प्रबंधन', en: 'Manage Students' }, show: showsMergedStudents },
+  { href: '/admin/at-risk-students', label: { hi: 'इंटरवेंशन रडार', en: 'Intervention Radar' }, show: (me) => can(me, 'user.manage') && !!me.orgId },
   { href: '/admin/student-payments', label: { hi: 'छात्र भुगतान', en: 'Student Payments' }, show: (me) => can(me, 'course.manage') && !!me.orgId },
   { href: '/admin/earnings', label: { hi: 'कमाई व भुगतान', en: 'Earnings & Payouts' }, show: (me) => can(me, 'course.manage') && !!me.orgId },
   { href: '/admin/staff', label: { hi: 'स्टाफ़', en: 'Staff' }, show: (me) => can(me, 'user.manage') },

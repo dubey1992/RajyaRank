@@ -5,11 +5,11 @@ import { getMeOrRedirect } from '@/lib/auth';
 import { apiFetchServer } from '@/lib/api';
 import { Shell, showsMergedContent } from '@/components/Shell';
 import { AnalyticsCards, type Overview } from '@/components/AnalyticsCards';
-import { InstitutionOverviewCards, type InstitutionOverview } from '@/components/InstitutionOverviewCards';
+import { InstitutionOverviewCards } from '@/components/InstitutionOverviewCards';
 import { ContentPipelineCards, type ContentPipelineOverview } from '@/components/ContentPipelineCards';
 import { ReviewOverviewCards, type ReviewOverview } from '@/components/ReviewOverviewCards';
 import { can } from '@/lib/permissions';
-import type { OrganizationView, SettlementSummaryView, InstitutionEarningsView } from '@rajyarank/contracts';
+import type { OrganizationView, SettlementSummaryView, InstitutionEarningsView, InstitutionOverview } from '@rajyarank/contracts';
 
 function rupees(minor: number) {
   return `₹${(minor / 100).toLocaleString('en-IN')}`;
@@ -99,7 +99,14 @@ export default async function AdminDashboard({ params }: { params: { locale: str
       {/* Institution snapshot + quick links, for any org-scoped user/course manager */}
       {showsInstitutionSection ? (
         <section className="mb-6">
-          <h2 className="mb-3 text-lg font-black text-navy-900">{hi ? 'आपका संस्थान' : 'Your institution'}</h2>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-lg font-black text-navy-900">{hi ? 'आपका संस्थान' : 'Your institution'}</h2>
+            {isOrgUserManager ? (
+              <Link href={`/${locale}/admin/at-risk-students`} className="text-xs font-black text-orange-600">
+                {hi ? 'जोखिम में छात्र देखें →' : 'View at-risk students →'}
+              </Link>
+            ) : null}
+          </div>
           {institution ? <InstitutionOverviewCards data={institution} locale={locale} /> : null}
           {institutionEarnings ? (
             <div className="mb-4 rounded-lg border border-line bg-white p-5">

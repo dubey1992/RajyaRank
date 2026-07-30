@@ -1,8 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import type { Principal } from '@rajyarank/auth';
+import type { AtRiskStudentView, RiskLevel } from '@rajyarank/contracts';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthorizationService } from '../authz/authorization.service';
 import { AppError } from '../common/errors/app-error';
+
+const RISK_RANK: Record<RiskLevel, number> = { HIGH: 0, MEDIUM: 1, LOW: 2 };
 
 /** Aggregated product/academic/ops metrics for the admin dashboard.
  *  Read-only Prisma counts/aggregates — no raw data leaves the API. */
@@ -73,6 +76,41 @@ export class AnalyticsService {
     ]);
 
     return { staff, students, courses, lessonsPublished, lessonsPendingReview, tests, openDoubts, openTickets };
+  }
+
+  /** Institute Intervention Radar (Phase 3) — reads the worker's pre-
+   *  aggregated StudentRiskSignal rows (never computed live across a whole
+   *  roster, see readiness/mistake-dna's own single-student-only precedent
+   *  for why). Org-scoped exactly like institutionOverview above, plus an
+   *  explicit re-check that the org hasn't been suspended since this staff
+   *  member's session started — the sweep itself already skips SUSPENDED
+   *  orgs, this is defense in depth on the read path too. */
+  async atRiskStudents(principal: Principal): Promise<AtRiskStudentView[]> {
+    const orgId = principal.orgId;
+    if (!orgId) throw AppError.permissionDenied('This view is only available to institution staff.');
+    const org = await this.prisma.organization.findUnique({ where: { id: orgId }, select: { status: true } });
+    if (org?.status !== 'ACTIVE') return [];
+
+    const rows = await this.prisma.studentRiskSignal.findMany({
+      where: { orgId },
+      include: { user: { select: { displayName: true, phone: true, studentProfile: { select: { fullName: true } } } } },
+    });
+
+    return rows
+      .map((r) => ({
+        studentId: r.studentId,
+        name: r.user.studentProfile?.fullName ?? r.user.displayName ?? '',
+        phone: r.user.phone ?? '',
+        riskLevel: r.riskLevel,
+        flags: r.flags as AtRiskStudentView['flags'],
+        inactiveDays: r.inactiveDays,
+        planAdherencePercent: r.planAdherencePercent,
+        avgScoreRecentPercent: r.avgScoreRecentPercent,
+        avgScorePriorPercent: r.avgScorePriorPercent,
+        dominantMistakeType: r.dominantMistakeType,
+        computedAt: r.computedAt.toISOString(),
+      }))
+      .sort((a, b) => RISK_RANK[a.riskLevel] - RISK_RANK[b.riskLevel] || b.computedAt.localeCompare(a.computedAt));
   }
 
   /** Content pipeline breakdown — org-scoped for an institution's Content
