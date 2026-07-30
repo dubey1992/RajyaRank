@@ -1,9 +1,10 @@
 name: Deploy Staging
 
-# Runs automatically on every push to the staging branch. Builds the API
-# container image, pushes it to ECR, applies any new database migrations,
-# then updates the running ECS service to the new image. Uses OIDC — no
-# permanent AWS credentials are stored in GitHub.
+# Runs automatically on every push to the staging branch. Builds the API and
+# worker container images, pushes them to ECR, applies any new database
+# migrations (api image only — same migrate.sh), then updates both running
+# ECS services to their new images. Uses OIDC — no permanent AWS credentials
+# are stored in GitHub.
 
 on:
   push:
@@ -25,9 +26,12 @@ permissions:
 env:
   AWS_REGION: ap-south-1
   ECR_REPOSITORY: 485141928074.dkr.ecr.ap-south-1.amazonaws.com/rajyarank-api-staging
+  ECR_REPOSITORY_WORKER: 485141928074.dkr.ecr.ap-south-1.amazonaws.com/rajyarank-worker-staging
   ECS_CLUSTER: rajyarank-staging
   ECS_SERVICE: rajyarank-staging-api
+  ECS_SERVICE_WORKER: rajyarank-staging-worker
   TASK_FAMILY: rajyarank-staging-api
+  TASK_FAMILY_WORKER: rajyarank-staging-worker
 
 jobs:
   quality:
@@ -77,6 +81,16 @@ jobs:
           docker push "$ECR_REPOSITORY:staging-latest"
           echo "image=$ECR_REPOSITORY:$IMAGE_TAG" >> "$GITHUB_OUTPUT"
 
+      - name: Build and push the Worker image
+        id: build-worker
+        env:
+          IMAGE_TAG: staging-${{ github.sha }}
+        run: |
+          docker build -f infra/docker/Dockerfile.worker -t "$ECR_REPOSITORY_WORKER:$IMAGE_TAG" -t "$ECR_REPOSITORY_WORKER:staging-latest" .
+          docker push "$ECR_REPOSITORY_WORKER:$IMAGE_TAG"
+          docker push "$ECR_REPOSITORY_WORKER:staging-latest"
+          echo "image=$ECR_REPOSITORY_WORKER:$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+
       - name: Register new task definition revision
         id: register-task-def
         run: |
@@ -92,6 +106,22 @@ jobs:
           echo "$NEW" > new-task-def.json
           aws ecs register-task-definition --cli-input-json file://new-task-def.json > register-output.json
           echo "revision=$(python3 -c "import json; print(json.load(open('register-output.json'))['taskDefinition']['revision'])")" >> "$GITHUB_OUTPUT"
+
+      - name: Register new worker task definition revision
+        id: register-worker-task-def
+        run: |
+          CURRENT=$(aws ecs describe-task-definition --task-definition "$TASK_FAMILY_WORKER" --query 'taskDefinition' --output json)
+          NEW=$(echo "$CURRENT" | python3 -c "
+          import json, sys
+          td = json.load(sys.stdin)
+          td['containerDefinitions'][0]['image'] = '${{ steps.build-worker.outputs.image }}'
+          for key in ['taskDefinitionArn','revision','status','requiresAttributes','compatibilities','registeredAt','registeredBy']:
+              td.pop(key, None)
+          print(json.dumps(td))
+          ")
+          echo "$NEW" > new-worker-task-def.json
+          aws ecs register-task-definition --cli-input-json file://new-worker-task-def.json > register-worker-output.json
+          echo "revision=$(python3 -c "import json; print(json.load(open('register-worker-output.json'))['taskDefinition']['revision'])")" >> "$GITHUB_OUTPUT"
 
       - name: Apply database migrations (one-off task, same image)
         run: |
@@ -119,6 +149,22 @@ jobs:
             --task-definition "$TASK_FAMILY:${{ steps.register-task-def.outputs.revision }}" \
             --force-new-deployment
           aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE"
+
+      - name: Deploy new revision to the worker service
+        run: |
+          # Tolerant of the service not existing yet (created once out-of-band,
+          # same as the api service originally was) — every run after that
+          # first creation updates it like any other service.
+          if aws ecs describe-services --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE_WORKER" --query 'services[?status!=`INACTIVE`]' --output text | grep -q .; then
+            aws ecs update-service \
+              --cluster "$ECS_CLUSTER" \
+              --service "$ECS_SERVICE_WORKER" \
+              --task-definition "$TASK_FAMILY_WORKER:${{ steps.register-worker-task-def.outputs.revision }}" \
+              --force-new-deployment
+            aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE_WORKER"
+          else
+            echo "::notice::$ECS_SERVICE_WORKER does not exist yet — skipping update. Create it once via 'aws ecs create-service' pointing at $TASK_FAMILY_WORKER:${{ steps.register-worker-task-def.outputs.revision }}."
+          fi
 
       - name: Health check
         run: |
