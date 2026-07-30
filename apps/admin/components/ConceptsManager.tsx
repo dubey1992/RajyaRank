@@ -215,7 +215,14 @@ export function ConceptsManager({
               <li key={c.id} className="rounded-md border border-line bg-white p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="font-bold text-navy-900">{hi ? c.nameHi : c.nameEn}</div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="font-bold text-navy-900">{hi ? c.nameHi : c.nameEn}</div>
+                      {c.syllabusVersion ? (
+                        <span className="rounded-full bg-[#f1e9ff] px-2 py-0.5 text-[9px] font-black text-[#7c3aed]" title={L('अंतिम अधिसूचना द्वारा टैग किया गया सिलेबस संस्करण', 'Syllabus version tagged by the last notice')}>
+                          {c.syllabusVersion}
+                        </span>
+                      ) : null}
+                    </div>
                     <div className="text-xs text-muted">
                       {c.code}
                       {c.parentConceptId ? ` · ${L('अंतर्गत', 'under')} ${nameOf(c.parentConceptId)}` : ''}

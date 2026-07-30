@@ -22,3 +22,4 @@ export * from './announcements';
 export * from './ratings';
 export * from './concepts';
 export * from './institutions';
+export * from './official-notices';

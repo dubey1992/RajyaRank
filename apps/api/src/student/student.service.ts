@@ -627,6 +627,30 @@ export class StudentService {
     }));
   }
 
+  /** Published official notices for the student's own target exam only —
+   *  unlike currentAffairs() above (global, no principal needed), this is
+   *  genuinely exam-scoped: a notice about one exam is irrelevant noise to a
+   *  student targeting a different one. */
+  async examNotices(p: Principal) {
+    const userId = this.studentId(p);
+    const profile = await this.prisma.studentProfile.findUnique({ where: { userId } });
+    if (!profile?.targetExamId) return [];
+    const items = await this.prisma.officialNotice.findMany({
+      where: { status: 'PUBLISHED', examId: profile.targetExamId },
+      orderBy: { publishedDate: 'desc' },
+      take: 30,
+    });
+    return items.map((n) => ({
+      id: n.id,
+      noticeNumber: n.noticeNumber,
+      publishedDate: n.publishedDate.toISOString(),
+      titleHi: n.titleHi,
+      titleEn: n.titleEn,
+      bodyHi: n.bodyHi,
+      bodyEn: n.bodyEn,
+    }));
+  }
+
   private async loadPublishedLesson(lessonId: string) {
     const lesson = await this.prisma.lesson.findFirst({
       where: { id: lessonId, deletedAt: null },

@@ -1737,6 +1737,15 @@ model Exam {
   courses    Course[]
   tests      Test[]
   concepts   Concept[]
+  notices    OfficialNotice[]
+
+  // Official exam-body calendar (Phase 4 Notification-to-Action) — written
+  // ONLY by OfficialNotice.publish(), never a separate manual edit form, so
+  // there's one source of truth for why an exam's dates changed. Distinct
+  // from StudentProfile.targetDate, which is each student's own self-reported
+  // countdown target and is never touched by this.
+  applicationDeadline DateTime? @map("application_deadline")
+  examDate            DateTime? @map("exam_date")
 
   // Institution-owned — an Academic Head's exams are private to their org
   // (null = platform-seeded/global, created by Content Admin/Super Admin).
@@ -1748,6 +1757,39 @@ model Exam {
   @@unique([orgId, code])
   @@index([examBodyId])
   @@map("exams")
+}
+
+// Official exam-body notice → human-reviewed → publish updates the Exam
+// calendar + tags affected Concepts with a syllabus version + notifies
+// students targeting that exam. Same flat, single-row, no-AI maker/checker
+// shape as CurrentAffair — see current-affairs.service.ts's own doc comment
+// for why this pattern (not the full versioned lesson state machine) fits.
+model OfficialNotice {
+  id                          String        @id @default(uuid())
+  examId                      String        @map("exam_id")
+  noticeNumber                String        @map("notice_number")
+  publishedDate               DateTime      @map("published_date") // the notice's OWN official date, not createdAt
+  sourceUrl                   String?       @map("source_url")
+  sourceAssetId               String?       @map("source_asset_id") // plain scalar, no FK — matches Doubt.imageAssetId's existing convention
+  titleHi                     String        @map("title_hi")
+  titleEn                     String        @map("title_en")
+  bodyHi                      String        @map("body_hi") // narrative: what changed + course impact
+  bodyEn                      String        @map("body_en")
+  proposedApplicationDeadline DateTime?     @map("proposed_application_deadline")
+  proposedExamDate            DateTime?     @map("proposed_exam_date")
+  affectedConceptIds          String[]      @map("affected_concept_ids") // tag list, validated against examId at write time — not a join table, matches NotificationPreference.mutedCategories' existing denormalized-array convention
+  syllabusVersionTag          String?       @map("syllabus_version_tag")
+  status                      ContentStatus @default(DRAFT)
+  publishedAt                 DateTime?     @map("published_at")
+  correctionReason            String?       @map("correction_reason")
+  createdBy                   String?       @map("created_by")
+  createdAt                   DateTime      @default(now()) @map("created_at")
+  updatedAt                   DateTime      @updatedAt @map("updated_at")
+
+  exam Exam @relation(fields: [examId], references: [id])
+
+  @@index([examId, status])
+  @@map("official_notices")
 }
 
 model LoginSession {

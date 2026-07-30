@@ -38,6 +38,7 @@ import { SupportModule } from './support/support.module';
 import { RatingsModule } from './ratings/ratings.module';
 import { WishlistModule } from './wishlist/wishlist.module';
 import { ConceptsModule } from './concepts/concepts.module';
+import { OfficialNoticesModule } from './official-notices/official-notices.module';
 import { S3Module } from './s3/s3.module';
 import { AnnouncementsModule } from './announcements/announcements.module';
 import { MonitoringModule } from './monitoring/monitoring.module';
@@ -97,6 +98,7 @@ import { CsrfGuard } from './authz/csrf.guard';
     RatingsModule,
     WishlistModule,
     ConceptsModule,
+    OfficialNoticesModule,
     AnnouncementsModule,
     MonitoringModule,
     HealthModule,

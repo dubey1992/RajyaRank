@@ -144,6 +144,11 @@ export class StudentController {
     return this.student.currentAffairs();
   }
 
+  @Get('exam-notices')
+  examNotices(@CurrentPrincipal() p: Principal) {
+    return this.student.examNotices(p);
+  }
+
   @Get('weak-topics')
   weakTopics(@CurrentPrincipal() p: Principal) {
     return this.student.weakTopics(p);
