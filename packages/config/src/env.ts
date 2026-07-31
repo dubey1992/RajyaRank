@@ -52,6 +52,10 @@ export const apiEnvSchema = z.object({
   // if unset, submissions are still persisted (visible in the staff admin
   // queue) but no notification email is sent.
   CONTACT_NOTIFY_EMAIL: z.string().optional().default(''),
+  // Internal inbox that "Request a Demo" submissions are emailed to — same
+  // optional pattern as CONTACT_NOTIFY_EMAIL, kept separate since demo
+  // requests are sales leads a different team may want routed differently.
+  DEMO_NOTIFY_EMAIL: z.string().optional().default(''),
 
   GOOGLE_CLIENT_ID: z.string().optional().default(''),
   GOOGLE_CLIENT_SECRET: z.string().optional().default(''),

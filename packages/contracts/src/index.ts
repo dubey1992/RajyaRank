@@ -16,6 +16,7 @@ export * from './billing';
 export * from './student-plans';
 export * from './current-affairs';
 export * from './contact';
+export * from './demo-request';
 export * from './blog';
 export * from './settlements';
 export * from './announcements';

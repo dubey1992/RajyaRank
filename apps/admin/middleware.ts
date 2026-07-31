@@ -87,6 +87,9 @@ export async function middleware(req: NextRequest) {
   const requestHeaders = new Headers(req.headers);
   requestHeaders.set('x-nonce', nonce);
   requestHeaders.set('content-security-policy', csp);
+  // not-found.tsx receives no route params in the App Router — see the
+  // identical comment in apps/web/middleware.ts for why this is needed.
+  requestHeaders.set('x-pathname', pathname);
   if (cookieHeader) requestHeaders.set('cookie', cookieHeader);
   const res = NextResponse.next({ request: { headers: requestHeaders } });
   res.headers.set('content-security-policy', csp);

@@ -31,6 +31,7 @@ import { BillingModule } from './billing/billing.module';
 import { StudentPlansModule } from './student-plans/student-plans.module';
 import { CurrentAffairsModule } from './current-affairs/current-affairs.module';
 import { ContactModule } from './contact/contact.module';
+import { DemoRequestsModule } from './demo-requests/demo-requests.module';
 import { BlogModule } from './blog/blog.module';
 import { SettlementsModule } from './settlements/settlements.module';
 import { DoubtsModule } from './doubts/doubts.module';
@@ -91,6 +92,7 @@ import { CsrfGuard } from './authz/csrf.guard';
     StudentPlansModule,
     CurrentAffairsModule,
     ContactModule,
+    DemoRequestsModule,
     BlogModule,
     SettlementsModule,
     DoubtsModule,

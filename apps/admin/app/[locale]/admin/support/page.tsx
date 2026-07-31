@@ -7,8 +7,9 @@ import { Shell } from '@/components/Shell';
 import { AccessDenied } from '@/components/AccessDenied';
 import { TicketPanel } from '@/components/TicketPanel';
 import { ContactMessagesManager } from '@/components/ContactMessagesManager';
+import { DemoRequestsManager } from '@/components/DemoRequestsManager';
 import { TabbedSections, type TabSection } from '@/components/TabbedSections';
-import type { TicketView, ContactMessageView } from '@rajyarank/contracts';
+import type { TicketView, ContactMessageView, DemoRequestView } from '@rajyarank/contracts';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,9 +28,10 @@ export default async function SupportPage({ params }: { params: { locale: string
   }
 
   const cookie = cookies().toString();
-  const [tickets, contactMessages] = await Promise.all([
+  const [tickets, contactMessages, demoRequests] = await Promise.all([
     apiFetchServer<TicketView[]>('/staff/support-tickets', cookie),
     apiFetchServer<ContactMessageView[]>('/staff/contact-messages', cookie),
+    apiFetchServer<DemoRequestView[]>('/staff/demo-requests', cookie),
   ]);
 
   const sections: TabSection[] = [
@@ -64,6 +66,20 @@ export default async function SupportPage({ params }: { params: { locale: string
               : 'Submissions from the public "Contact Us" form — from anonymous visitors, prospective institutions, and media.'}
           </p>
           <ContactMessagesManager initial={contactMessages ?? []} locale={locale} />
+        </>
+      ),
+    },
+    {
+      key: 'demo-requests',
+      label: hi ? 'डेमो अनुरोध' : 'Demo Requests',
+      content: (
+        <>
+          <p className="mb-4 max-w-2xl text-sm text-muted">
+            {hi
+              ? 'लैंडिंग पेज के "संस्थानों के लिए" सेक्शन से आए डेमो अनुरोध — कोचिंग संस्थान, स्कूल और NGO से मिली लीड।'
+              : 'Demo requests from the landing page\'s "For Institutions" section — leads from coaching institutes, schools, and NGOs.'}
+          </p>
+          <DemoRequestsManager initial={demoRequests ?? []} locale={locale} />
         </>
       ),
     },

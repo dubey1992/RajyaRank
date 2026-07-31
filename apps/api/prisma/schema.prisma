@@ -1347,6 +1347,36 @@ model ContactMessage {
   @@map("contact_messages")
 }
 
+enum DemoRequestStatus {
+  NEW
+  RESOLVED
+}
+
+// "Request a Demo" submissions from the landing page's "For Institutions"
+// band — a sales lead for a coaching institute/school/NGO wanting to onboard
+// onto RajyaRank, distinct from ContactMessage's general-enquiry shape
+// (institution-specific fields below, no category picker). Same public,
+// anonymous, honeypot-guarded submission pattern as ContactMessage.
+model DemoRequest {
+  id             String            @id @default(uuid())
+  institutionName String           @map("institution_name")
+  contactName    String            @map("contact_name")
+  email          String
+  phone          String
+  role           String?
+  city           String?
+  studentCount   Int?              @map("student_count")
+  message        String?
+  status         DemoRequestStatus @default(NEW)
+  resolvedBy     String?           @map("resolved_by")
+  resolvedAt     DateTime?         @map("resolved_at")
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+
+  @@index([status, createdAt])
+  @@map("demo_requests")
+}
+
 enum NotificationCategory {
   SECURITY
   PAYMENT

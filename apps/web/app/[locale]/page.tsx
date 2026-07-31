@@ -384,12 +384,12 @@ export default async function LandingPage({ params }: { params: { locale: string
               <li className="flex gap-2"><span className="font-black text-teal-200">✓</span>{L('प्राथमिकता ऑनबोर्डिंग व सहायता', 'Priority onboarding & support')}</li>
             </ul>
           </div>
-          <a
-            href={`mailto:institutions@rajyarank.in?subject=${encodeURIComponent(L('संस्थान साझेदारी पूछताछ', 'Institution partnership enquiry'))}`}
+          <Link
+            href={`/${locale}/request-demo`}
             className="inline-flex items-center justify-center whitespace-nowrap rounded-xl bg-white px-6 py-3 font-extrabold text-navy-900 transition hover:-translate-y-0.5"
           >
-            {L('हमसे संपर्क करें', 'Contact us')}
-          </a>
+            {L('डेमो का अनुरोध करें', 'Request a demo')}
+          </Link>
         </div>
       </section>
 
