@@ -28,11 +28,23 @@ function rawFetch(path: string, init?: RequestInit): Promise<Response> {
   });
 }
 
+/** Refresh tokens are single-use (rotation + reuse detection server-side), so
+ *  two parallel 401s must NOT each fire their own /auth/refresh — the second
+ *  would present the already-rotated token and be treated as theft, revoking
+ *  the whole session. All concurrent callers share one in-flight refresh. */
+let refreshInFlight: Promise<Response> | null = null;
+function refreshOnce(): Promise<Response> {
+  refreshInFlight ??= rawFetch('/auth/refresh', { method: 'POST' }).finally(() => {
+    refreshInFlight = null;
+  });
+  return refreshInFlight;
+}
+
 /** Browser fetch wrapper: forwards cookies, refreshes once on 401, unwraps the envelope. */
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   let res = await rawFetch(path, init);
   if (res.status === 401 && path !== '/auth/refresh') {
-    const refreshed = await rawFetch('/auth/refresh', { method: 'POST' });
+    const refreshed = await refreshOnce();
     if (refreshed.ok) res = await rawFetch(path, init);
   }
   const body = await res.json().catch(() => ({}));

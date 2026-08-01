@@ -47,9 +47,17 @@ async function maybeRefresh(req: NextRequest): Promise<{ setCookies: string[]; c
   const hasRefresh = !!req.cookies.get(REFRESH_COOKIE)?.value;
   if (hasAccess || !hasRefresh) return { setCookies: [], cookieHeader: null };
   try {
+    // See apps/admin/middleware.ts's identical comment: the API's CsrfGuard
+    // 403s any POST that doesn't echo the rr_csrf cookie as x-csrf-token,
+    // so without this header the silent refresh always failed and an idle
+    // session (~10 min) logged the student out on the next SSR navigation.
+    const csrf = req.cookies.get('rr_csrf')?.value;
     const r = await fetch(`${API}/api/v1/auth/refresh`, {
       method: 'POST',
-      headers: { cookie: req.headers.get('cookie') ?? '' },
+      headers: {
+        cookie: req.headers.get('cookie') ?? '',
+        ...(csrf ? { 'x-csrf-token': csrf } : {}),
+      },
     });
     if (!r.ok) return { setCookies: [], cookieHeader: null };
     const setCookies = r.headers.getSetCookie?.() ?? [];

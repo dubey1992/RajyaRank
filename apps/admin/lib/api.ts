@@ -28,12 +28,24 @@ function rawFetch(path: string, init?: RequestInit): Promise<Response> {
   });
 }
 
+/** Refresh tokens are single-use (rotation + reuse detection server-side), so
+ *  two parallel 401s must NOT each fire their own /auth/refresh — the second
+ *  would present the already-rotated token and be treated as theft, revoking
+ *  the whole session. All concurrent callers share one in-flight refresh. */
+let refreshInFlight: Promise<Response> | null = null;
+function refreshOnce(): Promise<Response> {
+  refreshInFlight ??= rawFetch('/auth/refresh', { method: 'POST' }).finally(() => {
+    refreshInFlight = null;
+  });
+  return refreshInFlight;
+}
+
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   let res = await rawFetch(path, init);
   // Access token expires (~10 min); transparently refresh once on 401 and retry
   // so an idle session doesn't surface as a spurious error / forced re-login.
   if (res.status === 401 && path !== '/auth/refresh') {
-    const refreshed = await rawFetch('/auth/refresh', { method: 'POST' });
+    const refreshed = await refreshOnce();
     if (refreshed.ok) res = await rawFetch(path, init);
   }
   const body = await res.json().catch(() => ({}));
@@ -59,7 +71,7 @@ function saveBlob(blob: Blob, filename: string) {
 export async function apiDownload(path: string, filename: string): Promise<void> {
   let res = await rawFetch(path);
   if (res.status === 401) {
-    const refreshed = await rawFetch('/auth/refresh', { method: 'POST' });
+    const refreshed = await refreshOnce();
     if (refreshed.ok) res = await rawFetch(path);
   }
   if (!res.ok) {

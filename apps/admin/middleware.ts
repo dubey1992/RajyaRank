@@ -46,9 +46,19 @@ async function maybeRefresh(req: NextRequest): Promise<{ setCookies: string[]; c
   const hasRefresh = !!req.cookies.get(REFRESH_COOKIE)?.value;
   if (hasAccess || !hasRefresh) return { setCookies: [], cookieHeader: null };
   try {
+    // The API's global CsrfGuard rejects any POST whose rr_csrf cookie isn't
+    // echoed back as x-csrf-token — including this server-side refresh (the
+    // guard can't tell first-party middleware from a browser). Forwarding
+    // cookies alone therefore 403s, the silent refresh never happens, and
+    // every SSR navigation after access-token expiry (~10 min idle) bounced
+    // the user to login even with a perfectly valid refresh token.
+    const csrf = req.cookies.get('rr_csrf')?.value;
     const r = await fetch(`${API}/api/v1/auth/refresh`, {
       method: 'POST',
-      headers: { cookie: req.headers.get('cookie') ?? '' },
+      headers: {
+        cookie: req.headers.get('cookie') ?? '',
+        ...(csrf ? { 'x-csrf-token': csrf } : {}),
+      },
     });
     if (!r.ok) return { setCookies: [], cookieHeader: null };
     const setCookies = r.headers.getSetCookie?.() ?? [];
