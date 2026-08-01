@@ -19,14 +19,24 @@ interface NavItem {
 // gets the single merged item instead of two separate ones.
 export const showsMergedStudents = (me: MeResponse) => can(me, 'user.manage') && can(me, 'course.manage') && !!me.orgId;
 export const showsMergedContent = (me: MeResponse) => (can(me, 'content.publish') || can(me, 'content.edit_all')) && can(me, 'content.create');
+// Exams & States and Official Notices have independent permissions
+// (course.manage vs. content.create/content.review) — Teacher and Academic
+// Reviewer each hold only the Official Notices half, so they keep seeing it
+// standalone (see MERGE_GROUPS) rather than losing it behind a merged tab
+// page they can't open.
+export const showsMergedExams = (me: MeResponse) => can(me, 'course.manage') && (can(me, 'content.create') || can(me, 'content.review'));
+// Same logic for Question Bank vs. Mock Tests (question.create vs.
+// test.create/content.approve) — Academic Reviewer holds only content.approve.
+export const showsMergedTests = (me: MeResponse) => can(me, 'question.create') && (can(me, 'test.create') || can(me, 'content.approve'));
 
 const NAV: NavItem[] = [
   { href: '/admin/dashboard', label: { hi: 'डैशबोर्ड', en: 'Dashboard' }, show: (me) => can(me, 'user.manage') || can(me, 'content.edit_all') || can(me, 'content.review') || me.roleKeys.includes('SUPER_ADMIN') || (can(me, 'course.manage') && !!me.orgId) },
   { href: '/admin/organizations', label: { hi: 'संस्थान प्रबंधन', en: 'Manage Institutions' }, show: (me) => can(me, 'org.manage') },
   { href: '/admin/billing/plans', label: { hi: 'योजना प्रबंधन', en: 'Manage Plans' }, show: (me) => can(me, 'org.manage') || can(me, 'payment.manage') },
-  // Whoever satisfies showsMergedStudents/showsMergedContent gets these
-  // instead of the standalone pages below — see MERGE_GROUPS, which hides
-  // the standalone ones for them.
+  // Whoever satisfies showsMerged*/above gets these instead of the standalone
+  // pages below — see MERGE_GROUPS, which hides the standalone ones for them.
+  // The pages themselves stay reachable directly for anyone who only has one
+  // half (e.g. Teacher still gets a top-level Official Notices link).
   { href: '/admin/manage-students', label: { hi: 'छात्र प्रबंधन', en: 'Manage Students' }, show: showsMergedStudents },
   { href: '/admin/at-risk-students', label: { hi: 'इंटरवेंशन रडार', en: 'Intervention Radar' }, show: (me) => can(me, 'user.manage') && !!me.orgId },
   { href: '/admin/student-payments', label: { hi: 'छात्र भुगतान', en: 'Student Payments' }, show: (me) => can(me, 'course.manage') && !!me.orgId },
@@ -34,6 +44,7 @@ const NAV: NavItem[] = [
   { href: '/admin/staff', label: { hi: 'स्टाफ़ प्रबंधन', en: 'Manage Staffs' }, show: (me) => can(me, 'user.manage') },
   { href: '/admin/students', label: { hi: 'छात्र', en: 'Students' }, show: (me) => can(me, 'user.manage') },
   { href: '/admin/roles', label: { hi: 'भूमिकाएँ व अनुमतियाँ', en: 'Roles & Permissions' }, show: (me) => can(me, 'role.manage') },
+  { href: '/admin/manage-exams', label: { hi: 'परीक्षा प्रबंधन', en: 'Manage Exams' }, show: showsMergedExams },
   { href: '/admin/exams', label: { hi: 'परीक्षाएँ', en: 'Exams & States' }, show: (me) => can(me, 'course.manage') },
   { href: '/admin/courses', label: { hi: 'कोर्स प्रबंधन', en: 'Manage Courses' }, show: (me) => can(me, 'course.manage') },
   { href: '/admin/manage-content', label: { hi: 'कंटेंट प्रबंधन', en: 'Manage Content' }, show: showsMergedContent },
@@ -44,6 +55,7 @@ const NAV: NavItem[] = [
   { href: '/admin/my-content', label: { hi: 'मेरा कंटेंट', en: 'My Content' }, show: (me) => can(me, 'content.create') },
   { href: '/admin/review-queue', label: { hi: 'समीक्षा क़तार', en: 'Review Queue' }, show: (me) => can(me, 'content.review') },
   { href: '/admin/current-affairs', label: { hi: 'करेंट अफेयर्स', en: 'Current Affairs' }, show: (me) => can(me, 'content.create') || can(me, 'content.review') },
+  { href: '/admin/manage-tests', label: { hi: 'टेस्ट प्रबंधन', en: 'Manage Tests' }, show: showsMergedTests },
   { href: '/admin/question-bank', label: { hi: 'प्रश्न बैंक', en: 'Question Bank' }, show: (me) => can(me, 'question.create') },
   { href: '/admin/concepts', label: { hi: 'कॉन्सेप्ट ग्राफ़', en: 'Concept Graph' }, show: (me) => can(me, 'course.manage') },
   { href: '/admin/official-notices', label: { hi: 'आधिकारिक सूचनाएँ', en: 'Official Notices' }, show: (me) => can(me, 'content.create') || can(me, 'content.review') },
@@ -74,11 +86,17 @@ const SUPER_ADMIN_NAV = new Set([
 ]);
 
 /** Each merged nav entry hides its standalone halves for whoever qualifies
- *  for it (see showsMergedStudents/showsMergedContent above) — the pages
- *  themselves stay reachable directly for anyone who only has one half. */
+ *  for it (see showsMerged* above) — the pages themselves stay reachable
+ *  directly for anyone who only has one half. Intervention Radar rides along
+ *  with the Manage Students merge: it becomes a third tab there (see
+ *  manage-students/page.tsx) whenever the merge applies, since
+ *  showsMergedStudents already requires user.manage — Intervention Radar's
+ *  own permission — so nothing is hidden that the merge doesn't also grant. */
 const MERGE_GROUPS: { standaloneHrefs: string[]; applies: (me: MeResponse) => boolean }[] = [
-  { standaloneHrefs: ['/admin/students', '/admin/student-payments'], applies: showsMergedStudents },
+  { standaloneHrefs: ['/admin/students', '/admin/student-payments', '/admin/at-risk-students'], applies: showsMergedStudents },
   { standaloneHrefs: ['/admin/content', '/admin/my-content'], applies: showsMergedContent },
+  { standaloneHrefs: ['/admin/exams', '/admin/official-notices'], applies: showsMergedExams },
+  { standaloneHrefs: ['/admin/question-bank', '/admin/mock-tests'], applies: showsMergedTests },
 ];
 
 export function Shell({
