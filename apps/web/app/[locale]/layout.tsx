@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import type { Metadata, Viewport } from 'next';
+import NextTopLoader from 'nextjs-toploader';
 import { resolveLocale, getT } from '@/lib/i18n';
 import { RegisterSW } from '@/components/RegisterSW';
 import '@rajyarank/ui/styles.css';
@@ -51,6 +52,10 @@ export default function LocaleLayout({
   return (
     <html lang={locale} translate="no">
       <body className={locale === 'hi' ? 'font-deva' : 'font-sans'}>
+        {/* Progress bar during page transitions — most pages are SSR'd
+            (force-dynamic + server-side data fetches), which otherwise gave no
+            feedback between clicking a link and the next page appearing. */}
+        <NextTopLoader color="#f97316" showSpinner={false} height={3} shadow="0 0 10px #f97316,0 0 5px #f97316" />
         <a href="#main" className="rr-visually-hidden">
           {t('common.appName')}
         </a>

@@ -19,6 +19,12 @@ const ADMIN_URL = process.env.NEXT_PUBLIC_ADMIN_URL ?? 'http://localhost:3001';
 // Hidden per product decision (kept working, not removed) — flip to re-enable.
 const SHOW_STUDENT_GOOGLE_LOGIN = false;
 
+// Hidden before launch per customer request (kept working, not removed) —
+// flip to re-enable. Login already defaults to email+password (see
+// studentMode below), so hiding this just removes the only way in the UI to
+// reach the OTP/phone path from the login screen.
+const SHOW_STUDENT_PHONE_LOGIN = false;
+
 // "Remember me" persists only the work email (a non-secret identifier) across
 // visits/logout — never the password, which stays with the browser's own
 // native password manager (the form already carries the right autoComplete hints).
@@ -443,10 +449,12 @@ export default function StudentLoginPage() {
                   </a>
                 </div>
                 <Button type="submit" loading={busy} className="w-full">{t('auth.signInSecurely')}</Button>
-                <div className="mt-4 flex items-center justify-between text-sm">
-                  <button type="button" onClick={() => switchStudentMode('phone')} className="font-extrabold text-orange-600 hover:underline">
-                    {L('मोबाइल नंबर का उपयोग करें', 'Use phone number instead')}
-                  </button>
+                <div className={`mt-4 flex items-center text-sm ${SHOW_STUDENT_PHONE_LOGIN ? 'justify-between' : 'justify-end'}`}>
+                  {SHOW_STUDENT_PHONE_LOGIN ? (
+                    <button type="button" onClick={() => switchStudentMode('phone')} className="font-extrabold text-orange-600 hover:underline">
+                      {L('मोबाइल नंबर का उपयोग करें', 'Use phone number instead')}
+                    </button>
+                  ) : null}
                   <a href={`/${locale}/signup`} className="font-bold text-navy-900 hover:underline">
                     {L('नया खाता बनाएँ', 'Create an account')}
                   </a>
