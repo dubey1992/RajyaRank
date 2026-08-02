@@ -56,18 +56,29 @@ export class PaymentsService {
   async createOrder(principal: Principal, dto: CreateOrder): Promise<CreateOrderResponse> {
     if (principal.kind !== 'STUDENT') throw AppError.permissionDenied('Student account required.');
 
-    // Idempotency: reuse an existing order for the same key.
+    // Idempotency: reuse an existing order for the same key — but only the
+    // caller's own. idempotencyKey is globally unique in the schema, so a
+    // bare lookup by key alone (with no owner check) would hand back another
+    // user's order id/amount/product/Razorpay order id to anyone who knows
+    // or guesses their key. Reject a foreign key outright rather than
+    // silently falling through to create a new order: the key is already
+    // taken, so a fresh order can't reuse it anyway (unique constraint).
     if (dto.idempotencyKey) {
       const existing = await this.prisma.order.findUnique({ where: { idempotencyKey: dto.idempotencyKey }, include: { product: true } });
-      if (existing && existing.providerOrderId) {
-        return {
-          orderId: existing.id,
-          providerOrderId: existing.providerOrderId,
-          amountMinor: existing.amountMinor,
-          currency: existing.currency,
-          razorpayKeyId: this.razorpay.keyId,
-          productTitle: existing.product.titleEn,
-        };
+      if (existing) {
+        if (existing.userId !== principal.userId) {
+          throw AppError.conflict('This idempotency key is already in use.');
+        }
+        if (existing.providerOrderId) {
+          return {
+            orderId: existing.id,
+            providerOrderId: existing.providerOrderId,
+            amountMinor: existing.amountMinor,
+            currency: existing.currency,
+            razorpayKeyId: this.razorpay.keyId,
+            productTitle: existing.product.titleEn,
+          };
+        }
       }
     }
 
@@ -466,22 +477,38 @@ export class PaymentsService {
   }
 
   private async markPaid(orderId: string, providerPaymentId?: string) {
-    const order = await this.prisma.order.findUniqueOrThrow({ where: { id: orderId }, include: { product: true, payments: true } });
-    const payment = order.payments[0] ?? null;
-    await this.prisma.$transaction([
-      this.prisma.order.update({ where: { id: orderId }, data: { status: 'PAID' } }),
-      ...(payment
-        ? [
-            this.prisma.payment.update({
-              where: { id: payment.id },
-              data: { status: 'PAID', providerPaymentId: providerPaymentId ?? payment.providerPaymentId, signatureVerifiedAt: new Date(), paidAt: new Date() },
-            }),
-          ]
-        : []),
-      // Note: redeemedCount is reserved at order-creation time (applyCoupon,
-      // under a row lock) rather than here — incrementing again on payment
-      // success would double-count the same redemption.
-    ]);
+    // Row-lock the order for this check-and-transition. The client's /verify
+    // call and Razorpay's payment.captured + order.paid webhooks (sent as two
+    // SEPARATE events for one successful charge, so the PaymentEvent
+    // idempotency table doesn't dedupe between them) can all reach markPaid
+    // concurrently for the same order. Without serializing here, more than
+    // one caller could see status !== 'PAID' before any of them commits, and
+    // each would re-run the entitlement grant / notification / settlement
+    // transfer below — the settlement transfer in particular calls
+    // Razorpay's real payout API, so a duplicate run there pays the
+    // institute twice for one sale. Mirrors the row-lock pattern already
+    // used for coupon redemption in applyCoupon above.
+    const result = await this.prisma.$transaction(async (tx) => {
+      const [row] = await tx.$queryRaw<{ status: string }[]>`SELECT status FROM orders WHERE id = ${orderId} FOR UPDATE`;
+      if (!row) throw AppError.notFound('Order not found.');
+      if (row.status === 'PAID') return null; // another concurrent caller already handled this order
+
+      const order = await tx.order.update({ where: { id: orderId }, data: { status: 'PAID' }, include: { product: true, payments: true } });
+      const payment = order.payments[0] ?? null;
+      if (payment) {
+        await tx.payment.update({
+          where: { id: payment.id },
+          data: { status: 'PAID', providerPaymentId: providerPaymentId ?? payment.providerPaymentId, signatureVerifiedAt: new Date(), paidAt: new Date() },
+        });
+        // Note: redeemedCount is reserved at order-creation time (applyCoupon,
+        // under a row lock) rather than here — incrementing again on payment
+        // success would double-count the same redemption.
+      }
+      return { order, payment };
+    });
+    if (!result) return;
+    const { order, payment } = result;
+
     await this.entitlements.grantFromOrder(order, order.product, payment);
     await this.notifications.emit({
       userId: order.userId,
