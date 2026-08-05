@@ -27,6 +27,14 @@ COPY --from=builder /app/apps/api/node_modules ./node_modules
 COPY --from=builder /app/apps/api/dist ./dist
 COPY --from=builder /app/apps/api/prisma ./prisma
 COPY --from=builder /app/infra/deployment/migrate.sh ./migrate.sh
+# prisma/seed.ts is TS source run via ts-node (not part of the webpack bundle),
+# so its own tsconfig chain + the @rajyarank/* workspace source it aliases to
+# need to be present too — ts-node/tsconfig-paths themselves are already in
+# node_modules (apps/api devDependencies, installed pre-NODE_ENV=production
+# in the builder stage above).
+COPY --from=builder /app/apps/api/tsconfig.json ./tsconfig.json
+COPY --from=builder /app/apps/api/tsconfig.dev.json ./tsconfig.dev.json
+COPY --from=builder /app/packages /app/packages
 EXPOSE 4000
 HEALTHCHECK --interval=15s --timeout=5s --retries=5 CMD curl -fsS http://localhost:4000/healthz || exit 1
 CMD ["node", "dist/main.js"]
