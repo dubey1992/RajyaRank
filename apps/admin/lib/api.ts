@@ -98,9 +98,11 @@ export async function apiDownloadPresigned(urlPath: string, filename: string): P
 export async function apiFetchServer<T>(path: string, cookie: string): Promise<T | null> {
   try {
     const res = await fetch(`${API_URL}/api/v1${path}`, { headers: { cookie }, cache: 'no-store' });
+    console.log(`[DIAG apiFetchServer] url=${API_URL}/api/v1${path} cookieLen=${cookie.length} status=${res.status}`);
     if (!res.ok) return null;
     return ((await res.json()) as { data: T }).data;
-  } catch {
+  } catch (err) {
+    console.log(`[DIAG apiFetchServer] threw:`, err instanceof Error ? err.message : err);
     return null;
   }
 }
