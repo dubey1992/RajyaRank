@@ -32,6 +32,7 @@ COPY --from=builder /app/infra/deployment/migrate.sh ./migrate.sh
 # need to be present too — ts-node/tsconfig-paths themselves are already in
 # node_modules (apps/api devDependencies, installed pre-NODE_ENV=production
 # in the builder stage above).
+COPY --from=builder /app/tsconfig.base.json /app/tsconfig.base.json
 COPY --from=builder /app/apps/api/tsconfig.json ./tsconfig.json
 COPY --from=builder /app/apps/api/tsconfig.dev.json ./tsconfig.dev.json
 COPY --from=builder /app/packages /app/packages
