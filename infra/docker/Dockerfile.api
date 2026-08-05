@@ -26,6 +26,7 @@ COPY --from=builder /app/node_modules /app/node_modules
 COPY --from=builder /app/apps/api/node_modules ./node_modules
 COPY --from=builder /app/apps/api/dist ./dist
 COPY --from=builder /app/apps/api/prisma ./prisma
+COPY --from=builder /app/apps/api/scripts ./scripts
 COPY --from=builder /app/infra/deployment/migrate.sh ./migrate.sh
 # prisma/seed.ts is TS source run via ts-node (not part of the webpack bundle),
 # so its own tsconfig chain + the @rajyarank/* workspace source it aliases to
