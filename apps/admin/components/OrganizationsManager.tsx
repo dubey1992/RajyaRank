@@ -37,11 +37,15 @@ export function OrganizationsManager({ initial, locale }: { initial: Organizatio
     if (Object.keys(errs).length) return;
     setBusy(true);
     try {
-      await apiFetch('/admin/organizations', {
+      const created = await apiFetch<{ id: string; code: string }>('/admin/organizations', {
         method: 'POST',
         body: JSON.stringify({ name: name.trim(), code, headFullName: headFullName.trim(), headEmail: headEmail.trim(), headPhone }),
       });
-      setRows((r) => [{ id: code, name: name.trim(), code, accessCode: null, status: 'ACTIVE', headName: headFullName.trim(), headEmail: headEmail.trim(), headPhone, heads: [], memberCount: 0, createdAt: new Date().toISOString() }, ...r]);
+      // Use the real database id from the response, not the human-entered
+      // code — every later action on this row (invite head, toggle status,
+      // rotate access code, delete) sends row.id straight to the API, which
+      // looks organizations up by their real id, not by code.
+      setRows((r) => [{ id: created.id, name: name.trim(), code: created.code, accessCode: null, status: 'ACTIVE', headName: headFullName.trim(), headEmail: headEmail.trim(), headPhone, heads: [], memberCount: 0, createdAt: new Date().toISOString() }, ...r]);
       setName(''); setCode(''); setHeadFullName(''); setHeadEmail(''); setHeadPhone(''); setErrors({});
       setToast(L('संस्थान पंजीकृत; प्रमुख को आमंत्रण भेजा गया।', 'Institution registered; invite sent to the head.'));
     } catch (e) {
