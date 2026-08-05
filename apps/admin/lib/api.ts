@@ -95,17 +95,24 @@ export async function apiDownloadPresigned(urlPath: string, filename: string): P
   saveBlob(await res.blob(), filename);
 }
 
+/** Retries once on a network-level failure (e.g. a transient DNS blip from a
+ *  cold Lambda container) — without this, one bad `getaddrinfo` on an
+ *  otherwise-valid session bounced the user straight to login, which reads
+ *  as "randomly logged out" since it's whichever compute container happens
+ *  to serve that particular navigation. An actual 4xx/5xx from the API
+ *  still resolves to null immediately; this only guards the fetch itself. */
 export async function apiFetchServer<T>(path: string, cookie: string): Promise<T | null> {
+  const attempt = async () => fetch(`${API_URL}/api/v1${path}`, { headers: { cookie }, cache: 'no-store' });
+  let res: Response;
   try {
-    const res = await fetch(`${API_URL}/api/v1${path}`, { headers: { cookie }, cache: 'no-store' });
-    console.log(`[DIAG apiFetchServer] url=${API_URL}/api/v1${path} cookieLen=${cookie.length} status=${res.status}`);
-    if (!res.ok) return null;
-    return ((await res.json()) as { data: T }).data;
-  } catch (err) {
-    const cause = err instanceof Error ? (err.cause as { code?: string; message?: string } | undefined) : undefined;
-    console.log(
-      `[DIAG apiFetchServer] threw: ${err instanceof Error ? err.message : String(err)} cause=${cause?.code ?? 'n/a'}:${cause?.message ?? 'n/a'}`,
-    );
-    return null;
+    res = await attempt();
+  } catch {
+    try {
+      res = await attempt();
+    } catch {
+      return null;
+    }
   }
+  if (!res.ok) return null;
+  return ((await res.json()) as { data: T }).data;
 }

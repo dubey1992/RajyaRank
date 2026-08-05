@@ -66,17 +66,24 @@ const OWN_PUBLIC_URL = process.env.WEB_PUBLIC_URL ?? 'http://localhost:3000';
  *  only ever proxies requests on behalf of this app's own student users, so
  *  declaring its own public URL here is accurate, not spoofing. */
 export async function apiFetchServer<T>(path: string, cookie: string): Promise<T | null> {
+  const attempt = async () =>
+    fetch(`${API_URL}/api/v1${path}`, { headers: { cookie, origin: OWN_PUBLIC_URL }, cache: 'no-store' });
+  let res: Response;
   try {
-    const res = await fetch(`${API_URL}/api/v1${path}`, {
-      headers: { cookie, origin: OWN_PUBLIC_URL },
-      cache: 'no-store',
-    });
-    if (!res.ok) return null;
-    const body = await res.json();
-    return (body as { data: T }).data;
+    res = await attempt();
   } catch {
-    return null;
+    // Retry once — a transient network blip (e.g. a cold compute container's
+    // first DNS lookup failing) shouldn't bounce an otherwise-valid session
+    // to login; see the identical comment in apps/admin/lib/api.ts.
+    try {
+      res = await attempt();
+    } catch {
+      return null;
+    }
   }
+  if (!res.ok) return null;
+  const body = await res.json();
+  return (body as { data: T }).data;
 }
 
 export const API_BASE = API_URL;
