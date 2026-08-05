@@ -209,8 +209,15 @@ export class SettlementsService {
   // shared /webhooks/razorpay handler for account.* events — real, automatic
   // KYC sync instead of relying solely on Super Admin's manual "Verify KYC"
   // click above (which remains as a fallback/override).
+  //
+  // account.instantly_activated is the event name Razorpay actually sends for
+  // accounts without full Route/Marketplace approval (the under_review /
+  // needs_clarification / rejected / suspended lifecycle only appears once
+  // Razorpay approves Route on the account) — functionally the same "fully
+  // verified, payouts on" outcome as account.activated, so mapped the same.
   private static readonly ACCOUNT_EVENT_STATUS: Record<string, { kycStatus: 'PENDING' | 'VERIFIED' | 'REJECTED'; payoutsEnabled: boolean }> = {
     'account.activated': { kycStatus: 'VERIFIED', payoutsEnabled: true },
+    'account.instantly_activated': { kycStatus: 'VERIFIED', payoutsEnabled: true },
     'account.under_review': { kycStatus: 'PENDING', payoutsEnabled: false },
     'account.activated_kyc_pending': { kycStatus: 'PENDING', payoutsEnabled: false },
     'account.needs_clarification': { kycStatus: 'PENDING', payoutsEnabled: false },
