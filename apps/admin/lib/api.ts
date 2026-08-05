@@ -102,7 +102,10 @@ export async function apiFetchServer<T>(path: string, cookie: string): Promise<T
     if (!res.ok) return null;
     return ((await res.json()) as { data: T }).data;
   } catch (err) {
-    console.log(`[DIAG apiFetchServer] threw:`, err instanceof Error ? err.message : err);
+    const cause = err instanceof Error ? (err.cause as { code?: string; message?: string } | undefined) : undefined;
+    console.log(
+      `[DIAG apiFetchServer] threw: ${err instanceof Error ? err.message : String(err)} cause=${cause?.code ?? 'n/a'}:${cause?.message ?? 'n/a'}`,
+    );
     return null;
   }
 }
