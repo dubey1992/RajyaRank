@@ -53,7 +53,7 @@ export class AccessGuard implements CanActivate {
   }
 
   /**
-   * COOKIE_DOMAIN is deliberately shared (e.g. `.rajyarank.in`) so a staff
+   * COOKIE_DOMAIN is deliberately shared (e.g. `.rajyarank.com`) so a staff
    * login on the web app's staff tab can hand off an already-authenticated
    * session to the admin portal (see AuthController). The side effect: a
    * browser that has EVER logged into the admin portal keeps a live STAFF

@@ -1,7 +1,7 @@
 # Security
 
 ## Reporting
-Email security@rajyarank.in (or the private security contact). Do not open public issues for
+Email security@rajyarank.com (or the private security contact). Do not open public issues for
 vulnerabilities. We aim to acknowledge within 48 hours.
 
 ## Controls implemented

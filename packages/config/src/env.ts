@@ -94,7 +94,7 @@ export const apiEnvSchema = z.object({
   // Web Push (VAPID). Empty → push disabled; the endpoints degrade gracefully.
   VAPID_PUBLIC_KEY: z.string().optional().default(''),
   VAPID_PRIVATE_KEY: z.string().optional().default(''),
-  VAPID_SUBJECT: z.string().optional().default('mailto:no-reply@rajyarank.in'),
+  VAPID_SUBJECT: z.string().optional().default('mailto:no-reply@rajyarank.com'),
 
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
 }).refine((env) => !(env.COOKIE_SAME_SITE === 'none' && !env.COOKIE_SECURE), {

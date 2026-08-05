@@ -83,7 +83,7 @@ export async function renderInstitutionInvoicePdf(input: {
   // ── Brand header ──
   doc.font('Helvetica-Bold').fontSize(22).fillColor('#0b2f4f').text('RajyaRank', LEFT, doc.y);
   doc.font('Helvetica').fontSize(10).fillColor('#65798c').text('Government Exam Learning Platform', LEFT, doc.y + 1);
-  doc.fontSize(9).fillColor('#65798c').text('Institution subscription billing  ·  institutions@rajyarank.in', LEFT);
+  doc.fontSize(9).fillColor('#65798c').text('Institution subscription billing  ·  institutions@rajyarank.com', LEFT);
   doc.moveDown(1.1);
 
   // ── Title + status badge ──
@@ -108,7 +108,7 @@ export async function renderInstitutionInvoicePdf(input: {
   const colWidth = 220;
   doc.font('Helvetica-Bold').fontSize(9).fillColor('#65798c').text('BILLED FROM', LEFT, colY, { characterSpacing: 0.3 });
   doc.font('Helvetica-Bold').fontSize(11).fillColor('#0b2f4f').text('RajyaRank', LEFT, colY + 14);
-  doc.font('Helvetica').fontSize(10).fillColor('#374151').text('institutions@rajyarank.in', LEFT, colY + 30, { width: colWidth });
+  doc.font('Helvetica').fontSize(10).fillColor('#374151').text('institutions@rajyarank.com', LEFT, colY + 30, { width: colWidth });
 
   const rightColX = LEFT + 275;
   doc.font('Helvetica-Bold').fontSize(9).fillColor('#65798c').text('BILLED TO', rightColX, colY, { characterSpacing: 0.3 });
@@ -176,7 +176,7 @@ export async function renderInstitutionInvoicePdf(input: {
   doc.moveTo(LEFT, doc.y).lineTo(RIGHT, doc.y).strokeColor('#dbe5ed').stroke();
   doc.moveDown(0.8);
   doc.fontSize(8).fillColor('#65798c').text(
-    `System-generated invoice for platform subscription billing. Questions? Write to institutions@rajyarank.in. Generated ${formatDate(new Date())}.`,
+    `System-generated invoice for platform subscription billing. Questions? Write to institutions@rajyarank.com. Generated ${formatDate(new Date())}.`,
     LEFT,
     doc.y,
     { width: RIGHT - LEFT },

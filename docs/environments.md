@@ -8,15 +8,15 @@ preprod/prod (real optimisations); the tier is distinguished by **`APP_ENV`**.
 | Tier | `APP_ENV` | Student web | Admin portal | API |
 |------|-----------|-------------|--------------|-----|
 | Local | `local` | http://localhost:3000 | http://localhost:3001 | http://localhost:4000 |
-| Staging | `staging` | https://staging.rajyarank.in | https://admin.staging.rajyarank.in | https://api.staging.rajyarank.in |
-| Pre-production (UAT) | `preproduction` | https://preprod.rajyarank.in | https://admin.preprod.rajyarank.in | https://api.preprod.rajyarank.in |
-| Production | `production` | https://rajyarank.in | https://admin.rajyarank.in | https://api.rajyarank.in |
+| Staging | `staging` | https://staging.rajyarank.com | https://admin.staging.rajyarank.com | https://api.staging.rajyarank.com |
+| Pre-production (UAT) | `preproduction` | https://preprod.rajyarank.com | https://admin.preprod.rajyarank.com | https://api.preprod.rajyarank.com |
+| Production | `production` | https://rajyarank.com | https://admin.rajyarank.com | https://api.rajyarank.com |
 
 Env templates: `.env.example` (local), `.env.staging.example`, `.env.preproduction.example`,
 `.env.production.example`. Copy the right one to `.env` on the host / into the CI secret store and
 fill secrets from the secret manager — **never commit real values**.
 
-Cookies use a shared parent domain per tier (e.g. `.staging.rajyarank.in`) so the student and admin
+Cookies use a shared parent domain per tier (e.g. `.staging.rajyarank.com`) so the student and admin
 subdomains share the auth realm; `COOKIE_SECURE=true` everywhere except local. CORS is driven by
 `WEB_PUBLIC_URL` + `ADMIN_PUBLIC_URL` (see `apps/api/src/main.ts`).
 
@@ -44,7 +44,7 @@ pnpm build
 #   api:  node apps/api/dist/main.js         (health: /healthz, /readyz)
 #   worker: node apps/worker/dist/main.js
 #   web/admin: next start
-# 5. Point the Razorpay webhook at  https://api.<tier>.rajyarank.in/api/v1/webhooks/razorpay
+# 5. Point the Razorpay webhook at  https://api.<tier>.rajyarank.com/api/v1/webhooks/razorpay
 ```
 
 ## Rollback

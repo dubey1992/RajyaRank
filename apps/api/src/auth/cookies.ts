@@ -33,7 +33,7 @@ function baseCookieOptions(env: ApiEnv) {
     // where the frontend is on *.amplifyapp.com and the API on
     // *.cloudfront.net — genuinely different sites as far as SameSite is
     // concerned). Once they share a domain (subdomains of the same site,
-    // e.g. api.rajyarank.in + app.rajyarank.in), switch back to 'lax' — it's
+    // e.g. api.rajyarank.com + app.rajyarank.com), switch back to 'lax' — it's
     // strictly more secure (real CSRF protection) and works fine for
     // same-site subdomains.
     sameSite: env.COOKIE_SAME_SITE,

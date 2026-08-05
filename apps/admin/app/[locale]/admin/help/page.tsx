@@ -18,7 +18,7 @@ export default async function AdminHelpPage({ params }: { params: { locale: stri
   const channels = [
     { icon: '📖', h: L('स्टाफ़ गाइड', 'Staff guides'), p: L('अपनी भूमिका के लिए दस्तावेज़ीकरण देखें।', 'See the documentation for your role.') },
     { icon: '👤', h: L('अपने Super Admin से संपर्क करें', 'Contact your Super Admin'), p: L('अनुमतियों, भूमिका या खाता समस्याओं के लिए।', 'For permissions, role, or account issues.') },
-    { icon: '✉️', h: L('ईमेल सपोर्ट', 'Email support'), p: 'support@rajyarank.in' },
+    { icon: '✉️', h: L('ईमेल सपोर्ट', 'Email support'), p: 'support@rajyarank.com' },
   ];
   const faqs = [
     { q: L('मुझे और अनुमतियाँ (जैसे नया मेनू) कैसे मिलेंगी?', 'How do I get more permissions (e.g. a new menu item)?'), a: L('यह आपके Super Admin द्वारा "भूमिकाएँ व अनुमतियाँ" स्क्रीन से नियंत्रित होता है — उनसे अनुरोध करें।', 'This is controlled by your Super Admin from the "Roles & Permissions" screen — request it from them.') },

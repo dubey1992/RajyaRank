@@ -161,7 +161,7 @@ export default function StaffLoginPage() {
                 value={email}
                 error={errors.workEmail}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="teacher@rajyarank.in"
+                placeholder="teacher@rajyarank.com"
               />
               <Field
                 label={t('auth.password')}
