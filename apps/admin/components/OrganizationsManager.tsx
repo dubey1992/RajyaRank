@@ -1,9 +1,10 @@
 'use client';
 import { useState } from 'react';
-import { Alert, Button, Field, Toast, ConfirmDialog } from '@rajyarank/ui';
+import { Alert, Button, Field, Toast, ConfirmDialog, PasswordChecklist } from '@rajyarank/ui';
 import { apiFetch, type ApiError } from '@/lib/api';
-import { serverFieldErrors } from '@/lib/form';
-import type { OrganizationView } from '@rajyarank/contracts';
+import { serverFieldErrors, validate } from '@/lib/form';
+import { PASSWORD_RULES, adminSetInvitePasswordSchema } from '@rajyarank/contracts';
+import type { OrganizationView, PendingHeadInviteView } from '@rajyarank/contracts';
 
 export function OrganizationsManager({ initial, locale }: { initial: OrganizationView[]; locale: 'hi' | 'en' }) {
   const hi = locale === 'hi';
@@ -25,6 +26,11 @@ export function OrganizationsManager({ initial, locale }: { initial: Organizatio
   const [iEmail, setIEmail] = useState('');
   const [iPhone, setIPhone] = useState('');
   const [iErrors, setIErrors] = useState<Record<string, string>>({});
+  // Set-password modal state (testing-only bypass for when email delivery
+  // can't be relied on — see InvitationsService.adminSetPasswordAndAccept).
+  const [pwFor, setPwFor] = useState<{ org: OrganizationView; invite: PendingHeadInviteView } | null>(null);
+  const [pwValue, setPwValue] = useState('');
+  const [pwErrors, setPwErrors] = useState<Record<string, string>>({});
 
   async function register() {
     const errs: Record<string, string> = {};
@@ -139,6 +145,36 @@ export function OrganizationsManager({ initial, locale }: { initial: Organizatio
     }
   }
 
+  async function submitSetPassword() {
+    if (!pwFor) return;
+    const errs = validate(adminSetInvitePasswordSchema, { password: pwValue });
+    setPwErrors(errs);
+    if (Object.keys(errs).length) return;
+    const { org, invite } = pwFor;
+    setRowBusy(org.id);
+    try {
+      const res = await apiFetch<{ userId: string; mfaSetupRequired: boolean }>(
+        `/admin/organizations/${org.id}/heads/${invite.id}/set-password`,
+        { method: 'POST', body: JSON.stringify({ password: pwValue }) },
+      );
+      setRows((r) => r.map((x) => (x.id !== org.id ? x : {
+        ...x,
+        pendingHeadInvites: x.pendingHeadInvites.filter((i) => i.id !== invite.id),
+        heads: [...x.heads, { id: res.userId, name: invite.fullName, email: invite.email, phone: null, status: 'ACTIVE' }],
+      })));
+      setToast(
+        res.mfaSetupRequired
+          ? L('पासवर्ड सेट हो गया; पहली बार लॉगिन पर MFA सेटअप आवश्यक होगा।', 'Password set — this account will need MFA setup on its first login.')
+          : L('पासवर्ड सेट हो गया; अब लॉगिन किया जा सकता है।', 'Password set — this account can log in now.'),
+      );
+      setPwFor(null); setPwValue(''); setPwErrors({});
+    } catch (e) {
+      setPwErrors(serverFieldErrors(e as ApiError));
+    } finally {
+      setRowBusy(null);
+    }
+  }
+
   const mini = 'rounded-md border border-line px-2 py-1 text-xs font-bold hover:bg-surface-soft disabled:opacity-50';
 
   return (
@@ -203,6 +239,14 @@ export function OrganizationsManager({ initial, locale }: { initial: Organizatio
                               onClick={() => void resendHeadInvite(o, inv.id)}
                             >
                               {L('पुनः भेजें', 'Resend')}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={rowBusy === o.id}
+                              className="font-bold text-navy-700 hover:underline disabled:opacity-50"
+                              onClick={() => { setPwFor({ org: o, invite: inv }); setPwValue(''); setPwErrors({}); }}
+                            >
+                              {L('पासवर्ड सेट करें', 'Set password')}
                             </button>
                           </div>
                         ))}
@@ -289,6 +333,28 @@ export function OrganizationsManager({ initial, locale }: { initial: Organizatio
               <div className="mt-2 flex justify-end gap-2">
                 <button type="button" className="rounded-md border border-line px-3 py-2 text-sm font-bold" onClick={() => setInviteFor(null)}>{L('रद्द करें', 'Cancel')}</button>
                 <Button type="submit" loading={rowBusy === inviteFor.id}>{L('आमंत्रण भेजें', 'Send invite')}</Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Set-password modal — testing bypass for when the invite email can't
+          be relied on; disappears server-side once APP_ENV is production. */}
+      {pwFor ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/50 p-4" onClick={() => setPwFor(null)}>
+          <div className="w-full max-w-md rounded-lg border border-line bg-white p-5" onClick={(e) => e.stopPropagation()}>
+            <h3 className="mb-1 text-lg font-black text-navy-900">{L('पासवर्ड सेट करें', 'Set password')}</h3>
+            <p className="mb-3 text-xs text-muted">
+              {pwFor.invite.email} — {L('ईमेल भेजे बिना खाता तुरंत सक्रिय हो जाएगा। केवल परीक्षण के लिए।', "Activates the account immediately, no email sent. Testing only.")}
+            </p>
+            {pwErrors._form ? <div className="mb-3"><Alert tone="error">{pwErrors._form}</Alert></div> : null}
+            <form noValidate onSubmit={(e) => { e.preventDefault(); void submitSetPassword(); }}>
+              <Field label={L('नया पासवर्ड', 'New password')} name="password" type="password" autoComplete="new-password" value={pwValue} error={pwErrors.password} onChange={(e) => setPwValue(e.target.value)} />
+              <PasswordChecklist rules={PASSWORD_RULES.map((r) => ({ label: hi ? r.labelHi : r.labelEn, met: r.test(pwValue) }))} />
+              <div className="mt-2 flex justify-end gap-2">
+                <button type="button" className="rounded-md border border-line px-3 py-2 text-sm font-bold" onClick={() => setPwFor(null)}>{L('रद्द करें', 'Cancel')}</button>
+                <Button type="submit" loading={rowBusy === pwFor.org.id}>{L('पासवर्ड सेट करें', 'Set password')}</Button>
               </div>
             </form>
           </div>

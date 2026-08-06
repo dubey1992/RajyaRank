@@ -87,6 +87,11 @@ export interface OrganizationView {
 }
 export type CreateInvitation = z.infer<typeof createInvitationSchema>;
 
+/** Admin-set-password bypass for a pending invitation — non-production only,
+ *  see InvitationsService.adminSetPasswordAndAccept. */
+export const adminSetInvitePasswordSchema = z.object({ password: passwordSchema });
+export type AdminSetInvitePassword = z.infer<typeof adminSetInvitePasswordSchema>;
+
 export const invitationPreviewSchema = z.object({
   fullName: z.string(),
   email: z.string(),

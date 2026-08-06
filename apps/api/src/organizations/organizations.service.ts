@@ -106,6 +106,28 @@ export class OrganizationsService {
     return result;
   }
 
+  /** Same org/role scoping as resendHeadInvite, but completes the invite
+   *  immediately with an admin-chosen password instead of re-emailing a
+   *  token. Non-production only — see InvitationsService.adminSetPasswordAndAccept. */
+  async setHeadInvitePassword(actor: Principal, orgId: string, invitationId: string, password: string) {
+    const org = await this.prisma.organization.findUnique({ where: { id: orgId } });
+    if (!org) throw AppError.notFound('Institution not found.');
+    const invite = await this.prisma.staffInvitation.findUnique({ where: { id: invitationId } });
+    if (!invite || invite.orgId !== orgId || invite.roleKey !== 'ACADEMIC_HEAD') {
+      throw AppError.notFound('Invitation not found.');
+    }
+    const result = await this.invitations.adminSetPasswordAndAccept(actor, invitationId, password);
+    await this.audit.record({
+      actorUserId: actor.userId,
+      action: 'org.head_invite_password_set',
+      targetType: 'Organization',
+      targetId: orgId,
+      result: 'SUCCESS',
+      after: { email: invite.email },
+    });
+    return result;
+  }
+
   /** Activate / deactivate (suspend) an institution. */
   async setStatus(actor: Principal, orgId: string, status: 'ACTIVE' | 'SUSPENDED') {
     const org = await this.prisma.organization.findUnique({ where: { id: orgId } });

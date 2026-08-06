@@ -147,3 +147,65 @@ describe('Resend head invitation', () => {
       .expect(403);
   });
 });
+
+describe('Admin set-password bypass for a head invitation', () => {
+  it('completes the invite immediately — new password logs in, no token needed, MFA setup flagged for ACADEMIC_HEAD', async () => {
+    const { cookies, csrf } = await loginAsFreshStaff('SUPER_ADMIN');
+    const org = await registerOrg(cookies, csrf, 'SetPw');
+
+    const res = await api()
+      .post(`/api/v1/admin/organizations/${org.id}/heads/${org.invitationId}/set-password`)
+      .set('Cookie', cookies)
+      .set('x-csrf-token', csrf)
+      .send({ password: 'BrandNewHeadPass1!' })
+      .expect(201);
+    expect(res.body.data.userId).toBeTruthy();
+    expect(res.body.data.mfaSetupRequired).toBe(true);
+
+    const invite = await prisma.staffInvitation.findUniqueOrThrow({ where: { id: org.invitationId } });
+    expect(invite.status).toBe('ACCEPTED');
+    expect(invite.acceptedUserId).toBe(res.body.data.userId);
+
+    const login = await api().post('/api/v1/auth/staff/login').send({ workEmail: invite.email, password: 'BrandNewHeadPass1!' }).expect(201);
+    expect(login.status).toBe(201);
+  });
+
+  it('rejects when the invitation belongs to a different org', async () => {
+    const { cookies, csrf } = await loginAsFreshStaff('SUPER_ADMIN');
+    const orgA = await registerOrg(cookies, csrf, 'SetPwA');
+    const orgB = await registerOrg(cookies, csrf, 'SetPwB');
+
+    const res = await api()
+      .post(`/api/v1/admin/organizations/${orgB.id}/heads/${orgA.invitationId}/set-password`)
+      .set('Cookie', cookies)
+      .set('x-csrf-token', csrf)
+      .send({ password: 'BrandNewHeadPass1!' })
+      .expect(404);
+    expect(res.body.error.code).toBe('NOT_FOUND');
+  });
+
+  it('422s on a weak password without touching the invitation', async () => {
+    const { cookies, csrf } = await loginAsFreshStaff('SUPER_ADMIN');
+    const org = await registerOrg(cookies, csrf, 'WeakPw');
+
+    await api()
+      .post(`/api/v1/admin/organizations/${org.id}/heads/${org.invitationId}/set-password`)
+      .set('Cookie', cookies)
+      .set('x-csrf-token', csrf)
+      .send({ password: 'weak' })
+      .expect(422);
+
+    const invite = await prisma.staffInvitation.findUniqueOrThrow({ where: { id: org.invitationId } });
+    expect(invite.status).toBe('PENDING');
+  });
+
+  it('403s for staff without org.manage', async () => {
+    const { cookies, csrf } = await loginAsFreshStaff('TEACHER');
+    await api()
+      .post('/api/v1/admin/organizations/00000000-0000-0000-0000-000000000000/heads/00000000-0000-0000-0000-000000000000/set-password')
+      .set('Cookie', cookies)
+      .set('x-csrf-token', csrf)
+      .send({ password: 'BrandNewHeadPass1!' })
+      .expect(403);
+  });
+});

@@ -5,9 +5,11 @@ import {
   registerOrganizationSchema,
   inviteHeadSchema,
   orgStatusSchema,
+  adminSetInvitePasswordSchema,
   type RegisterOrganization,
   type InviteHead,
   type OrgStatusUpdate,
+  type AdminSetInvitePassword,
 } from '@rajyarank/contracts';
 import { CurrentPrincipal } from '../common/decorators/current-principal.decorator';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
@@ -49,6 +51,17 @@ export class OrganizationsController {
   @RequirePermission('org.manage')
   resendHeadInvite(@CurrentPrincipal() principal: Principal, @Param('id') id: string, @Param('invitationId') invitationId: string) {
     return this.orgs.resendHeadInvite(principal, id, invitationId);
+  }
+
+  @Post(':id/heads/:invitationId/set-password')
+  @RequirePermission('org.manage')
+  setHeadInvitePassword(
+    @CurrentPrincipal() principal: Principal,
+    @Param('id') id: string,
+    @Param('invitationId') invitationId: string,
+    @Body(new ZodValidationPipe(adminSetInvitePasswordSchema)) body: AdminSetInvitePassword,
+  ) {
+    return this.orgs.setHeadInvitePassword(principal, id, invitationId, body.password);
   }
 
   @Patch(':id/status')

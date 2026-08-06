@@ -1,10 +1,12 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Alert, ConfirmDialog, Toast } from '@rajyarank/ui';
+import { Alert, Button, ConfirmDialog, Field, PasswordChecklist, Toast } from '@rajyarank/ui';
 import { apiFetch, type ApiError } from '@/lib/api';
+import { serverFieldErrors, validate } from '@/lib/form';
 import { roleLabel } from '@/lib/labels';
 import { SearchInput } from './SearchInput';
+import { PASSWORD_RULES, adminSetInvitePasswordSchema } from '@rajyarank/contracts';
 import type { StaffListItem } from '@rajyarank/contracts';
 
 type Status = StaffListItem['status'];
@@ -47,6 +49,11 @@ export function StaffTable({
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
+  // Set-password modal state (testing-only bypass for when the invite email
+  // can't be relied on — see InvitationsService.adminSetPasswordAndAccept).
+  const [pwFor, setPwFor] = useState<StaffListItem | null>(null);
+  const [pwValue, setPwValue] = useState('');
+  const [pwErrors, setPwErrors] = useState<Record<string, string>>({});
 
   function report(e: unknown) {
     const err = e as ApiError;
@@ -123,6 +130,31 @@ export function StaffTable({
     });
   }
 
+  async function submitSetPassword() {
+    if (!pwFor) return;
+    const errs = validate(adminSetInvitePasswordSchema, { password: pwValue });
+    setPwErrors(errs);
+    if (Object.keys(errs).length) return;
+    setBusyId(pwFor.id);
+    try {
+      const res = await apiFetch<{ userId: string; mfaSetupRequired: boolean }>(`/admin/staff/invitations/${pwFor.id}/set-password`, {
+        method: 'POST',
+        body: JSON.stringify({ password: pwValue }),
+      });
+      setRows((r) => r.map((row) => (row.id === pwFor.id ? { ...row, id: res.userId, status: 'ACTIVE' } : row)));
+      setToast(
+        res.mfaSetupRequired
+          ? L('पासवर्ड सेट हो गया; पहली बार लॉगिन पर MFA सेटअप आवश्यक होगा।', 'Password set — this account will need MFA setup on its first login.')
+          : L('पासवर्ड सेट हो गया; अब लॉगिन किया जा सकता है।', 'Password set — this account can log in now.'),
+      );
+      setPwFor(null); setPwValue(''); setPwErrors({});
+    } catch (e) {
+      setPwErrors(serverFieldErrors(e as ApiError));
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   async function confirmRun() {
     if (!pending) return;
     setBusyId(pending.id);
@@ -196,6 +228,14 @@ export function StaffTable({
                           >
                             {L('रद्द करें', 'Revoke')}
                           </button>
+                          <button
+                            type="button"
+                            disabled={busyId === s.id}
+                            onClick={() => { setPwFor(s); setPwValue(''); setPwErrors({}); }}
+                            className="rounded-md border border-line px-2 py-1 text-xs font-bold text-navy-900 hover:bg-surface-soft"
+                          >
+                            {L('पासवर्ड सेट करें', 'Set password')}
+                          </button>
                         </>
                       ) : (
                         <>
@@ -248,6 +288,28 @@ export function StaffTable({
           </table>
         </div>
       )}
+
+      {/* Set-password modal — testing bypass for when the invite email can't
+          be relied on; disappears server-side once APP_ENV is production. */}
+      {pwFor ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/50 p-4" onClick={() => setPwFor(null)}>
+          <div className="w-full max-w-md rounded-lg border border-line bg-white p-5" onClick={(e) => e.stopPropagation()}>
+            <h3 className="mb-1 text-lg font-black text-navy-900">{L('पासवर्ड सेट करें', 'Set password')}</h3>
+            <p className="mb-3 text-xs text-muted">
+              {pwFor.email} — {L('ईमेल भेजे बिना खाता तुरंत सक्रिय हो जाएगा। केवल परीक्षण के लिए।', "Activates the account immediately, no email sent. Testing only.")}
+            </p>
+            {pwErrors._form ? <div className="mb-3"><Alert tone="error">{pwErrors._form}</Alert></div> : null}
+            <form noValidate onSubmit={(e) => { e.preventDefault(); void submitSetPassword(); }}>
+              <Field label={L('नया पासवर्ड', 'New password')} name="password" type="password" autoComplete="new-password" value={pwValue} error={pwErrors.password} onChange={(e) => setPwValue(e.target.value)} />
+              <PasswordChecklist rules={PASSWORD_RULES.map((r) => ({ label: hi ? r.labelHi : r.labelEn, met: r.test(pwValue) }))} />
+              <div className="mt-2 flex justify-end gap-2">
+                <button type="button" className="rounded-md border border-line px-3 py-2 text-sm font-bold" onClick={() => setPwFor(null)}>{L('रद्द करें', 'Cancel')}</button>
+                <Button type="submit" loading={busyId === pwFor.id}>{L('पासवर्ड सेट करें', 'Set password')}</Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
 
       <ConfirmDialog
         open={!!pending}

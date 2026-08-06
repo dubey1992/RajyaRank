@@ -1,7 +1,13 @@
 import { Body, Controller, Get, Param, Post, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import type { Principal } from '@rajyarank/auth';
-import { acceptInvitationSchema, createInvitationSchema, type CreateInvitation } from '@rajyarank/contracts';
+import {
+  acceptInvitationSchema,
+  adminSetInvitePasswordSchema,
+  createInvitationSchema,
+  type AdminSetInvitePassword,
+  type CreateInvitation,
+} from '@rajyarank/contracts';
 import { Public } from '../common/decorators/public.decorator';
 import { CurrentPrincipal } from '../common/decorators/current-principal.decorator';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
@@ -48,5 +54,15 @@ export class InvitationsController {
   @RequirePermission('user.invite')
   async revoke(@CurrentPrincipal() principal: Principal, @Param('id') id: string) {
     return this.invitations.revoke(principal, id);
+  }
+
+  @Post('admin/staff/invitations/:id/set-password')
+  @RequirePermission('user.invite')
+  async setPassword(
+    @CurrentPrincipal() principal: Principal,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(adminSetInvitePasswordSchema)) body: AdminSetInvitePassword,
+  ) {
+    return this.invitations.adminSetPasswordAndAccept(principal, id, body.password);
   }
 }

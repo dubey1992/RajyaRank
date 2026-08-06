@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import * as argon2 from 'argon2';
+import type { StaffInvitation } from '@prisma/client';
 import type { AcceptInvitation, CreateInvitation, InvitationPreview } from '@rajyarank/contracts';
 import type { Principal, RoleKey } from '@rajyarank/auth';
 import { ENV } from '../config/config.module';
@@ -108,7 +109,44 @@ export class InvitationsService {
 
   async accept(dto: AcceptInvitation): Promise<{ userId: string; mfaSetupRequired: boolean }> {
     const inv = await this.liveInvitationByToken(dto.token);
-    const passwordHash = await argon2.hash(dto.password, { type: argon2.argon2id });
+    return this.createFromInvitation(inv, dto.password);
+  }
+
+  /** Admin-set-password bypass — completes a pending invitation immediately
+   *  with an admin-chosen password, skipping the emailed token entirely.
+   *  Exists for environments where outbound email can't be relied on for
+   *  testing (staging SES sandbox); never available once APP_ENV is a real
+   *  environment, so it disappears on its own rather than needing a
+   *  follow-up removal once email delivery is fixed. */
+  async adminSetPasswordAndAccept(actor: Principal, invitationId: string, password: string): Promise<{ userId: string; mfaSetupRequired: boolean }> {
+    if (this.env.APP_ENV === 'production' || this.env.APP_ENV === 'preproduction') {
+      throw AppError.notFound('Invitation not found.');
+    }
+    const inv = await this.prisma.staffInvitation.findUnique({ where: { id: invitationId } });
+    if (!inv || (inv.status !== 'PENDING' && inv.status !== 'EXPIRED')) throw AppError.notFound('Invitation not found.');
+    // Same tenant/role restriction as create(): a non-super-admin can only
+    // touch their own org's invitations and can never claim a SUPER_ADMIN
+    // invite — this bypass must not grant more than the actor could already
+    // invite someone into. Without this, any user.invite holder (e.g. a
+    // Content Admin) could claim ANY pending invitation by id, including a
+    // co-Head's in their own org or a still-pending Super Admin invite.
+    if (!actor.isSuperAdmin && (inv.orgId !== actor.orgId || inv.roleKey === 'SUPER_ADMIN')) {
+      throw AppError.notFound('Invitation not found.');
+    }
+    const result = await this.createFromInvitation(inv, password);
+    await this.audit.record({
+      actorUserId: actor.userId,
+      action: 'staff.invite.admin_set_password',
+      targetType: 'StaffInvitation',
+      targetId: invitationId,
+      result: 'SUCCESS',
+      after: { email: inv.email },
+    });
+    return result;
+  }
+
+  private async createFromInvitation(inv: StaffInvitation, password: string): Promise<{ userId: string; mfaSetupRequired: boolean }> {
+    const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
     const role = await this.prisma.role.findUniqueOrThrow({ where: { key: inv.roleKey } });
     const assignments = (inv.assignments as unknown as AssignmentPayload[]) ?? [];
     const highRiskRole = inv.roleKey === 'SUPER_ADMIN' || inv.roleKey === 'CONTENT_ADMIN' || inv.roleKey === 'ACADEMIC_HEAD';
