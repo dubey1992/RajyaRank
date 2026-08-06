@@ -106,10 +106,16 @@ export async function apiFetchServer<T>(path: string, cookie: string): Promise<T
   let res: Response;
   try {
     res = await attempt();
-  } catch {
+  } catch (e) {
     try {
       res = await attempt();
-    } catch {
+    } catch (e2) {
+      // Both attempts failed at the network level (not an API error response)
+      // — the SSR->API fetch itself never landed. Worth a permanent log line:
+      // this class of failure previously went completely silent, which made
+      // an intermittent Amplify SSR-compute networking issue expensive to
+      // diagnose (see commit e4454f9's history).
+      console.error(`[apiFetchServer] both attempts failed for ${path}`, e, e2);
       return null;
     }
   }
