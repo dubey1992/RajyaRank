@@ -181,12 +181,17 @@ export class InvitationsService {
 
   async resend(actor: Principal, id: string) {
     const inv = await this.prisma.staffInvitation.findUnique({ where: { id } });
-    if (!inv || inv.status !== 'PENDING') throw AppError.notFound('Invitation not found.');
+    // EXPIRED is resendable too — status only flips to EXPIRED lazily (when
+    // someone opens a lapsed link via liveInvitationByToken), so a
+    // never-visited stale invite is often still PENDING anyway. Either way,
+    // regenerating the token is exactly what should happen for both.
+    if (!inv || (inv.status !== 'PENDING' && inv.status !== 'EXPIRED')) throw AppError.notFound('Invitation not found.');
     const rawToken = randomToken();
     await this.prisma.staffInvitation.update({
       where: { id },
       data: {
         tokenHash: sha256(rawToken),
+        status: 'PENDING',
         expiresAt: new Date(Date.now() + this.env.INVITATION_TTL_HOURS * 3_600_000),
       },
     });

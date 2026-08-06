@@ -38,6 +38,12 @@ export class OrganizationsService {
         },
       },
     });
+    // Not-yet-accepted head invites, one query for every org at once rather
+    // than N+1 per row.
+    const pendingInvites = await this.prisma.staffInvitation.findMany({
+      where: { roleKey: 'ACADEMIC_HEAD', orgId: { in: orgs.map((o) => o.id) }, status: { in: ['PENDING', 'EXPIRED'] } },
+      select: { id: true, orgId: true, email: true, fullName: true },
+    });
     return orgs.map((o) => {
       const heads = o.members.map((m) => ({ id: m.id, name: m.displayName, email: m.email, phone: m.phone, status: m.status }));
       return {
@@ -50,6 +56,7 @@ export class OrganizationsService {
         headEmail: o.head?.email ?? heads[0]?.email ?? null,
         headPhone: o.head?.phone ?? heads[0]?.phone ?? null,
         heads,
+        pendingHeadInvites: pendingInvites.filter((i) => i.orgId === o.id).map((i) => ({ id: i.id, email: i.email, fullName: i.fullName })),
         memberCount: o._count.members,
         createdAt: o.createdAt.toISOString(),
       };
@@ -74,6 +81,29 @@ export class OrganizationsService {
       after: { email: dto.email.toLowerCase() },
     });
     return { invitationId: invite.id };
+  }
+
+  /** Resend a head invitation — org.manage (e.g. Super Admin) doesn't hold
+   *  user.invite, so it can't use the generic staff-invitations resend route
+   *  even for a head invite it sent itself. Scoped to org + ACADEMIC_HEAD so
+   *  an org.manage holder can't resend an arbitrary invitation by id. */
+  async resendHeadInvite(actor: Principal, orgId: string, invitationId: string) {
+    const org = await this.prisma.organization.findUnique({ where: { id: orgId } });
+    if (!org) throw AppError.notFound('Institution not found.');
+    const invite = await this.prisma.staffInvitation.findUnique({ where: { id: invitationId } });
+    if (!invite || invite.orgId !== orgId || invite.roleKey !== 'ACADEMIC_HEAD') {
+      throw AppError.notFound('Invitation not found.');
+    }
+    const result = await this.invitations.resend(actor, invitationId);
+    await this.audit.record({
+      actorUserId: actor.userId,
+      action: 'org.head_invite_resent',
+      targetType: 'Organization',
+      targetId: orgId,
+      result: 'SUCCESS',
+      after: { email: invite.email },
+    });
+    return result;
   }
 
   /** Activate / deactivate (suspend) an institution. */

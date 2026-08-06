@@ -37,15 +37,20 @@ export function OrganizationsManager({ initial, locale }: { initial: Organizatio
     if (Object.keys(errs).length) return;
     setBusy(true);
     try {
-      const created = await apiFetch<{ id: string; code: string }>('/admin/organizations', {
+      const created = await apiFetch<{ id: string; code: string; invitationId: string }>('/admin/organizations', {
         method: 'POST',
         body: JSON.stringify({ name: name.trim(), code, headFullName: headFullName.trim(), headEmail: headEmail.trim(), headPhone }),
       });
-      // Use the real database id from the response, not the human-entered
+      // Use the real database ids from the response, not the human-entered
       // code — every later action on this row (invite head, toggle status,
-      // rotate access code, delete) sends row.id straight to the API, which
-      // looks organizations up by their real id, not by code.
-      setRows((r) => [{ id: created.id, name: name.trim(), code: created.code, accessCode: null, status: 'ACTIVE', headName: headFullName.trim(), headEmail: headEmail.trim(), headPhone, heads: [], memberCount: 0, createdAt: new Date().toISOString() }, ...r]);
+      // rotate access code, delete, resend) sends these straight to the API,
+      // which looks things up by their real id, not by code.
+      setRows((r) => [{
+        id: created.id, name: name.trim(), code: created.code, accessCode: null, status: 'ACTIVE',
+        headName: null, headEmail: null, headPhone: null, heads: [],
+        pendingHeadInvites: [{ id: created.invitationId, email: headEmail.trim(), fullName: headFullName.trim() }],
+        memberCount: 0, createdAt: new Date().toISOString(),
+      }, ...r]);
       setName(''); setCode(''); setHeadFullName(''); setHeadEmail(''); setHeadPhone(''); setErrors({});
       setToast(L('संस्थान पंजीकृत; प्रमुख को आमंत्रण भेजा गया।', 'Institution registered; invite sent to the head.'));
     } catch (e) {
@@ -107,14 +112,28 @@ export function OrganizationsManager({ initial, locale }: { initial: Organizatio
     if (Object.keys(errs).length) return;
     setRowBusy(inviteFor.id);
     try {
-      await apiFetch(`/admin/organizations/${inviteFor.id}/heads`, {
+      const res = await apiFetch<{ invitationId: string }>(`/admin/organizations/${inviteFor.id}/heads`, {
         method: 'POST',
         body: JSON.stringify({ fullName: iName.trim(), email: iEmail.trim(), phone: iPhone }),
       });
+      const invited = { id: res.invitationId, email: iEmail.trim(), fullName: iName.trim() };
+      setRows((r) => r.map((x) => (x.id === inviteFor.id ? { ...x, pendingHeadInvites: [...x.pendingHeadInvites, invited] } : x)));
       setToast(L('प्रमुख को आमंत्रण भेजा गया।', 'Invitation sent to the head.'));
       setInviteFor(null); setIName(''); setIEmail(''); setIPhone(''); setIErrors({});
     } catch (e) {
       setIErrors(serverFieldErrors(e as ApiError));
+    } finally {
+      setRowBusy(null);
+    }
+  }
+
+  async function resendHeadInvite(o: OrganizationView, invitationId: string) {
+    setRowBusy(o.id);
+    try {
+      await apiFetch(`/admin/organizations/${o.id}/heads/${invitationId}/resend`, { method: 'POST' });
+      setToast(L('आमंत्रण पुनः भेजा गया।', 'Invitation resent.'));
+    } catch (e) {
+      setToast((e as ApiError).message);
     } finally {
       setRowBusy(null);
     }
@@ -146,28 +165,44 @@ export function OrganizationsManager({ initial, locale }: { initial: Organizatio
                   <tr key={o.id}>
                     <td className="px-3 py-2"><div className="font-bold text-ink">{o.name}</div><div className="text-xs text-muted">{o.code}</div></td>
                     <td className="px-3 py-2 text-xs">
-                      {o.heads && o.heads.length ? (
-                        <div className="grid gap-1">
-                          {o.heads.map((h) => (
-                            <div key={h.id}>
-                              <div>
-                                <span className="font-bold text-ink">{h.name ?? h.email}</span>
-                                {h.status !== 'ACTIVE' ? <span className="ml-1 text-muted">({h.status})</span> : null}
+                      <div className="grid gap-1.5">
+                        {o.heads && o.heads.length ? (
+                          <div className="grid gap-1">
+                            {o.heads.map((h) => (
+                              <div key={h.id}>
+                                <div>
+                                  <span className="font-bold text-ink">{h.name ?? h.email}</span>
+                                  {h.status !== 'ACTIVE' ? <span className="ml-1 text-muted">({h.status})</span> : null}
+                                </div>
+                                {h.name && h.email ? <div className="text-muted">{h.email}</div> : null}
+                                {h.phone ? <div className="text-muted">{h.phone}</div> : null}
                               </div>
-                              {h.name && h.email ? <div className="text-muted">{h.email}</div> : null}
-                              {h.phone ? <div className="text-muted">{h.phone}</div> : null}
-                            </div>
-                          ))}
-                        </div>
-                      ) : o.headName ? (
-                        <>
-                          <div className="font-bold text-ink">{o.headName}</div>
-                          <div className="text-muted">{o.headEmail}</div>
-                          {o.headPhone ? <div className="text-muted">{o.headPhone}</div> : null}
-                        </>
-                      ) : (
-                        <span className="text-muted">{L('आमंत्रण लंबित', 'Invite pending')}</span>
-                      )}
+                            ))}
+                          </div>
+                        ) : o.headName ? (
+                          <div>
+                            <div className="font-bold text-ink">{o.headName}</div>
+                            <div className="text-muted">{o.headEmail}</div>
+                            {o.headPhone ? <div className="text-muted">{o.headPhone}</div> : null}
+                          </div>
+                        ) : null}
+                        {o.pendingHeadInvites.map((inv) => (
+                          <div key={inv.id} className="flex flex-wrap items-center gap-1.5">
+                            <span className="text-muted">{inv.email} ({L('आमंत्रण लंबित', 'invite pending')})</span>
+                            <button
+                              type="button"
+                              disabled={rowBusy === o.id}
+                              className="font-bold text-navy-700 hover:underline disabled:opacity-50"
+                              onClick={() => void resendHeadInvite(o, inv.id)}
+                            >
+                              {L('पुनः भेजें', 'Resend')}
+                            </button>
+                          </div>
+                        ))}
+                        {!(o.heads && o.heads.length) && !o.headName && !o.pendingHeadInvites.length ? (
+                          <span className="text-muted">{L('आमंत्रण लंबित', 'Invite pending')}</span>
+                        ) : null}
+                      </div>
                     </td>
                     <td className="px-3 py-2">{o.memberCount}</td>
                     <td className="px-3 py-2">
