@@ -117,7 +117,7 @@ export function OrganizationsManager({ initial, locale }: { initial: Organizatio
         body: JSON.stringify({ fullName: iName.trim(), email: iEmail.trim(), phone: iPhone }),
       });
       const invited = { id: res.invitationId, email: iEmail.trim(), fullName: iName.trim() };
-      setRows((r) => r.map((x) => (x.id === inviteFor.id ? { ...x, pendingHeadInvites: [...x.pendingHeadInvites, invited] } : x)));
+      setRows((r) => r.map((x) => (x.id === inviteFor.id ? { ...x, pendingHeadInvites: [...(x.pendingHeadInvites ?? []), invited] } : x)));
       setToast(L('प्रमुख को आमंत्रण भेजा गया।', 'Invitation sent to the head.'));
       setInviteFor(null); setIName(''); setIEmail(''); setIPhone(''); setIErrors({});
     } catch (e) {
@@ -161,7 +161,14 @@ export function OrganizationsManager({ initial, locale }: { initial: Organizatio
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {rows.map((o) => (
+                {rows.map((o) => {
+                  // Older API deploys may not send this field yet (e.g. the
+                  // Amplify frontend and the ECS-hosted API deploy on
+                  // separate pipelines/branches here, so a frontend rollout
+                  // can briefly outrun the API) — never assume it's present
+                  // just because the type says so.
+                  const pendingHeadInvites = o.pendingHeadInvites ?? [];
+                  return (
                   <tr key={o.id}>
                     <td className="px-3 py-2"><div className="font-bold text-ink">{o.name}</div><div className="text-xs text-muted">{o.code}</div></td>
                     <td className="px-3 py-2 text-xs">
@@ -186,7 +193,7 @@ export function OrganizationsManager({ initial, locale }: { initial: Organizatio
                             {o.headPhone ? <div className="text-muted">{o.headPhone}</div> : null}
                           </div>
                         ) : null}
-                        {o.pendingHeadInvites.map((inv) => (
+                        {pendingHeadInvites.map((inv) => (
                           <div key={inv.id} className="flex flex-wrap items-center gap-1.5">
                             <span className="text-muted">{inv.email} ({L('आमंत्रण लंबित', 'invite pending')})</span>
                             <button
@@ -199,7 +206,7 @@ export function OrganizationsManager({ initial, locale }: { initial: Organizatio
                             </button>
                           </div>
                         ))}
-                        {!(o.heads && o.heads.length) && !o.headName && !o.pendingHeadInvites.length ? (
+                        {!(o.heads && o.heads.length) && !o.headName && !pendingHeadInvites.length ? (
                           <span className="text-muted">{L('आमंत्रण लंबित', 'Invite pending')}</span>
                         ) : null}
                       </div>
@@ -230,7 +237,8 @@ export function OrganizationsManager({ initial, locale }: { initial: Organizatio
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
