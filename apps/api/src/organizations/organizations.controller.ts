@@ -45,6 +45,12 @@ export class OrganizationsController {
     return this.orgs.inviteHead(principal, id, body, { ip: req.ip, ua: req.header('user-agent') ?? undefined });
   }
 
+  @Post(':id/heads/:invitationId/resend')
+  @RequirePermission('org.manage')
+  resendHeadInvite(@CurrentPrincipal() principal: Principal, @Param('id') id: string, @Param('invitationId') invitationId: string) {
+    return this.orgs.resendHeadInvite(principal, id, invitationId);
+  }
+
   @Patch(':id/status')
   @RequirePermission('org.manage')
   setStatus(

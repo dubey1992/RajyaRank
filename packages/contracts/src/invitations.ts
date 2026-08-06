@@ -62,6 +62,12 @@ export interface OrganizationHeadView {
   status: string;
 }
 
+export interface PendingHeadInviteView {
+  id: string;
+  email: string;
+  fullName: string;
+}
+
 export interface OrganizationView {
   id: string;
   name: string;
@@ -72,6 +78,10 @@ export interface OrganizationView {
   headEmail: string | null;
   headPhone: string | null;
   heads: OrganizationHeadView[];
+  /** Head invitations sent but not yet accepted (status PENDING/EXPIRED) — an
+   *  org.manage holder like Super Admin can resend one of these without
+   *  needing user.invite, which it may not otherwise hold. */
+  pendingHeadInvites: PendingHeadInviteView[];
   memberCount: number;
   createdAt: string;
 }
