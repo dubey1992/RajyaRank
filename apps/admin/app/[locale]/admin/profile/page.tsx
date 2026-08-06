@@ -4,6 +4,7 @@ import { getMeOrRedirect } from '@/lib/auth';
 import { apiFetchServer } from '@/lib/api';
 import { Shell } from '@/components/Shell';
 import { ProfileForm } from '@/components/ProfileForm';
+import { ChangePasswordForm } from '@/components/ChangePasswordForm';
 import { TrustedDevicesManager, type TrustedDeviceView } from '@/components/TrustedDevicesManager';
 import { roleLabel } from '@/lib/labels';
 import type { ProfileResponse } from '@rajyarank/contracts';
@@ -123,6 +124,14 @@ export default async function ProfilePage({ params }: { params: { locale: string
                   {L('आपके संस्थान की अभी कोई सक्रिय योजना नहीं है। Super Admin से संपर्क करें।', 'Your institution has no active plan yet. Contact your Super Admin.')}
                 </p>
               )}
+            </section>
+          ) : null}
+
+          {profile.hasPassword ? (
+            <section className="rounded-lg border border-line bg-white p-5">
+              <h2 className="mb-1 text-lg font-black text-navy-900">{L('पासवर्ड', 'Password')}</h2>
+              <p className="mb-4 text-sm text-muted">{L('अपना पासवर्ड बदलें।', 'Change your password.')}</p>
+              <ChangePasswordForm locale={locale} />
             </section>
           ) : null}
 
