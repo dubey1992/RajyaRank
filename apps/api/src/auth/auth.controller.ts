@@ -266,6 +266,7 @@ export class AuthController {
       principal.roleKeys,
       [...principal.permissionCodes],
       req.auth?.assurance ?? 'AAL1',
+      principal.orgId ? (principal.orgSubscriptionActive ?? false) : null,
     );
   }
 

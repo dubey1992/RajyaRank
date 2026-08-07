@@ -9,10 +9,21 @@ import type { Locale } from './i18n';
  *  until they've actually submitted a packet — pass skipKycGate on that page
  *  itself to avoid redirecting to where it already is. Everything else about
  *  the Head's permissions is unaffected; this only nudges navigation. */
-export async function getMeOrRedirect(locale: Locale, opts?: { skipKycGate?: boolean }): Promise<MeResponse> {
+export async function getMeOrRedirect(
+  locale: Locale,
+  opts?: { skipKycGate?: boolean; skipSubscriptionGate?: boolean },
+): Promise<MeResponse> {
   const cookieHeader = cookies().toString();
   const me = await apiFetchServer<MeResponse>('/auth/me', cookieHeader);
   if (!me || me.kind !== 'STAFF') redirect(`/${locale}/admin/login`);
+  // Checked before the KYC gate below: the KYC endpoints are themselves
+  // gated by course.manage, the same permission an inactive subscription
+  // blocks — checking KYC first would silently get back null (a 403
+  // swallowed by apiFetchServer) and misreport as "KYC not submitted"
+  // instead of the real reason.
+  if (!opts?.skipSubscriptionGate && me.orgId && me.orgSubscriptionActive === false) {
+    redirect(`/${locale}/admin/profile?subscriptionRequired=1`);
+  }
   if (!opts?.skipKycGate && me.roleKeys.includes('ACADEMIC_HEAD') && me.orgId) {
     const kyc = await apiFetchServer<KycSubmissionView | null>('/academic/settlements/kyc', cookieHeader);
     // Also clears the gate when kycStatus is already VERIFIED even with no

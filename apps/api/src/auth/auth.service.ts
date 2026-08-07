@@ -450,7 +450,13 @@ export class AuthService {
     return { ok: true };
   }
 
-  async me(userId: string, principalRoleKeys: string[], permissionCodes: string[], assurance: 'AAL1' | 'AAL2'): Promise<MeResponse> {
+  async me(
+    userId: string,
+    principalRoleKeys: string[],
+    permissionCodes: string[],
+    assurance: 'AAL1' | 'AAL2',
+    orgSubscriptionActive: boolean | null,
+  ): Promise<MeResponse> {
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
     return {
       userId: user.id,
@@ -462,6 +468,7 @@ export class AuthService {
       assurance,
       homeRoute: this.homeRouteFor(principalRoleKeys as RoleKey[]),
       orgId: user.orgId,
+      orgSubscriptionActive,
     };
   }
 

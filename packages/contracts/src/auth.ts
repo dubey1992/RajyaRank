@@ -83,6 +83,9 @@ export const meResponseSchema = z.object({
   assurance: z.enum(['AAL1', 'AAL2']),
   homeRoute: z.string(),
   orgId: z.string().nullable(),
+  /** Only meaningful when orgId is set (STAFF with an institution) — null
+   *  for platform-level staff (Super Admin, Content Admin) and students. */
+  orgSubscriptionActive: z.boolean().nullable(),
 });
 export type MeResponse = z.infer<typeof meResponseSchema>;
 

@@ -6,6 +6,8 @@ import { Shell } from '@/components/Shell';
 import { ProfileForm } from '@/components/ProfileForm';
 import { ChangePasswordForm } from '@/components/ChangePasswordForm';
 import { TrustedDevicesManager, type TrustedDeviceView } from '@/components/TrustedDevicesManager';
+import { MfaSetup } from '@/components/MfaSetup';
+import { Alert } from '@rajyarank/ui';
 import { roleLabel } from '@/lib/labels';
 import type { ProfileResponse } from '@rajyarank/contracts';
 
@@ -23,14 +25,21 @@ const PLAN_STATUS_TONE: Record<string, string> = {
   CANCELED: 'bg-line text-muted',
 };
 
-export default async function ProfilePage({ params }: { params: { locale: string } }) {
+export default async function ProfilePage({
+  params,
+  searchParams,
+}: {
+  params: { locale: string };
+  searchParams: { subscriptionRequired?: string };
+}) {
   const locale = resolveLocale(params.locale);
   const hi = locale === 'hi';
   const L = (h: string, e: string) => (hi ? h : e);
-  const me = await getMeOrRedirect(locale);
+  const me = await getMeOrRedirect(locale, { skipSubscriptionGate: true });
   const profile = await apiFetchServer<ProfileResponse>('/auth/me/profile', cookies().toString());
   const title = L('अकाउंट सेटिंग्स', 'Account settings');
   const isHead = me.roleKeys.includes('ACADEMIC_HEAD');
+  const subscriptionRequired = searchParams.subscriptionRequired === '1';
   const plan = profile?.institution?.plan ?? null;
   const trustedDevices = profile?.mfaEnabled
     ? ((await apiFetchServer<TrustedDeviceView[]>('/auth/trusted-devices', cookies().toString())) ?? [])
@@ -38,6 +47,16 @@ export default async function ProfilePage({ params }: { params: { locale: string
 
   return (
     <Shell me={me} locale={locale} title={title}>
+      {subscriptionRequired ? (
+        <div className="mb-4">
+          <Alert tone="error">
+            {L(
+              'आपके संस्थान की RajyaRank सदस्यता अभी सक्रिय नहीं है, इसलिए छात्र जोड़ने, स्टाफ़ प्रबंधित करने और अन्य सुविधाओं तक पहुँच अस्थायी रूप से रोक दी गई है। नीचे अपनी योजना की स्थिति देखें, या दोबारा सक्रिय करने के लिए RajyaRank सपोर्ट से संपर्क करें।',
+              "Your institution's RajyaRank subscription isn't active, so adding students, managing staff, and other features are temporarily unavailable. See your plan status below, or contact RajyaRank support to reactivate.",
+            )}
+          </Alert>
+        </div>
+      ) : null}
       {profile ? (
         <div className="grid gap-6">
           <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
@@ -132,6 +151,13 @@ export default async function ProfilePage({ params }: { params: { locale: string
               <h2 className="mb-1 text-lg font-black text-navy-900">{L('पासवर्ड', 'Password')}</h2>
               <p className="mb-4 text-sm text-muted">{L('अपना पासवर्ड बदलें।', 'Change your password.')}</p>
               <ChangePasswordForm locale={locale} />
+            </section>
+          ) : null}
+
+          {!profile.mfaEnabled ? (
+            <section className="rounded-lg border border-line bg-white p-5">
+              <h2 className="mb-1 text-lg font-black text-navy-900">{L('दो-चरणीय सत्यापन (2FA)', 'Two-factor authentication (2FA)')}</h2>
+              <MfaSetup locale={locale} />
             </section>
           ) : null}
 
