@@ -41,6 +41,13 @@ export function KycSubmissionForm({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [toast, setToast] = useState<string | null>(null);
   const [submission, setSubmission] = useState<KycSubmissionView | null>(initial);
+  // Documents are tracked separately from `submission`, not nested inside it —
+  // a Head can upload a document BEFORE ever submitting the main KYC form
+  // (submission is still null at that point), and the previous nested-update
+  // silently dropped the upload from state whenever `submission` was null,
+  // which is exactly why "Document uploaded." toasted but the label under
+  // the file stayed "Not uploaded yet": the state update was a no-op.
+  const [documents, setDocuments] = useState<KycSubmissionView['documents']>(initial?.documents ?? []);
   const [uploadingType, setUploadingType] = useState<KycDocType | null>(null);
 
   async function uploadDocument(docType: KycDocType, file: File) {
@@ -68,17 +75,10 @@ export function KycSubmissionForm({
         }),
       });
       setToast(L('दस्तावेज़ अपलोड हुआ।', 'Document uploaded.'));
-      setSubmission((s) =>
-        s
-          ? {
-              ...s,
-              documents: [
-                { id: intent.documentId, docType, originalFilename: file.name, uploadedAt: new Date().toISOString() },
-                ...s.documents.filter((d) => d.docType !== docType),
-              ],
-            }
-          : s,
-      );
+      setDocuments((docs) => [
+        { id: intent.documentId, docType, originalFilename: file.name, uploadedAt: new Date().toISOString() },
+        ...docs.filter((d) => d.docType !== docType),
+      ]);
     } catch (e) {
       setErrors({ _form: (e as ApiError).message ?? L('अपलोड विफल रहा।', 'Upload failed.') });
     } finally {
@@ -122,6 +122,7 @@ export function KycSubmissionForm({
         }),
       });
       setSubmission(result);
+      setDocuments(result.documents);
       setPan('');
       setBankAccountNumber('');
       setBankAccountNumberConfirm('');
@@ -209,7 +210,7 @@ export function KycSubmissionForm({
         <h3 className="mb-3 text-sm font-extrabold text-navy-900">{L('सहायक दस्तावेज़', 'Supporting documents')}</h3>
         <div className="grid gap-2">
           {DOC_TYPES.map((d) => {
-            const existing = submission?.documents.find((doc) => doc.docType === d.key);
+            const existing = documents.find((doc) => doc.docType === d.key);
             return (
               <div key={d.key} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-line bg-white p-3">
                 <div className="min-w-0">
