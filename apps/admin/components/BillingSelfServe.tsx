@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import Link from 'next/link';
 import { Alert, Button, Toast } from '@rajyarank/ui';
 import { apiFetch, type ApiError } from '@/lib/api';
 import type { SubscriptionPlanView, MySubscriptionView } from '@rajyarank/contracts';
@@ -59,12 +60,38 @@ export function BillingSelfServe({
     }
   }
 
-  if (!summary.kycVerified) {
+  if (summary.kycState !== 'VERIFIED') {
     return (
-      <Alert tone="info">
-        {L(
-          'सब्सक्रिप्शन योजना खरीदने से पहले अपने संस्थान का KYC सत्यापन पूरा करें। KYC सबमिट करने के बाद, RajyaRank टीम इसकी समीक्षा कर सत्यापित करेगी — उसके बाद यह पेज योजनाएँ दिखाएगा।',
-          "Complete your institution's KYC verification before purchasing a subscription plan. Once you submit it, the RajyaRank team reviews and verifies it — this page will show plans to buy right after.",
+      <Alert tone={summary.kycState === 'REJECTED' ? 'error' : 'info'}>
+        {summary.kycState === 'PENDING' ? (
+          <p>
+            {L(
+              'आपका KYC सबमिट हो चुका है और RajyaRank टीम द्वारा समीक्षा की जा रही है। सत्यापित होते ही यह पेज योजनाएँ दिखाएगा — आमतौर पर 1-2 कार्यदिवसों में।',
+              "Your KYC has been submitted and is under review by the RajyaRank team. This page will show plans to buy as soon as it's verified — usually within 1-2 business days.",
+            )}
+          </p>
+        ) : summary.kycState === 'REJECTED' ? (
+          <div>
+            <p className="mb-2">
+              {L('आपका KYC अस्वीकृत कर दिया गया', 'Your KYC was rejected')}
+              {summary.kycRejectionReason ? `: ${summary.kycRejectionReason}` : '.'}
+            </p>
+            <Link href={`/${locale}/admin/earnings`} className="font-bold underline">
+              {L('फिर से सबमिट करें →', 'Resubmit KYC →')}
+            </Link>
+          </div>
+        ) : (
+          <div>
+            <p className="mb-2">
+              {L(
+                'सब्सक्रिप्शन योजना खरीदने से पहले अपने संस्थान का KYC सत्यापन पूरा करें।',
+                "Complete your institution's KYC verification before purchasing a subscription plan.",
+              )}
+            </p>
+            <Link href={`/${locale}/admin/earnings`} className="font-bold underline">
+              {L('KYC सबमिट करें →', 'Submit KYC →')}
+            </Link>
+          </div>
         )}
       </Alert>
     );

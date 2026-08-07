@@ -20,7 +20,13 @@ export default async function EarningsPage({
 }) {
   const locale = resolveLocale(params.locale);
   const hi = locale === 'hi';
-  const me = await getMeOrRedirect(locale, { skipKycGate: true });
+  // Both gates skipped: this IS the KYC destination (skipKycGate), and a Head
+  // who was just routed here for missing KYC also has no active subscription
+  // by definition (buying a plan requires KYC to already be VERIFIED) — without
+  // skipSubscriptionGate too, landing here would immediately bounce back to
+  // /admin/profile?subscriptionRequired=1, which bounces back to the KYC
+  // redirect target, looping the Head between the two screens forever.
+  const me = await getMeOrRedirect(locale, { skipKycGate: true, skipSubscriptionGate: true });
   const title = hi ? 'कमाई व भुगतान' : 'Earnings & Payouts';
   const kycRequired = searchParams.kycRequired === '1';
 

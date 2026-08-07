@@ -65,7 +65,9 @@ export interface MySubscriptionView {
     status: string;
     currentPeriodEnd: string | null;
   } | null;
-  kycVerified: boolean;
+  kycState: 'NOT_SUBMITTED' | 'PENDING' | 'VERIFIED' | 'REJECTED';
+  /** Set only when kycState is REJECTED. */
+  kycRejectionReason: string | null;
 }
 
 export interface InstitutionInvoiceView {

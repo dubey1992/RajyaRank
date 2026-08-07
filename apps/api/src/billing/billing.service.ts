@@ -179,13 +179,25 @@ export class BillingService {
   }
 
   /** The calling Academic Head's own subscription + KYC status, for the
-   *  self-serve Billing screen (browse plans vs. show current plan / renew). */
+   *  self-serve Billing screen (browse plans vs. show current plan / renew).
+   *  kycState is granular (not just a verified boolean) so the screen can
+   *  tell a Head who has already submitted KYC and is awaiting review apart
+   *  from one who hasn't submitted anything yet — those need different
+   *  messages and, for NOT_SUBMITTED/REJECTED, a link back to /admin/earnings. */
   async getMySubscription(actor: Principal) {
-    if (!actor.orgId) return { subscription: null, kycVerified: false };
+    if (!actor.orgId) return { subscription: null, kycState: 'NOT_SUBMITTED' as const, kycRejectionReason: null };
     const [subscription, linkedAccount] = await Promise.all([
       this.prisma.organizationSubscription.findUnique({ where: { orgId: actor.orgId }, include: { plan: true } }),
       this.prisma.instituteLinkedAccount.findUnique({ where: { orgId: actor.orgId } }),
     ]);
+    const kycState =
+      linkedAccount?.kycStatus === 'VERIFIED'
+        ? ('VERIFIED' as const)
+        : linkedAccount?.kycStatus === 'REJECTED'
+          ? ('REJECTED' as const)
+          : linkedAccount?.kycSubmittedAt
+            ? ('PENDING' as const)
+            : ('NOT_SUBMITTED' as const);
     return {
       subscription: subscription
         ? {
@@ -197,7 +209,8 @@ export class BillingService {
             currentPeriodEnd: subscription.currentPeriodEnd?.toISOString() ?? null,
           }
         : null,
-      kycVerified: linkedAccount?.kycStatus === 'VERIFIED',
+      kycState,
+      kycRejectionReason: kycState === 'REJECTED' ? linkedAccount?.kycRejectionReason ?? null : null,
     };
   }
 
