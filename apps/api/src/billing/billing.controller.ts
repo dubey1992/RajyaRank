@@ -59,6 +59,12 @@ export class BillingController {
     return this.billing.subscribeOrganization(principal, orgId, body);
   }
 
+  @Post('organizations/:orgId/cancel')
+  @RequirePermission('org.manage', { assurance: 'AAL2' })
+  cancelSubscription(@CurrentPrincipal() principal: Principal, @Param('orgId') orgId: string) {
+    return this.billing.cancelSubscription(principal, orgId);
+  }
+
   @Get('invoices')
   @RequirePermission('org.manage')
   listInvoices() {

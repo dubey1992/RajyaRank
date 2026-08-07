@@ -44,6 +44,7 @@ export function InstitutionBillingManager({
   const [cycle, setCycle] = useState<'MONTHLY' | 'ANNUAL'>('MONTHLY');
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [sendingId, setSendingId] = useState<string | null>(null);
+  const [cancelingOrgId, setCancelingOrgId] = useState<string | null>(null);
 
   async function downloadInvoicePdf(invoice: InstitutionInvoiceView) {
     setDownloadingId(invoice.id);
@@ -65,6 +66,21 @@ export function InstitutionBillingManager({
       setToast((e as ApiError).message);
     } finally {
       setSendingId(null);
+    }
+  }
+
+  async function cancelSubscription(s: OrganizationSubscriptionView) {
+    if (!window.confirm(L(`${s.orgName} की सदस्यता रद्द करें?`, `Cancel ${s.orgName}'s subscription?`))) return;
+    setCancelingOrgId(s.orgId);
+    try {
+      await apiFetch(`/admin/billing/organizations/${s.orgId}/cancel`, { method: 'POST' });
+      const refreshed = await apiFetch<OrganizationSubscriptionView[]>('/admin/billing/subscriptions');
+      setSubscriptions(refreshed);
+      setToast(L('सदस्यता रद्द कर दी गई।', 'Subscription canceled.'));
+    } catch (e) {
+      setToast((e as ApiError).message);
+    } finally {
+      setCancelingOrgId(null);
     }
   }
 
@@ -107,6 +123,7 @@ export function InstitutionBillingManager({
                   <th className="px-3 py-2">{L('बिलिंग', 'Billing')}</th>
                   <th className="px-3 py-2">{L('अगली अवधि समाप्ति', 'Period ends')}</th>
                   <th className="px-3 py-2">{L('स्थिति', 'Status')}</th>
+                  <th className="px-3 py-2 text-right">{L('कार्रवाई', 'Action')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
@@ -117,6 +134,18 @@ export function InstitutionBillingManager({
                     <td className="px-3 py-2">{s.billingCycle === 'MONTHLY' ? L('मासिक', 'Monthly') : L('वार्षिक', 'Annual')}</td>
                     <td className="px-3 py-2">{s.currentPeriodEnd ? s.currentPeriodEnd.slice(0, 10) : '—'}</td>
                     <td className="px-3 py-2"><span className={`rounded-full px-2 py-0.5 text-xs font-extrabold ${STATUS_TONE[s.status] ?? 'bg-line text-muted'}`}>{s.status}</span></td>
+                    <td className="px-3 py-2 text-right">
+                      {s.status !== 'CANCELED' ? (
+                        <button
+                          type="button"
+                          disabled={cancelingOrgId === s.orgId}
+                          className="rounded-md border border-line px-2 py-1 text-xs font-bold text-danger hover:bg-surface-soft disabled:opacity-50"
+                          onClick={() => void cancelSubscription(s)}
+                        >
+                          {cancelingOrgId === s.orgId ? L('रद्द हो रहा है…', 'Canceling…') : L('रद्द करें', 'Cancel')}
+                        </button>
+                      ) : null}
+                    </td>
                   </tr>
                 ))}
               </tbody>

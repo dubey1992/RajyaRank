@@ -186,6 +186,41 @@ export class BillingService {
     return subscription;
   }
 
+  /** Super Admin cancels an institution's subscription — the previously
+   *  missing counterpart to "Cancel it first to change plans" in the conflict
+   *  messages above; there was no way to actually do that. Covers both a
+   *  genuinely ACTIVE subscription and one still TRIALING (an abandoned or
+   *  test self-serve checkout that never completed), since both need a way
+   *  back to a clean state a Head can re-subscribe from. Razorpay-side
+   *  cancellation is best-effort — a dev-fallback sub_dev_* id or a Razorpay
+   *  outage must not block clearing the local record, matching the
+   *  resilience pattern already used for Route linked-account creation. */
+  async cancelSubscription(actor: Principal, orgId: string) {
+    const subscription = await this.prisma.organizationSubscription.findUnique({ where: { orgId } });
+    if (!subscription) throw AppError.notFound('This institution has no subscription to cancel.');
+    if (subscription.status === 'CANCELED') throw AppError.conflict('This subscription is already canceled.');
+
+    if (subscription.razorpaySubscriptionId) {
+      try {
+        await this.razorpay.cancelSubscription(subscription.razorpaySubscriptionId);
+      } catch (e) {
+        this.logger.warn(`Razorpay cancel failed for org ${orgId}, subscription ${subscription.razorpaySubscriptionId} — canceling locally anyway: ${(e as Error).message}`);
+      }
+    }
+
+    const updated = await this.prisma.organizationSubscription.update({ where: { orgId }, data: { status: 'CANCELED' } });
+    await this.audit.record({
+      actorUserId: actor.userId,
+      action: 'billing.org_subscription_cancelled',
+      targetType: 'Organization',
+      targetId: orgId,
+      result: 'SUCCESS',
+      before: { status: subscription.status },
+      after: { status: 'CANCELED' },
+    });
+    return updated;
+  }
+
   /** Academic Head self-serve purchase/renewal for their own institution —
    *  gated on KYC verification so a Head can't unlock paid features before
    *  the institution is confirmed real. Returns a checkoutUrl the frontend
