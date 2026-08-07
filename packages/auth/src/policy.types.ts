@@ -34,6 +34,11 @@ export interface Principal {
   isSuperAdmin: boolean;
   /** The institution this actor belongs to (tenant). Undefined = platform-level (e.g. Super Admin). */
   orgId?: string;
+  /** Only meaningful when orgId is set — does that institution currently have
+   *  an ACTIVE platform subscription (billing/billing.service.ts)? Undefined
+   *  for org-less principals (Super Admin, Content Admin, students), who are
+   *  never subject to this check regardless of value. */
+  orgSubscriptionActive?: boolean;
 }
 
 /** The resource an action targets (optional for global endpoints). */
@@ -58,6 +63,7 @@ export interface PolicyInput {
 export type DenyCode =
   | 'ACCOUNT_INACTIVE'
   | 'MISSING_PERMISSION'
+  | 'SUBSCRIPTION_INACTIVE'
   | 'ASSURANCE_REQUIRED'
   | 'NOT_OWNER'
   | 'STATUS_FORBIDDEN'

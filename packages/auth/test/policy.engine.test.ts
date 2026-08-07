@@ -167,6 +167,60 @@ test('statusAllows: ungated permission is always allowed', () => {
   assert.equal(statusAllows('content.publish', 'APPROVED'), true);
 });
 
+test('org-scoped staff with no active institution subscription is denied, even holding the permission', () => {
+  const head = principal({
+    roleKeys: ['ACADEMIC_HEAD'],
+    permissionCodes: new Set(['user.manage']),
+    orgId: 'org-1',
+    orgSubscriptionActive: false,
+  });
+  const d = evaluate({ principal: head, permission: 'user.manage' });
+  assert.equal(d.allow, false);
+  assert.equal(d.allow === false && d.code, 'SUBSCRIPTION_INACTIVE');
+});
+
+test('org-scoped staff with no subscription row at all (undefined) is denied — fail-closed, not fail-open', () => {
+  const head = principal({
+    roleKeys: ['ACADEMIC_HEAD'],
+    permissionCodes: new Set(['user.manage']),
+    orgId: 'org-1',
+    // orgSubscriptionActive intentionally omitted — an institution that has
+    // never been subscribed to a plan has no OrganizationSubscription row,
+    // which resolves to this same undefined, not `false`.
+  });
+  const d = evaluate({ principal: head, permission: 'user.manage' });
+  assert.equal(d.allow === false && d.code, 'SUBSCRIPTION_INACTIVE');
+});
+
+test('org-scoped staff WITH an active subscription is allowed', () => {
+  const head = principal({
+    roleKeys: ['ACADEMIC_HEAD'],
+    permissionCodes: new Set(['user.manage']),
+    orgId: 'org-1',
+    orgSubscriptionActive: true,
+  });
+  const d = evaluate({ principal: head, permission: 'user.manage' });
+  assert.equal(d.allow, true);
+});
+
+test('org-less staff (Super Admin, Content Admin) are never subject to the subscription gate', () => {
+  const su = principal({ roleKeys: ['SUPER_ADMIN'], isSuperAdmin: true, permissionCodes: new Set(['org.manage']), assignments: [] });
+  const d = evaluate({ principal: su, permission: 'org.manage' });
+  assert.equal(d.allow, true);
+});
+
+test('a STUDENT sharing the same orgId as their institution is NOT subject to the staff subscription gate', () => {
+  const student = principal({
+    kind: 'STUDENT',
+    roleKeys: [],
+    permissionCodes: new Set(['content.view_own']),
+    orgId: 'org-1',
+    orgSubscriptionActive: false,
+  });
+  const d = evaluate({ principal: student, permission: 'content.view_own' });
+  assert.notEqual(d.allow === false && d.code, 'SUBSCRIPTION_INACTIVE');
+});
+
 test('account PENDING_SETUP is denied everything', () => {
   const d = evaluate({ principal: principal({ status: 'PENDING_SETUP' }), permission: 'content.create' });
   assert.equal(d.allow === false && d.code, 'ACCOUNT_INACTIVE');

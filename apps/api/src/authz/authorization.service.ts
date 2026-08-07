@@ -36,6 +36,10 @@ export class AuthorizationService {
       include: {
         roles: { include: { role: { include: { permissions: { include: { permission: true } } } } } },
         assignments: { where: { deletedAt: null } },
+        // Only staff ever reach a permission-gated route (see policy.engine's
+        // subscription check), but this join is cheap either way — one extra
+        // hop off a row we already fetched, not a separate query.
+        org: { select: { subscription: { select: { status: true } } } },
       },
     });
     if (!user) return null;
@@ -70,6 +74,7 @@ export class AuthorizationService {
       assignments,
       assurance,
       orgId: user.orgId ?? undefined,
+      orgSubscriptionActive: user.org?.subscription?.status === 'ACTIVE',
     });
 
     await this.redis.client.set(cacheKey, serialize(principal), 'EX', 300);

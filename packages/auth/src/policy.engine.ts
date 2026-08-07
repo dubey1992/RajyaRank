@@ -14,8 +14,8 @@ import type {
  * A single, pure, deterministic, FAIL-CLOSED decision function. Every
  * protected action in the platform is authorized here — controllers never
  * compare role names. Authorization combines: account status + Super Admin
- * override + permission-code capability + session assurance + ownership +
- * content status + assignment scope.
+ * override + permission-code capability + institution subscription status +
+ * session assurance + ownership + content status + assignment scope.
  *
  * This module has NO runtime imports (types are erased) so it is trivially
  * unit-testable and portable.
@@ -101,17 +101,30 @@ export function evaluate(input: PolicyInput): PolicyDecision {
     return deny('MISSING_PERMISSION', `Missing permission: ${permission}.`);
   }
 
-  // 3. Session assurance for high-risk actions.
+  // 3. Institution must have an active platform subscription. Org-scoped
+  //    staff (Academic Head, Teacher, Reviewer, ...) only ever act within
+  //    their own institution's tenant, so a lapsed/never-purchased
+  //    subscription blocks every one of their permissions in one place —
+  //    org-less staff (Super Admin, Content Admin) have no orgId and are
+  //    unaffected. Deliberately narrower than "any Principal with an
+  //    orgId": a STUDENT can carry the same orgId (institute-scoped
+  //    enrollment) but their access to content they're already enrolled in
+  //    is a separate question this check must not reach.
+  if (p.kind === 'STAFF' && p.orgId && !p.orgSubscriptionActive) {
+    return deny('SUBSCRIPTION_INACTIVE', "This institution's platform subscription is not active.");
+  }
+
+  // 4. Session assurance for high-risk actions.
   if (requireAssurance === 'AAL2' && p.assurance !== 'AAL2') {
     return deny('ASSURANCE_REQUIRED', 'Step-up authentication (MFA) required.');
   }
 
-  // 4. Ownership for *_own permissions.
+  // 5. Ownership for *_own permissions.
   if (permission.endsWith('_own') && resource?.ownerUserId && resource.ownerUserId !== p.userId) {
     return deny('NOT_OWNER', 'You may only act on your own content.');
   }
 
-  // 5. Content-status gate (data-driven; Phase 3 fills real statuses).
+  // 6. Content-status gate (data-driven; Phase 3 fills real statuses).
   if (resource?.status && !statusAllows(permission, resource.status)) {
     return deny(
       'STATUS_FORBIDDEN',
@@ -119,7 +132,7 @@ export function evaluate(input: PolicyInput): PolicyDecision {
     );
   }
 
-  // 6. Assignment-scope match — only when the resource declares a scope.
+  // 7. Assignment-scope match — only when the resource declares a scope.
   //    Global endpoints (no resource scope) rely purely on the permission code.
   //    Super Admin holds no assignments (they aren't org-scoped) but is exempt
   //    from this specific check — only for capabilities they actually hold

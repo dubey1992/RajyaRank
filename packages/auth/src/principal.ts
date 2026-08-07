@@ -10,6 +10,8 @@ export interface BuildPrincipalInput {
   assignments: AssignmentScopeRow[];
   assurance: AssuranceLevel;
   orgId?: string;
+  /** See Principal.orgSubscriptionActive — only relevant when orgId is set. */
+  orgSubscriptionActive?: boolean;
   /** Optional override of the permission set; defaults to union of role perms. */
   permissionCodes?: Iterable<string>;
 }
@@ -37,5 +39,6 @@ export function buildPrincipal(input: BuildPrincipalInput): Principal {
     assurance: input.assurance,
     isSuperAdmin,
     orgId: input.orgId,
+    orgSubscriptionActive: input.orgSubscriptionActive,
   };
 }

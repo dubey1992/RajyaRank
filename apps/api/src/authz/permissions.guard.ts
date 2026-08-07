@@ -43,7 +43,9 @@ export class PermissionsGuard implements CanActivate {
         ip: req.ip,
         userAgent: req.header('user-agent') ?? null,
       });
-      throw AppError.permissionDenied();
+      throw decision.code === 'SUBSCRIPTION_INACTIVE'
+        ? AppError.permissionDenied("Your institution's subscription is not active. Contact RajyaRank support to reactivate access.")
+        : AppError.permissionDenied();
     }
     return true;
   }
