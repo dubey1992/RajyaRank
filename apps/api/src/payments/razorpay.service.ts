@@ -182,7 +182,10 @@ export class RazorpayService {
       headers: { 'content-type': 'application/json', authorization: `Basic ${auth}` },
       body: JSON.stringify(body),
     });
-    if (!res.ok) throw new Error(`Razorpay ${method} ${path} failed: ${res.status}`);
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      throw new Error(`Razorpay ${method} ${path} failed: ${res.status} ${body}`);
+    }
     return (await res.json()) as T;
   }
 
