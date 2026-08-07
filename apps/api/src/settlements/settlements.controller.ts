@@ -84,8 +84,14 @@ export class SettlementsAdminController {
 export class SettlementsAcademicController {
   constructor(private readonly settlements: SettlementsService) {}
 
+  // Bypasses the subscription gate like the KYC routes above: this is the
+  // institution's OWN student-sales revenue via Razorpay Route, orthogonal
+  // to whether they currently pay RajyaRank's platform subscription — an org
+  // with a lapsed subscription still needs to see and get paid out on money
+  // already earned, and this is also where the KYC submission form lives
+  // (/admin/earnings), which must render even before any subscription exists.
   @Get('earnings')
-  @RequirePermission('course.manage')
+  @RequirePermission('course.manage', { bypassSubscriptionGate: true })
   earnings(@CurrentPrincipal() principal: Principal) {
     return this.settlements.institutionEarnings(principal);
   }
