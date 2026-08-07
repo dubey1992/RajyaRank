@@ -77,27 +77,29 @@ export class BillingService {
   }
 
   /** Shared by the Super-Admin grant path and the Academic-Head self-serve
-   *  path — creates the Razorpay plan+subscription (dev-fallback IDs when
-   *  Razorpay Subscriptions isn't configured) and the local record that
-   *  drives fee resolution for that org's student sales. Also handles
-   *  renewal: a CANCELED/PAST_DUE existing row is replaced in place rather
-   *  than blocked (Razorpay has no "resume a cancelled subscription" API, so
-   *  renewal always means creating a fresh Subscription object).
+   *  path — the local record that drives fee resolution for that org's
+   *  student sales. Also handles renewal: a CANCELED/PAST_DUE existing row
+   *  is replaced in place rather than blocked (Razorpay has no "resume a
+   *  cancelled subscription" API, so renewal always means creating a fresh
+   *  Subscription object).
    *
    *  `settledImmediately` distinguishes two real situations: a Super Admin
    *  manually granting access is an administrative confirmation — the org
-   *  goes ACTIVE and PAID immediately, no real charge is expected. A
-   *  self-serve purchase is NOT settled just because a Razorpay Subscription
-   *  object now exists — creating that object moves no money by itself; the
-   *  customer still has to complete Razorpay's own hosted checkout
-   *  (`shortUrl`, returned to the caller so the frontend can send them
-   *  there). So a self-serve subscription starts TRIALING — which the
-   *  subscription-active gate (policy.engine.ts) treats the same as
-   *  inactive, correctly withholding access — with no period dates and no
-   *  invoice yet, since neither is real until a charge actually happens.
-   *  Only the `subscription.charged` webhook (handleSubscriptionEvent below)
-   *  flips it to ACTIVE, sets the real period dates, and creates the first
-   *  invoice — mirroring what a first charge on any real subscription is. */
+   *  goes ACTIVE and PAID immediately, no real charge is expected, so no
+   *  Razorpay Subscription object is created either (nothing downstream
+   *  would ever use it — no webhook fires for a subscription no one is ever
+   *  sent to authorize, it would just be permanent clutter in Razorpay's
+   *  dashboard). A self-serve purchase DOES create a real Razorpay
+   *  Subscription — the customer must actually complete Razorpay's own
+   *  hosted checkout (`shortUrl`, returned to the caller so the frontend can
+   *  send them there) before anything is real. So a self-serve subscription
+   *  starts TRIALING — which the subscription-active gate (policy.engine.ts)
+   *  treats the same as inactive, correctly withholding access — with no
+   *  period dates and no invoice yet, since neither is real until a charge
+   *  actually happens. Only the `subscription.charged` webhook
+   *  (handleSubscriptionEvent below) flips it to ACTIVE, sets the real
+   *  period dates, and creates the first invoice — mirroring what a first
+   *  charge on any real subscription is. */
   private async provisionSubscription(
     actor: Principal,
     orgId: string,
@@ -123,9 +125,15 @@ export class BillingService {
     }
 
     const amountMinor = dto.billingCycle === 'MONTHLY' ? plan.priceMonthlyMinor : plan.priceAnnualMinor;
-    const razorpayPlanId = await this.razorpay.createSubscriptionPlan({ nameEn: `${plan.nameEn} (${dto.billingCycle})`, amountMinor, cycle: dto.billingCycle });
-    // 12 monthly charges or 5 annual renewals before requiring re-authorisation — a Razorpay Subscriptions requirement, not a business limit.
-    const { id: razorpaySubscriptionId, shortUrl } = await this.razorpay.createSubscription(razorpayPlanId, dto.billingCycle === 'MONTHLY' ? 12 : 5);
+    let razorpaySubscriptionId: string | null = null;
+    let shortUrl: string | null = null;
+    if (!opts.settledImmediately) {
+      const razorpayPlanId = await this.razorpay.createSubscriptionPlan({ nameEn: `${plan.nameEn} (${dto.billingCycle})`, amountMinor, cycle: dto.billingCycle });
+      // 12 monthly charges or 5 annual renewals before requiring re-authorisation — a Razorpay Subscriptions requirement, not a business limit.
+      const created = await this.razorpay.createSubscription(razorpayPlanId, dto.billingCycle === 'MONTHLY' ? 12 : 5);
+      razorpaySubscriptionId = created.id;
+      shortUrl = created.shortUrl;
+    }
 
     const now = new Date();
 
@@ -133,7 +141,7 @@ export class BillingService {
       planId: string;
       billingCycle: SubscribeOrganization['billingCycle'];
       status: 'ACTIVE' | 'TRIALING';
-      razorpaySubscriptionId: string;
+      razorpaySubscriptionId: string | null;
       currentPeriodStart: Date | null;
       currentPeriodEnd: Date | null;
     };
@@ -141,7 +149,7 @@ export class BillingService {
       const periodEnd = new Date(now);
       if (dto.billingCycle === 'MONTHLY') periodEnd.setMonth(periodEnd.getMonth() + 1);
       else periodEnd.setFullYear(periodEnd.getFullYear() + 1);
-      subscriptionData = { planId: dto.planId, billingCycle: dto.billingCycle, status: 'ACTIVE', razorpaySubscriptionId, currentPeriodStart: now, currentPeriodEnd: periodEnd };
+      subscriptionData = { planId: dto.planId, billingCycle: dto.billingCycle, status: 'ACTIVE', razorpaySubscriptionId: null, currentPeriodStart: now, currentPeriodEnd: periodEnd };
     } else {
       subscriptionData = { planId: dto.planId, billingCycle: dto.billingCycle, status: 'TRIALING', razorpaySubscriptionId, currentPeriodStart: null, currentPeriodEnd: null };
     }
