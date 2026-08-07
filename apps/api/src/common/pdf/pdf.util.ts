@@ -112,21 +112,29 @@ export async function renderInstitutionInvoicePdf(input: {
 
   const rightColX = LEFT + 275;
   doc.font('Helvetica-Bold').fontSize(9).fillColor('#65798c').text('BILLED TO', rightColX, colY, { characterSpacing: 0.3 });
-  doc.font('Helvetica-Bold').fontSize(11).fillColor('#0b2f4f').text(input.orgName, rightColX, colY + 14, { width: colWidth });
-  let billToY = colY + 30;
-  doc.font('Helvetica').fontSize(10).fillColor('#374151').text(`Institution code: ${input.orgCode}`, rightColX, billToY, { width: colWidth });
-  billToY += 14;
-  if (input.billingContactName || input.billingContactEmail) {
-    const contactLine = [input.billingContactName, input.billingContactEmail].filter(Boolean).join('  ·  ');
-    doc.text(contactLine, rightColX, billToY, { width: colWidth });
-    billToY += 14;
-  }
-  if (input.billingContactPhone) {
-    doc.text(input.billingContactPhone, rightColX, billToY, { width: colWidth });
-    billToY += 14;
+
+  // Each line's height is measured with heightOfString before the next one is
+  // placed — the previous fixed "+14" offsets assumed every line fit on one
+  // row, so a long org name or a long name+email combined onto one line
+  // ("  ·  "-joined) would wrap and visually collide with whatever came next.
+  // Name, email, and phone are also now three separate lines instead of one
+  // combined line, since that combined line was the one actually overflowing.
+  doc.font('Helvetica-Bold').fontSize(11).fillColor('#0b2f4f');
+  doc.text(input.orgName, rightColX, colY + 14, { width: colWidth });
+  let billToY = colY + 14 + doc.heightOfString(input.orgName, { width: colWidth }) + 4;
+
+  doc.font('Helvetica').fontSize(10).fillColor('#374151');
+  const codeLine = `Institution code: ${input.orgCode}`;
+  doc.text(codeLine, rightColX, billToY, { width: colWidth });
+  billToY += doc.heightOfString(codeLine, { width: colWidth }) + 2;
+
+  for (const line of [input.billingContactName, input.billingContactEmail, input.billingContactPhone]) {
+    if (!line) continue;
+    doc.text(line, rightColX, billToY, { width: colWidth });
+    billToY += doc.heightOfString(line, { width: colWidth }) + 2;
   }
 
-  doc.y = Math.max(colY + 30 + 14, billToY) + 10;
+  doc.y = Math.max(colY + 30 + 14, billToY) + 8;
   doc.moveTo(LEFT, doc.y).lineTo(RIGHT, doc.y).strokeColor('#dbe5ed').stroke();
   doc.moveDown(1);
 

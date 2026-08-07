@@ -34,6 +34,11 @@ export class BillingService {
     return this.prisma.subscriptionPlan.findMany({ orderBy: { sequence: 'asc' } });
   }
 
+  /** Head-facing catalog — active plans only, no draft/retired codes shown. */
+  listActivePlans() {
+    return this.prisma.subscriptionPlan.findMany({ where: { active: true }, orderBy: { sequence: 'asc' } });
+  }
+
   async createPlan(actor: Principal, dto: UpsertSubscriptionPlan) {
     const existing = await this.prisma.subscriptionPlan.findUnique({ where: { code: dto.code } });
     if (existing) throw AppError.conflict('A plan with this code already exists.');
@@ -71,10 +76,29 @@ export class BillingService {
     }));
   }
 
-  /** Subscribe an institution to a plan — creates the Razorpay plan+subscription
-   *  (dev-fallback IDs when Razorpay Subscriptions isn't configured) and the
-   *  local record that drives fee resolution for that org's student sales. */
-  async subscribeOrganization(actor: Principal, orgId: string, dto: SubscribeOrganization) {
+  /** Shared by the Super-Admin grant path and the Academic-Head self-serve
+   *  path — creates the Razorpay plan+subscription (dev-fallback IDs when
+   *  Razorpay Subscriptions isn't configured) and the local record that
+   *  drives fee resolution for that org's student sales. Also handles
+   *  renewal: a CANCELED/PAST_DUE existing row is replaced in place rather
+   *  than blocked (Razorpay has no "resume a cancelled subscription" API, so
+   *  renewal always means creating a fresh Subscription object).
+   *
+   *  `settledImmediately` distinguishes two real situations rather than one
+   *  invoice-status bug: a Super Admin manually granting access already put
+   *  the org's `OrganizationSubscription.status` at ACTIVE unconditionally
+   *  below, so the invoice must agree it's PAID, not dangle at PENDING
+   *  forever with no checkout ever happening to clear it (that was the
+   *  original bug — the very first invoice on every admin-granted org sat at
+   *  PENDING permanently). A self-serve purchase, by contrast, really is
+   *  awaiting a live Razorpay charge, so PENDING is correct there until the
+   *  `subscription.charged` webhook confirms it. */
+  private async provisionSubscription(
+    actor: Principal,
+    orgId: string,
+    dto: SubscribeOrganization,
+    opts: { settledImmediately: boolean },
+  ) {
     const org = await this.prisma.organization.findUnique({ where: { id: orgId } });
     if (!org) throw AppError.notFound('Institution not found.');
     if (!org.headUserId) throw AppError.conflict('This institution has no accepted Academic Head yet — it cannot be subscribed to a plan until the invited head accepts.');
@@ -82,7 +106,9 @@ export class BillingService {
     if (!plan || !plan.active) throw AppError.notFound('Plan not found or inactive.');
 
     const existing = await this.prisma.organizationSubscription.findUnique({ where: { orgId } });
-    if (existing) throw AppError.conflict('This institution already has a subscription. Cancel it first to change plans.');
+    if (existing && existing.status === 'ACTIVE') {
+      throw AppError.conflict('This institution already has an active subscription. Cancel it first to change plans.');
+    }
 
     const amountMinor = dto.billingCycle === 'MONTHLY' ? plan.priceMonthlyMinor : plan.priceAnnualMinor;
     const razorpayPlanId = await this.razorpay.createSubscriptionPlan({ nameEn: `${plan.nameEn} (${dto.billingCycle})`, amountMinor, cycle: dto.billingCycle });
@@ -94,18 +120,19 @@ export class BillingService {
     if (dto.billingCycle === 'MONTHLY') periodEnd.setMonth(periodEnd.getMonth() + 1);
     else periodEnd.setFullYear(periodEnd.getFullYear() + 1);
 
-    const subscription = await this.prisma.organizationSubscription.create({
-      data: {
-        orgId,
-        planId: dto.planId,
-        billingCycle: dto.billingCycle,
-        status: 'ACTIVE',
-        razorpaySubscriptionId,
-        currentPeriodStart: now,
-        currentPeriodEnd: periodEnd,
-      },
-    });
+    const subscriptionData = {
+      planId: dto.planId,
+      billingCycle: dto.billingCycle,
+      status: 'ACTIVE' as const,
+      razorpaySubscriptionId,
+      currentPeriodStart: now,
+      currentPeriodEnd: periodEnd,
+    };
+    const subscription = existing
+      ? await this.prisma.organizationSubscription.update({ where: { orgId }, data: subscriptionData })
+      : await this.prisma.organizationSubscription.create({ data: { orgId, ...subscriptionData } });
 
+    const invoicePaid = opts.settledImmediately || !this.razorpay.configured;
     await this.prisma.institutionInvoice.create({
       data: {
         invoiceNumber: generateInvoiceNumber(now),
@@ -113,14 +140,65 @@ export class BillingService {
         periodLabel: dto.billingCycle === 'MONTHLY' ? now.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) : 'Annual',
         basePlanMinor: amountMinor,
         totalMinor: amountMinor,
-        status: this.razorpay.configured ? 'PENDING' : 'PAID',
+        status: invoicePaid ? 'PAID' : 'PENDING',
         dueAt: now,
-        paidAt: this.razorpay.configured ? null : now,
+        paidAt: invoicePaid ? now : null,
       },
     });
 
-    await this.audit.record({ actorUserId: actor.userId, action: 'billing.org_subscribed', targetType: 'Organization', targetId: orgId, result: 'SUCCESS', after: { planId: dto.planId, billingCycle: dto.billingCycle } });
+    await this.audit.record({
+      actorUserId: actor.userId,
+      action: existing ? 'billing.org_renewed' : 'billing.org_subscribed',
+      targetType: 'Organization',
+      targetId: orgId,
+      result: 'SUCCESS',
+      after: { planId: dto.planId, billingCycle: dto.billingCycle },
+    });
     return subscription;
+  }
+
+  /** Super Admin grants/renews an institution's licence directly — this is an
+   *  administrative confirmation, not a live customer charge, so the invoice
+   *  is recorded PAID immediately (see provisionSubscription's doc comment). */
+  async subscribeOrganization(actor: Principal, orgId: string, dto: SubscribeOrganization) {
+    return this.provisionSubscription(actor, orgId, dto, { settledImmediately: true });
+  }
+
+  /** Academic Head self-serve purchase/renewal for their own institution —
+   *  gated on KYC verification so a Head can't unlock paid features before
+   *  the institution is confirmed real. A live Razorpay charge is expected,
+   *  so the invoice starts PENDING until the subscription.charged webhook
+   *  confirms it (handleSubscriptionEvent below). */
+  async selfServeSubscribe(actor: Principal, dto: SubscribeOrganization) {
+    if (!actor.orgId) throw AppError.conflict('You are not linked to an institution.');
+    const linkedAccount = await this.prisma.instituteLinkedAccount.findUnique({ where: { orgId: actor.orgId } });
+    if (!linkedAccount || linkedAccount.kycStatus !== 'VERIFIED') {
+      throw AppError.conflict('Complete your institution KYC verification before purchasing a subscription plan.');
+    }
+    return this.provisionSubscription(actor, actor.orgId, dto, { settledImmediately: false });
+  }
+
+  /** The calling Academic Head's own subscription + KYC status, for the
+   *  self-serve Billing screen (browse plans vs. show current plan / renew). */
+  async getMySubscription(actor: Principal) {
+    if (!actor.orgId) return { subscription: null, kycVerified: false };
+    const [subscription, linkedAccount] = await Promise.all([
+      this.prisma.organizationSubscription.findUnique({ where: { orgId: actor.orgId }, include: { plan: true } }),
+      this.prisma.instituteLinkedAccount.findUnique({ where: { orgId: actor.orgId } }),
+    ]);
+    return {
+      subscription: subscription
+        ? {
+            planId: subscription.planId,
+            planNameHi: subscription.plan.nameHi,
+            planNameEn: subscription.plan.nameEn,
+            billingCycle: subscription.billingCycle,
+            status: subscription.status,
+            currentPeriodEnd: subscription.currentPeriodEnd?.toISOString() ?? null,
+          }
+        : null,
+      kycVerified: linkedAccount?.kycStatus === 'VERIFIED',
+    };
   }
 
   listInvoices() {
