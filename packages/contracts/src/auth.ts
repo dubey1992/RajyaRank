@@ -135,6 +135,12 @@ export interface ProfileResponse {
 export const staffLoginResultSchema = z.discriminatedUnion('status', [
   z.object({ status: z.literal('AUTHENTICATED'), homeRoute: z.string() }),
   z.object({ status: z.literal('MFA_REQUIRED'), mfaToken: z.string() }),
+  /** Staff MFA is mandatory — a login for an account that hasn't enrolled yet
+   *  stops here instead of completing, with everything the client needs to
+   *  render a QR code (secret + otpauthUrl) right on the login screen. The
+   *  same mfaToken is then submitted to /auth/staff/mfa/setup/confirm along
+   *  with the first code from the app to finish enrollment and the login. */
+  z.object({ status: z.literal('MFA_SETUP_REQUIRED'), mfaToken: z.string(), secret: z.string(), otpauthUrl: z.string() }),
 ]);
 export type StaffLoginResult = z.infer<typeof staffLoginResultSchema>;
 

@@ -239,6 +239,27 @@ export class AuthController {
     );
   }
 
+  /** Completes the mandatory MFA_SETUP_REQUIRED step from staff/login — same
+   *  request shape as staff/mfa/verify (mfaToken + totp + trustDevice), just
+   *  routed to confirmEnrollment instead of an already-ACTIVE factor. */
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Post('staff/mfa/setup/confirm')
+  async staffMfaSetupConfirm(
+    @Body(new ZodValidationPipe(staffMfaVerifySchema)) body: { mfaToken: string; totp: string; trustDevice?: boolean },
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return this.auth.staffMfaSetupConfirm(
+      body.mfaToken,
+      body.totp,
+      res,
+      req.ip,
+      req.header('user-agent') ?? undefined,
+      body.trustDevice ?? false,
+    );
+  }
+
   // ── Session lifecycle ──
   @Public()
   @Post('refresh')

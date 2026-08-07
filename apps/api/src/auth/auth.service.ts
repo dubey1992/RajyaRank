@@ -345,6 +345,17 @@ export class AuthService {
       return { status: 'AUTHENTICATED', homeRoute: this.homeRouteFor(user.roles.map((r) => r.role.key as RoleKey)) };
     }
 
+    // MFA is mandatory for staff. A not-yet-enrolled account stops here with
+    // everything needed to render a QR code right on the login screen —
+    // enrollment used to only be reachable AFTER a full login, from Account
+    // Settings, which meant most staff never did it. No session is issued
+    // yet; that only happens once /auth/staff/mfa/setup/confirm succeeds.
+    if (!user.mfaEnabled && !skipMfa) {
+      const { secret, otpauthUrl } = await this.mfa.enrollOrResumePending(user.id, user.email ?? user.id);
+      await this.audit.record({ actorUserId: user.id, action: 'auth.login.mfa_setup_required', result: 'SUCCESS', ip, userAgent });
+      return { status: 'MFA_SETUP_REQUIRED', mfaToken: this.tokens.signMfaChallenge(user.id, remember), secret, otpauthUrl };
+    }
+
     await this.issue(res, user.id, 'STAFF', 'AAL1', ip, userAgent, remember);
     await this.prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
     await this.audit.record({ actorUserId: user.id, action: 'auth.login', result: 'SUCCESS', ip, userAgent });
@@ -398,6 +409,63 @@ export class AuthService {
     }
     await this.prisma.user.update({ where: { id: user.id }, data: { failedLogins: 0, lockedUntil: null, lastLoginAt: new Date() } });
     await this.audit.record({ actorUserId: user.id, action: 'auth.login', result: 'SUCCESS', reasonCode: 'AAL2', ip, userAgent });
+    return { homeRoute: this.homeRouteFor(user.roles.map((r) => r.role.key as RoleKey)) };
+  }
+
+  /** Completes the mandatory MFA_SETUP_REQUIRED step from staffLogin: confirms
+   *  the first code from the app against the PENDING factor created there,
+   *  then — unlike the post-login /auth/mfa/confirm, which just flips the
+   *  factor ACTIVE and leaves an already-issued session alone — issues the
+   *  session itself, since staffLogin deliberately withheld it until now. */
+  async staffMfaSetupConfirm(
+    mfaToken: string,
+    totp: string,
+    res: Response,
+    ip?: string,
+    userAgent?: string,
+    trustDevice = false,
+  ): Promise<{ homeRoute: string }> {
+    let sub: string;
+    let remember: boolean;
+    try {
+      ({ sub, remember } = this.tokens.verifyMfaChallenge(mfaToken));
+    } catch {
+      throw AppError.mfaRequired();
+    }
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id: sub },
+      include: { roles: { include: { role: true } } },
+    });
+    if (user.lockedUntil && user.lockedUntil.getTime() > Date.now()) throw AppError.accountLocked();
+    if (user.mfaEnabled) {
+      // Already completed (e.g. a second tab, or a retried request) — the
+      // caller's mfaToken is stale; make them log in again cleanly rather
+      // than silently re-confirming or issuing a duplicate session.
+      throw AppError.mfaRequired();
+    }
+
+    const ok = await this.mfa.confirmEnrollment(sub, totp);
+    if (!ok) {
+      const failed = user.failedLogins + 1;
+      const lock = failed >= this.env.LOGIN_MAX_FAILURES;
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          failedLogins: lock ? 0 : failed,
+          lockedUntil: lock ? new Date(Date.now() + this.env.LOGIN_LOCKOUT_MINUTES * 60_000) : null,
+        },
+      });
+      await this.audit.record({ actorUserId: sub, action: 'auth.mfa_setup', result: 'FAILED', reasonCode: lock ? 'ACCOUNT_LOCKED' : 'AUTH_MFA_INVALID', ip, userAgent });
+      throw lock ? AppError.accountLocked() : AppError.mfaInvalid();
+    }
+
+    await this.issue(res, user.id, 'STAFF', 'AAL2', ip, userAgent, remember);
+    if (trustDevice) {
+      const { rawToken, expiresAt } = await this.trustedDevices.create(user.id, ip, userAgent);
+      setTrustedDeviceCookie(res, this.env, rawToken, Math.round((expiresAt.getTime() - Date.now()) / 1000));
+    }
+    await this.prisma.user.update({ where: { id: user.id }, data: { failedLogins: 0, lockedUntil: null, lastLoginAt: new Date() } });
+    await this.audit.record({ actorUserId: user.id, action: 'auth.login.mfa_setup_completed', result: 'SUCCESS', reasonCode: 'AAL2', ip, userAgent });
     return { homeRoute: this.homeRouteFor(user.roles.map((r) => r.role.key as RoleKey)) };
   }
 

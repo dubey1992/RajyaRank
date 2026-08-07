@@ -26,6 +26,20 @@ export class MfaService {
     return { secret, otpauthUrl };
   }
 
+  /** Same as enroll(), but reuses an already-pending factor's secret instead
+   *  of minting a new one — without this, a user who scans the QR code but
+   *  doesn't finish confirming (e.g. retries login before entering a code)
+   *  would be shown a DIFFERENT QR/secret on the next attempt, silently
+   *  invalidating what they already added to their authenticator app. */
+  async enrollOrResumePending(userId: string, accountLabel: string): Promise<{ secret: string; otpauthUrl: string }> {
+    const existing = await this.prisma.mfaFactor.findFirst({ where: { userId, status: 'PENDING' }, orderBy: { createdAt: 'desc' } });
+    if (existing) {
+      const secret = decryptField(existing.secretEnc, this.env.FIELD_ENCRYPTION_KEY);
+      return { secret, otpauthUrl: authenticator.keyuri(accountLabel, 'RajyaRank', secret) };
+    }
+    return this.enroll(userId, accountLabel);
+  }
+
   async confirmEnrollment(userId: string, code: string): Promise<boolean> {
     const factor = await this.prisma.mfaFactor.findFirst({
       where: { userId, status: 'PENDING' },

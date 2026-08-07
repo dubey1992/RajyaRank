@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
+import { QRCodeSVG } from 'qrcode.react';
 import { Alert, Button, Field, Logo } from '@rajyarank/ui';
 import { apiFetch, type ApiError } from '@/lib/api';
 import { resolveLocale } from '@/lib/i18n';
@@ -38,6 +39,10 @@ export default function StaffLoginPage() {
     }
   }, []);
   const [mfaToken, setMfaToken] = useState<string | null>(null);
+  // Mandatory-setup step — distinct from mfaToken/verify above: this is a
+  // staff account that has never enrolled MFA at all, so the login response
+  // carries a QR code to scan right here instead of just a bare code prompt.
+  const [mfaSetup, setMfaSetup] = useState<{ mfaToken: string; secret: string; otpauthUrl: string } | null>(null);
   const [totp, setTotp] = useState('');
   const [trustDevice, setTrustDevice] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -65,6 +70,7 @@ export default function StaffLoginPage() {
       if (remember) window.localStorage.setItem(REMEMBER_EMAIL_KEY, email.trim());
       else window.localStorage.removeItem(REMEMBER_EMAIL_KEY);
       if (res.status === 'MFA_REQUIRED') setMfaToken(res.mfaToken);
+      else if (res.status === 'MFA_SETUP_REQUIRED') setMfaSetup({ mfaToken: res.mfaToken, secret: res.secret, otpauthUrl: res.otpauthUrl });
       else router.push(`/${locale}${res.homeRoute}`);
     } catch (e) {
       setErrors(serverFieldErrors(e as ApiError));
@@ -73,16 +79,36 @@ export default function StaffLoginPage() {
     }
   }
 
-  async function submitMfa() {
-    if (!mfaToken) return;
-    if (!totp.trim()) return setErrors({ totp: L('कृपया प्रमाणीकरण कोड दर्ज करें।', 'Please enter the authenticator code.') });
-    if (!/^\d{6}$/.test(totp)) return setErrors({ totp: L('कृपया 6-अंकीय कोड दर्ज करें।', 'Please enter the 6-digit code.') });
+  function validateTotp(): boolean {
+    if (!totp.trim()) { setErrors({ totp: L('कृपया प्रमाणीकरण कोड दर्ज करें।', 'Please enter the authenticator code.') }); return false; }
+    if (!/^\d{6}$/.test(totp)) { setErrors({ totp: L('कृपया 6-अंकीय कोड दर्ज करें।', 'Please enter the 6-digit code.') }); return false; }
     setErrors({});
+    return true;
+  }
+
+  async function submitMfa() {
+    if (!mfaToken || !validateTotp()) return;
     setBusy(true);
     try {
       const res = await apiFetch<{ homeRoute: string }>('/auth/staff/mfa/verify', {
         method: 'POST',
         body: JSON.stringify({ mfaToken, totp, trustDevice }),
+      });
+      router.push(`/${locale}${res.homeRoute}`);
+    } catch (e) {
+      setErrors(serverFieldErrors(e as ApiError));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submitMfaSetup() {
+    if (!mfaSetup || !validateTotp()) return;
+    setBusy(true);
+    try {
+      const res = await apiFetch<{ homeRoute: string }>('/auth/staff/mfa/setup/confirm', {
+        method: 'POST',
+        body: JSON.stringify({ mfaToken: mfaSetup.mfaToken, totp, trustDevice }),
       });
       router.push(`/${locale}${res.homeRoute}`);
     } catch (e) {
@@ -151,7 +177,7 @@ export default function StaffLoginPage() {
 
           {errors._form ? <div className="mb-4"><Alert tone="error">{errors._form}</Alert></div> : null}
 
-          {!mfaToken ? (
+          {!mfaToken && !mfaSetup ? (
             <form noValidate onSubmit={(e) => { e.preventDefault(); void submitLogin(); }}>
               <Field
                 label={t('auth.workEmail')}
@@ -188,6 +214,50 @@ export default function StaffLoginPage() {
                 </Link>
               </div>
               <Button type="submit" loading={busy} className="w-full">{t('auth.signInSecurely')}</Button>
+            </form>
+          ) : mfaSetup ? (
+            <form noValidate onSubmit={(e) => { e.preventDefault(); void submitMfaSetup(); }}>
+              <h4 className="mb-2 text-lg font-extrabold text-navy-900">{L('दो-चरणीय सत्यापन सेट करें', 'Set up two-factor authentication')}</h4>
+              <p className="mb-4 text-sm text-muted">
+                {L(
+                  'आपके संस्थान की सुरक्षा नीति के अनुसार यह हर स्टाफ़ खाते के लिए ज़रूरी है। Google Authenticator, Authy, या अपने पासवर्ड ऐप से यह कोड स्कैन करें, फिर नीचे दिखने वाला 6-अंकों का कोड डालें।',
+                  'Required for every staff account. Scan this with Google Authenticator, Authy, or your password manager, then enter the 6-digit code it shows.',
+                )}
+              </p>
+              <div className="mb-4 flex flex-col items-start gap-3 sm:flex-row">
+                <div className="rounded-md border border-line bg-white p-3">
+                  <QRCodeSVG value={mfaSetup.otpauthUrl} size={140} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="mb-1 text-xs font-extrabold uppercase text-muted">{L("स्कैन नहीं कर सकते? की मैन्युअल रूप से डालें:", "Can't scan? Enter this key manually:")}</p>
+                  <code className="block w-fit break-all rounded bg-surface-soft px-2 py-1.5 text-sm font-black tracking-widest text-navy-900">{mfaSetup.secret}</code>
+                </div>
+              </div>
+              <Field
+                label={L('प्रमाणीकरण कोड', 'Authentication code')}
+                name="totp"
+                inputMode="numeric"
+                maxLength={6}
+                value={totp}
+                error={errors.totp}
+                onChange={(e) => setTotp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                autoFocus
+              />
+              <label className="mb-4 inline-flex cursor-pointer items-center gap-2 text-sm font-semibold text-navy-900">
+                <input
+                  type="checkbox"
+                  checked={trustDevice}
+                  onChange={(e) => setTrustDevice(e.target.checked)}
+                  className="h-4 w-4 rounded border-line accent-orange-500"
+                />
+                {L('इस डिवाइस पर 60 दिनों तक याद रखें', 'Trust this device for 60 days')}
+              </label>
+              <Button type="submit" loading={busy} className="w-full">{L('सत्यापित करें और जारी रखें', 'Verify & continue')}</Button>
+              <div className="mt-3 text-center">
+                <button type="button" onClick={() => { setMfaSetup(null); setTotp(''); setErrors({}); }} className="text-sm font-bold text-navy-900 hover:underline">
+                  {L('वापस लॉगिन पर जाएँ', 'Back to login')}
+                </button>
+              </div>
             </form>
           ) : (
             <form noValidate onSubmit={(e) => { e.preventDefault(); void submitMfa(); }}>
