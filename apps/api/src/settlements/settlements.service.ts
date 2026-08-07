@@ -139,11 +139,21 @@ export class SettlementsService {
 
     let linkedAccount = await this.prisma.instituteLinkedAccount.findUnique({ where: { orgId } });
     if (!linkedAccount) {
-      const razorpayAccountId = await this.razorpay.createLinkedAccount({
-        orgName: org.name,
-        contactEmail: org.head?.email ?? 'finance@rajyarank.dev',
-        contactPhone: org.head?.phone ?? '9999999999',
-      });
+      // Best-effort, like updateLinkedAccountKyc below — Route isn't
+      // provisioned on every Razorpay account (needs separate activation from
+      // Razorpay), and a Head's KYC submission/document upload must still
+      // work locally either way; callers already treat razorpayAccountId as
+      // optional (see submitKyc's `updated.razorpayAccountId ? ... : { synced: false, error: 'no_linked_account' }`).
+      let razorpayAccountId: string | null = null;
+      try {
+        razorpayAccountId = await this.razorpay.createLinkedAccount({
+          orgName: org.name,
+          contactEmail: org.head?.email ?? 'finance@rajyarank.dev',
+          contactPhone: org.head?.phone ?? '9999999999',
+        });
+      } catch (e) {
+        this.logger.warn(`Razorpay linked-account creation failed for org ${orgId} — continuing without it: ${(e as Error).message}`);
+      }
       linkedAccount = await this.prisma.instituteLinkedAccount.create({ data: { orgId, razorpayAccountId } });
     }
     return { org, linkedAccount };
