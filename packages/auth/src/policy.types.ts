@@ -58,6 +58,14 @@ export interface PolicyInput {
   resource?: ResourceContext;
   /** Demand step-up (MFA) for high-risk actions. */
   requireAssurance?: AssuranceLevel;
+  /** Exempts this specific action from step 3's subscription-active check —
+   *  for the small set of routes a Head must be able to reach WHILE their
+   *  subscription is inactive/never-purchased, because they're how a Head
+   *  escapes that state (submitting KYC, browsing plans, buying a plan).
+   *  Without this, those routes were unreachable for exactly the orgs that
+   *  need them: a never-subscribed org always denies course.manage here,
+   *  before any KYC- or billing-specific logic runs. */
+  bypassSubscriptionGate?: boolean;
 }
 
 export type DenyCode =

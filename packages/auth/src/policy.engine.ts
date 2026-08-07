@@ -83,7 +83,7 @@ function deny(code: DenyCode, reason: string): PolicyDecision {
  * Evaluate an authorization request. Deterministic order, fail-closed.
  */
 export function evaluate(input: PolicyInput): PolicyDecision {
-  const { principal: p, permission, resource, requireAssurance } = input;
+  const { principal: p, permission, resource, requireAssurance, bypassSubscriptionGate } = input;
 
   // 1. Account must be active — suspended/disabled/invited can do nothing.
   if (p.status !== 'ACTIVE') {
@@ -110,7 +110,7 @@ export function evaluate(input: PolicyInput): PolicyDecision {
   //    orgId": a STUDENT can carry the same orgId (institute-scoped
   //    enrollment) but their access to content they're already enrolled in
   //    is a separate question this check must not reach.
-  if (p.kind === 'STAFF' && p.orgId && !p.orgSubscriptionActive) {
+  if (p.kind === 'STAFF' && p.orgId && !p.orgSubscriptionActive && !bypassSubscriptionGate) {
     return deny('SUBSCRIPTION_INACTIVE', "This institution's platform subscription is not active.");
   }
 

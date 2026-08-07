@@ -203,6 +203,17 @@ test('org-scoped staff WITH an active subscription is allowed', () => {
   assert.equal(d.allow, true);
 });
 
+test('bypassSubscriptionGate lets a specific action through despite an inactive subscription', () => {
+  const head = principal({
+    roleKeys: ['ACADEMIC_HEAD'],
+    permissionCodes: new Set(['course.manage']),
+    orgId: 'org-1',
+    orgSubscriptionActive: false,
+  });
+  const d = evaluate({ principal: head, permission: 'course.manage', bypassSubscriptionGate: true });
+  assert.equal(d.allow, true);
+});
+
 test('org-less staff (Super Admin, Content Admin) are never subject to the subscription gate', () => {
   const su = principal({ roleKeys: ['SUPER_ADMIN'], isSuperAdmin: true, permissionCodes: new Set(['org.manage']), assignments: [] });
   const d = evaluate({ principal: su, permission: 'org.manage' });

@@ -33,7 +33,7 @@ export class PermissionsGuard implements CanActivate {
     const resolver = this.reflector.get<ResourceResolver | undefined>(RESOURCE_RESOLVER_KEY, ctx.getHandler());
     const resource = resolver ? await resolver(req) : undefined;
 
-    const decision = this.authz.check(principal, meta.code, resource, meta.assurance);
+    const decision = this.authz.check(principal, meta.code, resource, meta.assurance, meta.bypassSubscriptionGate);
     if (!decision.allow) {
       await this.authz.auditDenied({
         principal,

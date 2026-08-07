@@ -8,14 +8,25 @@ export const RESOURCE_RESOLVER_KEY = 'rr:resourceResolver';
 export interface RequirePermissionMeta {
   code: string;
   assurance?: 'AAL2';
+  bypassSubscriptionGate?: boolean;
 }
 
 /**
  * Declare the permission an endpoint needs. Authorization is delegated to the
  * central policy engine — controllers never inspect role names.
+ *
+ * `bypassSubscriptionGate` opts a route out of policy.engine.ts's step-3
+ * subscription check — reserve this for the small set of routes a Head must
+ * reach WHILE their institution has no active subscription, because they're
+ * how the Head gets one (KYC submission, browsing/buying a plan). Any other
+ * use would defeat the point of the gate.
  */
-export const RequirePermission = (code: string, opts?: { assurance?: 'AAL2' }) =>
-  SetMetadata(PERMISSION_KEY, { code, assurance: opts?.assurance } satisfies RequirePermissionMeta);
+export const RequirePermission = (code: string, opts?: { assurance?: 'AAL2'; bypassSubscriptionGate?: boolean }) =>
+  SetMetadata(PERMISSION_KEY, {
+    code,
+    assurance: opts?.assurance,
+    bypassSubscriptionGate: opts?.bypassSubscriptionGate,
+  } satisfies RequirePermissionMeta);
 
 export type ResourceResolver = (req: Request) => ResourceContext | Promise<ResourceContext>;
 

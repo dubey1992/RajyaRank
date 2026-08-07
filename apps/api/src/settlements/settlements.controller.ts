@@ -90,14 +90,19 @@ export class SettlementsAcademicController {
     return this.settlements.institutionEarnings(principal);
   }
 
+  // KYC routes below bypass the subscription gate deliberately: a Head whose
+  // institution has never been subscribed (or has lapsed) must still be able
+  // to view/submit KYC, since that's a prerequisite for buying a plan
+  // through academic/billing — gating it behind an active subscription made
+  // both unreachable for exactly the orgs that need them.
   @Get('kyc')
-  @RequirePermission('course.manage')
+  @RequirePermission('course.manage', { bypassSubscriptionGate: true })
   getMyKyc(@CurrentPrincipal() principal: Principal) {
     return this.settlements.getMyKycSubmission(principal);
   }
 
   @Post('kyc')
-  @RequirePermission('course.manage')
+  @RequirePermission('course.manage', { bypassSubscriptionGate: true })
   submitKyc(
     @CurrentPrincipal() principal: Principal,
     @Body(new ZodValidationPipe(submitKycSchema)) body: SubmitKyc,
@@ -106,7 +111,7 @@ export class SettlementsAcademicController {
   }
 
   @Post('kyc/documents')
-  @RequirePermission('course.manage')
+  @RequirePermission('course.manage', { bypassSubscriptionGate: true })
   createKycDocumentUploadIntent(
     @CurrentPrincipal() principal: Principal,
     @Body(new ZodValidationPipe(kycDocumentUploadIntentSchema)) body: KycDocumentUploadIntent,
@@ -115,7 +120,7 @@ export class SettlementsAcademicController {
   }
 
   @Post('kyc/documents/confirm')
-  @RequirePermission('course.manage')
+  @RequirePermission('course.manage', { bypassSubscriptionGate: true })
   confirmKycDocumentUpload(
     @CurrentPrincipal() principal: Principal,
     @Body(new ZodValidationPipe(confirmKycDocumentUploadSchema)) body: ConfirmKycDocumentUpload,

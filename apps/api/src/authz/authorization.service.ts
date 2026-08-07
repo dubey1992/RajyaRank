@@ -97,8 +97,9 @@ export class AuthorizationService {
     permission: string,
     resource?: ResourceContext,
     assurance?: 'AAL2',
+    bypassSubscriptionGate?: boolean,
   ): PolicyDecision {
-    return evaluate({ principal, permission, resource, requireAssurance: assurance });
+    return evaluate({ principal, permission, resource, requireAssurance: assurance, bypassSubscriptionGate });
   }
 
   async auditDenied(args: {
