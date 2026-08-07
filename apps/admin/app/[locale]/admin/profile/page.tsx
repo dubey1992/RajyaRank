@@ -35,7 +35,12 @@ export default async function ProfilePage({
   const locale = resolveLocale(params.locale);
   const hi = locale === 'hi';
   const L = (h: string, e: string) => (hi ? h : e);
-  const me = await getMeOrRedirect(locale, { skipSubscriptionGate: true });
+  // Both gates skipped: Account Settings must be a stable landing spot no
+  // matter what's blocking the rest of the app — a Head redirected here for
+  // an inactive subscription must not immediately bounce again to the KYC
+  // gate (which would fire next, since a fresh institution normally has
+  // neither yet).
+  const me = await getMeOrRedirect(locale, { skipSubscriptionGate: true, skipKycGate: true });
   const profile = await apiFetchServer<ProfileResponse>('/auth/me/profile', cookies().toString());
   const title = L('अकाउंट सेटिंग्स', 'Account settings');
   const isHead = me.roleKeys.includes('ACADEMIC_HEAD');
