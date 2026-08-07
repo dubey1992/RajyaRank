@@ -55,6 +55,19 @@ export interface OrganizationSubscriptionView {
   currentPeriodEnd: string | null;
 }
 
+/** Academic Head's own-institution billing summary — GET /academic/billing/subscription. */
+export interface MySubscriptionView {
+  subscription: {
+    planId: string;
+    planNameHi: string;
+    planNameEn: string;
+    billingCycle: BillingCycleValue;
+    status: string;
+    currentPeriodEnd: string | null;
+  } | null;
+  kycVerified: boolean;
+}
+
 export interface InstitutionInvoiceView {
   id: string;
   invoiceNumber: string;

@@ -41,6 +41,7 @@ const NAV: NavItem[] = [
   { href: '/admin/at-risk-students', label: { hi: 'इंटरवेंशन रडार', en: 'Intervention Radar' }, show: (me) => can(me, 'user.manage') && !!me.orgId },
   { href: '/admin/student-payments', label: { hi: 'छात्र भुगतान', en: 'Student Payments' }, show: (me) => can(me, 'course.manage') && !!me.orgId },
   { href: '/admin/earnings', label: { hi: 'कमाई व भुगतान', en: 'Earnings & Payouts' }, show: (me) => can(me, 'course.manage') && !!me.orgId },
+  { href: '/admin/billing', label: { hi: 'सदस्यता व बिलिंग', en: 'Subscription & Billing' }, show: (me) => can(me, 'course.manage') && !!me.orgId },
   { href: '/admin/staff', label: { hi: 'स्टाफ़ प्रबंधन', en: 'Manage Staffs' }, show: (me) => can(me, 'user.manage') },
   { href: '/admin/students', label: { hi: 'छात्र', en: 'Students' }, show: (me) => can(me, 'user.manage') },
   { href: '/admin/roles', label: { hi: 'भूमिकाएँ व अनुमतियाँ', en: 'Roles & Permissions' }, show: (me) => can(me, 'role.manage') },

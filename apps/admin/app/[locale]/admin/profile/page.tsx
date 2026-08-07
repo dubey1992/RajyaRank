@@ -1,4 +1,5 @@
 import { cookies } from 'next/headers';
+import Link from 'next/link';
 import { resolveLocale } from '@/lib/i18n';
 import { getMeOrRedirect } from '@/lib/auth';
 import { apiFetchServer } from '@/lib/api';
@@ -55,9 +56,18 @@ export default async function ProfilePage({
       {subscriptionRequired ? (
         <div className="mb-4">
           <Alert tone="error">
-            {L(
-              'आपके संस्थान की RajyaRank सदस्यता अभी सक्रिय नहीं है, इसलिए छात्र जोड़ने, स्टाफ़ प्रबंधित करने और अन्य सुविधाओं तक पहुँच अस्थायी रूप से रोक दी गई है। नीचे अपनी योजना की स्थिति देखें, या दोबारा सक्रिय करने के लिए RajyaRank सपोर्ट से संपर्क करें।',
-              "Your institution's RajyaRank subscription isn't active, so adding students, managing staff, and other features are temporarily unavailable. See your plan status below, or contact RajyaRank support to reactivate.",
+            <p className="mb-2">
+              {L(
+                'आपके संस्थान की RajyaRank सदस्यता अभी सक्रिय नहीं है, इसलिए छात्र जोड़ने, स्टाफ़ प्रबंधित करने और अन्य सुविधाओं तक पहुँच अस्थायी रूप से रोक दी गई है।',
+                "Your institution's RajyaRank subscription isn't active, so adding students, managing staff, and other features are temporarily unavailable.",
+              )}
+            </p>
+            {isHead ? (
+              <Link href={`/${locale}/admin/billing`} className="font-bold underline">
+                {L('अभी योजना खरीदें या नवीनीकृत करें →', 'Buy or renew a plan now →')}
+              </Link>
+            ) : (
+              <p>{L('अपने संस्थान के Academic Head से संपर्क करें।', "Contact your institution's Academic Head.")}</p>
             )}
           </Alert>
         </div>
@@ -118,6 +128,11 @@ export default async function ProfilePage({
                       {plan.billingCycle === 'MONTHLY' ? L('मासिक बिलिंग', 'Billed monthly') : L('वार्षिक बिलिंग', 'Billed annually')}
                       {plan.currentPeriodEnd ? ` · ${L('अगली अवधि', 'renews')} ${plan.currentPeriodEnd.slice(0, 10)}` : ''}
                     </span>
+                    {plan.status !== 'ACTIVE' ? (
+                      <Link href={`/${locale}/admin/billing`} className="text-xs font-bold text-navy-900 underline">
+                        {L('नवीनीकृत करें →', 'Renew →')}
+                      </Link>
+                    ) : null}
                   </div>
                   <p className="mb-3 text-xs font-extrabold uppercase text-muted">{L('योजना लाभ', 'Plan benefits')}</p>
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
@@ -144,9 +159,12 @@ export default async function ProfilePage({
                   </div>
                 </>
               ) : (
-                <p className="text-sm text-muted">
-                  {L('आपके संस्थान की अभी कोई सक्रिय योजना नहीं है। Super Admin से संपर्क करें।', 'Your institution has no active plan yet. Contact your Super Admin.')}
-                </p>
+                <div className="text-sm text-muted">
+                  <p className="mb-2">{L('आपके संस्थान की अभी कोई सक्रिय योजना नहीं है।', 'Your institution has no active plan yet.')}</p>
+                  <Link href={`/${locale}/admin/billing`} className="font-bold text-navy-900 underline">
+                    {L('अभी खरीदें →', 'Buy a plan now →')}
+                  </Link>
+                </div>
               )}
             </section>
           ) : null}
