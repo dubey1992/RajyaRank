@@ -66,6 +66,33 @@ export class InvitationsService {
       orgId = actor.orgId;
     }
 
+    // Seat limit — deliberately excludes ACADEMIC_HEAD both as the role being
+    // invited and from the existing-headcount denominator: a Head invite is
+    // how an institution is onboarded in the first place, before it has ever
+    // had a subscription (billing.service.ts refuses to subscribe an org
+    // until its Head has accepted), so gating it on a plan that can't exist
+    // yet would make onboarding impossible. "Staff seats" means the team the
+    // Head brings on, not the Head's own account.
+    if (orgId && dto.roleKey !== 'ACADEMIC_HEAD') {
+      const subscription = await this.prisma.organizationSubscription.findUnique({ where: { orgId }, include: { plan: true } });
+      if (!subscription || subscription.status !== 'ACTIVE') {
+        throw AppError.conflict("This institution's subscription is not active.");
+      }
+      const [activeStaffCount, pendingInviteCount] = await Promise.all([
+        this.prisma.user.count({
+          where: { kind: 'STAFF', orgId, status: 'ACTIVE', deletedAt: null, roles: { none: { role: { key: 'ACADEMIC_HEAD' } } } },
+        }),
+        this.prisma.staffInvitation.count({
+          where: { orgId, status: 'PENDING', expiresAt: { gt: new Date() }, roleKey: { not: 'ACADEMIC_HEAD' } },
+        }),
+      ]);
+      if (activeStaffCount + pendingInviteCount >= subscription.plan.maxStaffSeats) {
+        throw AppError.conflict(
+          `This institution's plan allows up to ${subscription.plan.maxStaffSeats} staff seats. Contact RajyaRank to upgrade the plan.`,
+        );
+      }
+    }
+
     const rawToken = randomToken();
     const hours = dto.expiresInHours ?? this.env.INVITATION_TTL_HOURS;
     const invitation = await this.prisma.staffInvitation.create({

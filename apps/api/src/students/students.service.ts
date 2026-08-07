@@ -70,6 +70,25 @@ export class StudentsService {
       throw AppError.conflict('This student is already enrolled in another institution.');
     }
 
+    // Only enforce the seat limit when this actually grows the org's roster —
+    // re-saving a student already enrolled here doesn't consume a new seat.
+    // (A Head with no active subscription never reaches this method at all —
+    // the policy engine already blocks user.manage entirely — but re-checking
+    // here means the limit still holds even if that ever changes.)
+    const consumesNewSeat = orgId && (!existing || !existing.orgId);
+    if (consumesNewSeat) {
+      const subscription = await this.prisma.organizationSubscription.findUnique({ where: { orgId }, include: { plan: true } });
+      if (!subscription || subscription.status !== 'ACTIVE') {
+        throw AppError.conflict("This institution's subscription is not active.");
+      }
+      const activeCount = await this.prisma.user.count({ where: { kind: 'STUDENT', orgId, status: 'ACTIVE' } });
+      if (activeCount >= subscription.plan.maxActiveStudents) {
+        throw AppError.conflict(
+          `This institution's plan allows up to ${subscription.plan.maxActiveStudents} active students. Contact RajyaRank to upgrade the plan.`,
+        );
+      }
+    }
+
     // Guard against silently renaming a different real person who happens to
     // share this phone number — only treat it as "the same student" (and
     // proceed to update them) when the name matches or none was set yet.
