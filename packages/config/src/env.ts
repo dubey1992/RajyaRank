@@ -80,7 +80,12 @@ export const apiEnvSchema = z.object({
 
   LOGIN_MAX_FAILURES: z.coerce.number().int().positive().default(5),
   LOGIN_LOCKOUT_MINUTES: z.coerce.number().int().positive().default(15),
-  MAX_CONCURRENT_SESSIONS: z.coerce.number().int().positive().default(5),
+  // 1 = single active session per account; a new login evicts every other
+  // device (see SessionService.enforceConcurrentSessionLimit, which already
+  // revokes oldest-first past this count — this is a policy value, not new
+  // mechanism). Override upward per-environment if concurrent devices are
+  // ever wanted again.
+  MAX_CONCURRENT_SESSIONS: z.coerce.number().int().positive().default(1),
 
   // TESTING ONLY: skip the staff MFA step and issue an AAL2 session directly.
   // Only honored when APP_ENV=local — never staging/preproduction/production.
