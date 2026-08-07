@@ -130,7 +130,7 @@ export default async function ProfilePage({
                     </span>
                     {plan.status !== 'ACTIVE' ? (
                       <Link href={`/${locale}/admin/billing`} className="text-xs font-bold text-navy-900 underline">
-                        {L('नवीनीकृत करें →', 'Renew →')}
+                        {plan.status === 'TRIALING' ? L('भुगतान पूरा करें →', 'Complete payment →') : L('नवीनीकृत करें →', 'Renew →')}
                       </Link>
                     ) : null}
                   </div>

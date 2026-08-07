@@ -41,6 +41,14 @@ export const subscribeOrganizationSchema = z.object({
 });
 export type SubscribeOrganization = z.infer<typeof subscribeOrganizationSchema>;
 
+/** POST /academic/billing/subscribe response — checkoutUrl is Razorpay's own
+ *  hosted page where the Head actually authorizes payment; the subscription
+ *  isn't real (no platform access unlocked) until they complete it there. */
+export interface SelfServeSubscribeResult {
+  subscriptionId: string;
+  checkoutUrl: string | null;
+}
+
 export interface OrganizationSubscriptionView {
   id: string;
   orgId: string;

@@ -3,7 +3,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { Alert, Button, Toast } from '@rajyarank/ui';
 import { apiFetch, type ApiError } from '@/lib/api';
-import type { SubscriptionPlanView, MySubscriptionView } from '@rajyarank/contracts';
+import type { SubscriptionPlanView, MySubscriptionView, SelfServeSubscribeResult } from '@rajyarank/contracts';
 
 function rupees(minor: number) {
   return `₹${(minor / 100).toLocaleString('en-IN')}`;
@@ -39,20 +39,30 @@ export function BillingSelfServe({
   const [error, setError] = useState<string | null>(null);
 
   const activeSub = summary.subscription?.status === 'ACTIVE' ? summary.subscription : null;
+  // Awaiting Razorpay authorization — a checkout was started but not
+  // completed. Buying again is blocked (server-side 409 too) until this one
+  // is either completed or lapses.
+  const pendingSub = summary.subscription?.status === 'TRIALING' ? summary.subscription : null;
 
   async function buy(planId: string, billingCycle: 'MONTHLY' | 'ANNUAL') {
     setBusyKey(`${planId}-${billingCycle}`);
     setError(null);
     try {
-      await apiFetch('/academic/billing/subscribe', { method: 'POST', body: JSON.stringify({ planId, billingCycle }) });
+      const res = await apiFetch<SelfServeSubscribeResult>('/academic/billing/subscribe', {
+        method: 'POST',
+        body: JSON.stringify({ planId, billingCycle }),
+      });
+      if (res.checkoutUrl) {
+        // Full navigation to Razorpay's own hosted checkout — this is where
+        // payment actually gets authorized, not here. Nothing is active yet.
+        window.location.href = res.checkoutUrl;
+        return;
+      }
+      // No checkoutUrl means Razorpay isn't configured in this environment
+      // (dev/local) — nothing to redirect to, just reflect the new state.
       const refreshed = await apiFetch<MySubscriptionView>('/academic/billing/subscription');
       setSummary(refreshed);
-      setToast(
-        L(
-          'योजना सक्रिय कर दी गई है। भुगतान को अधिकृत करने के लिए Razorpay से मिला लिंक जांचें।',
-          'Plan activated. Check your email for the Razorpay link to authorize payment.',
-        ),
-      );
+      setToast(L('अनुरोध दर्ज कर लिया गया है।', 'Request recorded.'));
     } catch (e) {
       setError((e as ApiError).message);
     } finally {
@@ -106,6 +116,13 @@ export function BillingSelfServe({
             `You're currently on the ${activeSub.planNameEn} plan, active through ${activeSub.currentPeriodEnd?.slice(0, 10) ?? '—'}.`,
           )}
         </Alert>
+      ) : pendingSub ? (
+        <Alert tone="info">
+          {L(
+            `आपने ${hi ? pendingSub.planNameHi : pendingSub.planNameEn} योजना चुनी है, लेकिन भुगतान अभी पूरा नहीं हुआ है। Razorpay पर भुगतान अधिकृत करना पूरा करें — पूरा होते ही आपकी योजना सक्रिय हो जाएगी।`,
+            `You started buying the ${pendingSub.planNameEn} plan, but payment hasn't been completed yet. Finish authorizing payment on Razorpay — your plan activates automatically once that's done.`,
+          )}
+        </Alert>
       ) : summary.subscription ? (
         <Alert tone="error">
           {L(
@@ -135,7 +152,7 @@ export function BillingSelfServe({
                 <Button
                   type="button"
                   variant="secondary"
-                  disabled={isCurrent}
+                  disabled={isCurrent || !!pendingSub}
                   loading={busyKey === `${p.id}-MONTHLY`}
                   onClick={() => void buy(p.id, 'MONTHLY')}
                 >
@@ -143,7 +160,7 @@ export function BillingSelfServe({
                 </Button>
                 <Button
                   type="button"
-                  disabled={isCurrent}
+                  disabled={isCurrent || !!pendingSub}
                   loading={busyKey === `${p.id}-ANNUAL`}
                   onClick={() => void buy(p.id, 'ANNUAL')}
                 >

@@ -53,18 +53,23 @@ export class RazorpayService {
     return data.id;
   }
 
-  /** Create a Razorpay Subscription against a plan id (see above). */
-  async createSubscription(razorpayPlanId: string, totalCount: number): Promise<string> {
+  /** Create a Razorpay Subscription against a plan id (see above). Returns
+   *  `shortUrl` — Razorpay's own hosted page where the customer actually
+   *  enters payment details to authorize the subscription. Callers that skip
+   *  redirecting the customer there (e.g. an administrative grant, not a
+   *  real self-serve purchase) must not treat the subscription as paid —
+   *  creating this object alone moves no money. */
+  async createSubscription(razorpayPlanId: string, totalCount: number): Promise<{ id: string; shortUrl: string | null }> {
     if (!this.configured || razorpayPlanId.startsWith('plan_dev_')) {
       this.logger.warn('Razorpay Subscriptions not configured — returning a dev subscription id; the institution will not actually be charged.');
-      return `sub_dev_${razorpayPlanId.replace(/^plan_dev_/, '')}`;
+      return { id: `sub_dev_${razorpayPlanId.replace(/^plan_dev_/, '')}`, shortUrl: null };
     }
-    const data = await this.request<{ id: string }>('POST', '/subscriptions', {
+    const data = await this.request<{ id: string; short_url?: string }>('POST', '/subscriptions', {
       plan_id: razorpayPlanId,
       customer_notify: 1,
       total_count: totalCount,
     });
-    return data.id;
+    return { id: data.id, shortUrl: data.short_url ?? null };
   }
 
   async cancelSubscription(razorpaySubscriptionId: string): Promise<void> {

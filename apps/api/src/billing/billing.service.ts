@@ -84,21 +84,26 @@ export class BillingService {
    *  than blocked (Razorpay has no "resume a cancelled subscription" API, so
    *  renewal always means creating a fresh Subscription object).
    *
-   *  `settledImmediately` distinguishes two real situations rather than one
-   *  invoice-status bug: a Super Admin manually granting access already put
-   *  the org's `OrganizationSubscription.status` at ACTIVE unconditionally
-   *  below, so the invoice must agree it's PAID, not dangle at PENDING
-   *  forever with no checkout ever happening to clear it (that was the
-   *  original bug — the very first invoice on every admin-granted org sat at
-   *  PENDING permanently). A self-serve purchase, by contrast, really is
-   *  awaiting a live Razorpay charge, so PENDING is correct there until the
-   *  `subscription.charged` webhook confirms it. */
+   *  `settledImmediately` distinguishes two real situations: a Super Admin
+   *  manually granting access is an administrative confirmation — the org
+   *  goes ACTIVE and PAID immediately, no real charge is expected. A
+   *  self-serve purchase is NOT settled just because a Razorpay Subscription
+   *  object now exists — creating that object moves no money by itself; the
+   *  customer still has to complete Razorpay's own hosted checkout
+   *  (`shortUrl`, returned to the caller so the frontend can send them
+   *  there). So a self-serve subscription starts TRIALING — which the
+   *  subscription-active gate (policy.engine.ts) treats the same as
+   *  inactive, correctly withholding access — with no period dates and no
+   *  invoice yet, since neither is real until a charge actually happens.
+   *  Only the `subscription.charged` webhook (handleSubscriptionEvent below)
+   *  flips it to ACTIVE, sets the real period dates, and creates the first
+   *  invoice — mirroring what a first charge on any real subscription is. */
   private async provisionSubscription(
     actor: Principal,
     orgId: string,
     dto: SubscribeOrganization,
     opts: { settledImmediately: boolean },
-  ) {
+  ): Promise<{ subscription: { id: string }; checkoutUrl: string | null }> {
     const org = await this.prisma.organization.findUnique({ where: { id: orgId } });
     if (!org) throw AppError.notFound('Institution not found.');
     if (!org.headUserId) throw AppError.conflict('This institution has no accepted Academic Head yet — it cannot be subscribed to a plan until the invited head accepts.');
@@ -106,45 +111,61 @@ export class BillingService {
     if (!plan || !plan.active) throw AppError.notFound('Plan not found or inactive.');
 
     const existing = await this.prisma.organizationSubscription.findUnique({ where: { orgId } });
-    if (existing && existing.status === 'ACTIVE') {
-      throw AppError.conflict('This institution already has an active subscription. Cancel it first to change plans.');
+    // TRIALING also blocks a second attempt — it means a Razorpay checkout is
+    // already awaiting completion; starting a second one would orphan the
+    // first rather than let the Head resume it.
+    if (existing && (existing.status === 'ACTIVE' || existing.status === 'TRIALING')) {
+      throw AppError.conflict(
+        existing.status === 'ACTIVE'
+          ? 'This institution already has an active subscription. Cancel it first to change plans.'
+          : 'A subscription for this institution is already awaiting payment. Complete or cancel that one first.',
+      );
     }
 
     const amountMinor = dto.billingCycle === 'MONTHLY' ? plan.priceMonthlyMinor : plan.priceAnnualMinor;
     const razorpayPlanId = await this.razorpay.createSubscriptionPlan({ nameEn: `${plan.nameEn} (${dto.billingCycle})`, amountMinor, cycle: dto.billingCycle });
     // 12 monthly charges or 5 annual renewals before requiring re-authorisation — a Razorpay Subscriptions requirement, not a business limit.
-    const razorpaySubscriptionId = await this.razorpay.createSubscription(razorpayPlanId, dto.billingCycle === 'MONTHLY' ? 12 : 5);
+    const { id: razorpaySubscriptionId, shortUrl } = await this.razorpay.createSubscription(razorpayPlanId, dto.billingCycle === 'MONTHLY' ? 12 : 5);
 
     const now = new Date();
-    const periodEnd = new Date(now);
-    if (dto.billingCycle === 'MONTHLY') periodEnd.setMonth(periodEnd.getMonth() + 1);
-    else periodEnd.setFullYear(periodEnd.getFullYear() + 1);
 
-    const subscriptionData = {
-      planId: dto.planId,
-      billingCycle: dto.billingCycle,
-      status: 'ACTIVE' as const,
-      razorpaySubscriptionId,
-      currentPeriodStart: now,
-      currentPeriodEnd: periodEnd,
+    let subscriptionData: {
+      planId: string;
+      billingCycle: SubscribeOrganization['billingCycle'];
+      status: 'ACTIVE' | 'TRIALING';
+      razorpaySubscriptionId: string;
+      currentPeriodStart: Date | null;
+      currentPeriodEnd: Date | null;
     };
+    if (opts.settledImmediately) {
+      const periodEnd = new Date(now);
+      if (dto.billingCycle === 'MONTHLY') periodEnd.setMonth(periodEnd.getMonth() + 1);
+      else periodEnd.setFullYear(periodEnd.getFullYear() + 1);
+      subscriptionData = { planId: dto.planId, billingCycle: dto.billingCycle, status: 'ACTIVE', razorpaySubscriptionId, currentPeriodStart: now, currentPeriodEnd: periodEnd };
+    } else {
+      subscriptionData = { planId: dto.planId, billingCycle: dto.billingCycle, status: 'TRIALING', razorpaySubscriptionId, currentPeriodStart: null, currentPeriodEnd: null };
+    }
+
     const subscription = existing
       ? await this.prisma.organizationSubscription.update({ where: { orgId }, data: subscriptionData })
       : await this.prisma.organizationSubscription.create({ data: { orgId, ...subscriptionData } });
 
-    const invoicePaid = opts.settledImmediately || !this.razorpay.configured;
-    await this.prisma.institutionInvoice.create({
-      data: {
-        invoiceNumber: generateInvoiceNumber(now),
-        subscriptionId: subscription.id,
-        periodLabel: dto.billingCycle === 'MONTHLY' ? now.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) : 'Annual',
-        basePlanMinor: amountMinor,
-        totalMinor: amountMinor,
-        status: invoicePaid ? 'PAID' : 'PENDING',
-        dueAt: now,
-        paidAt: invoicePaid ? now : null,
-      },
-    });
+    if (opts.settledImmediately) {
+      await this.prisma.institutionInvoice.create({
+        data: {
+          invoiceNumber: generateInvoiceNumber(now),
+          subscriptionId: subscription.id,
+          periodLabel: dto.billingCycle === 'MONTHLY' ? now.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) : 'Annual',
+          basePlanMinor: amountMinor,
+          totalMinor: amountMinor,
+          status: 'PAID',
+          dueAt: now,
+          paidAt: now,
+        },
+      });
+    }
+    // Self-serve: no invoice yet — nothing has actually been charged. The
+    // first invoice is created by handleSubscriptionEvent on subscription.charged.
 
     await this.audit.record({
       actorUserId: actor.userId,
@@ -152,30 +173,33 @@ export class BillingService {
       targetType: 'Organization',
       targetId: orgId,
       result: 'SUCCESS',
-      after: { planId: dto.planId, billingCycle: dto.billingCycle },
+      after: { planId: dto.planId, billingCycle: dto.billingCycle, settledImmediately: opts.settledImmediately },
     });
-    return subscription;
+    return { subscription, checkoutUrl: opts.settledImmediately ? null : shortUrl };
   }
 
   /** Super Admin grants/renews an institution's licence directly — this is an
    *  administrative confirmation, not a live customer charge, so the invoice
    *  is recorded PAID immediately (see provisionSubscription's doc comment). */
   async subscribeOrganization(actor: Principal, orgId: string, dto: SubscribeOrganization) {
-    return this.provisionSubscription(actor, orgId, dto, { settledImmediately: true });
+    const { subscription } = await this.provisionSubscription(actor, orgId, dto, { settledImmediately: true });
+    return subscription;
   }
 
   /** Academic Head self-serve purchase/renewal for their own institution —
    *  gated on KYC verification so a Head can't unlock paid features before
-   *  the institution is confirmed real. A live Razorpay charge is expected,
-   *  so the invoice starts PENDING until the subscription.charged webhook
-   *  confirms it (handleSubscriptionEvent below). */
+   *  the institution is confirmed real. Returns a checkoutUrl the frontend
+   *  must send the Head to in order to actually complete payment — the
+   *  subscription stays TRIALING (no platform access unlocked) until they do
+   *  and Razorpay's subscription.charged webhook confirms it. */
   async selfServeSubscribe(actor: Principal, dto: SubscribeOrganization) {
     if (!actor.orgId) throw AppError.conflict('You are not linked to an institution.');
     const linkedAccount = await this.prisma.instituteLinkedAccount.findUnique({ where: { orgId: actor.orgId } });
     if (!linkedAccount || linkedAccount.kycStatus !== 'VERIFIED') {
       throw AppError.conflict('Complete your institution KYC verification before purchasing a subscription plan.');
     }
-    return this.provisionSubscription(actor, actor.orgId, dto, { settledImmediately: false });
+    const { subscription, checkoutUrl } = await this.provisionSubscription(actor, actor.orgId, dto, { settledImmediately: false });
+    return { subscriptionId: subscription.id, checkoutUrl };
   }
 
   /** The calling Academic Head's own subscription + KYC status, for the
