@@ -339,14 +339,15 @@ export function OrganizationsManager({ initial, locale }: { initial: Organizatio
         </div>
       ) : null}
 
-      {/* Set-password modal — testing bypass for when the invite email can't
-          be relied on; disappears server-side once APP_ENV is production. */}
+      {/* Set-password modal — for when the invite email can't be relied on;
+          activates the account immediately with an admin-chosen password
+          instead of waiting on the emailed accept link. */}
       {pwFor ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/50 p-4" onClick={() => setPwFor(null)}>
           <div className="w-full max-w-md rounded-lg border border-line bg-white p-5" onClick={(e) => e.stopPropagation()}>
             <h3 className="mb-1 text-lg font-black text-navy-900">{L('पासवर्ड सेट करें', 'Set password')}</h3>
             <p className="mb-3 text-xs text-muted">
-              {pwFor.invite.email} — {L('ईमेल भेजे बिना खाता तुरंत सक्रिय हो जाएगा। केवल परीक्षण के लिए।', "Activates the account immediately, no email sent. Testing only.")}
+              {pwFor.invite.email} — {L('ईमेल भेजे बिना खाता तुरंत सक्रिय हो जाएगा। यह उपयोगकर्ता को दें ताकि वे साइन इन कर सकें।', "Activates the account immediately, no email sent. Share this password with them so they can sign in.")}
             </p>
             {pwErrors._form ? <div className="mb-3"><Alert tone="error">{pwErrors._form}</Alert></div> : null}
             <form noValidate onSubmit={(e) => { e.preventDefault(); void submitSetPassword(); }}>

@@ -141,14 +141,12 @@ export class InvitationsService {
 
   /** Admin-set-password bypass — completes a pending invitation immediately
    *  with an admin-chosen password, skipping the emailed token entirely.
-   *  Exists for environments where outbound email can't be relied on for
-   *  testing (staging SES sandbox); never available once APP_ENV is a real
-   *  environment, so it disappears on its own rather than needing a
-   *  follow-up removal once email delivery is fixed. */
+   *  Originally staging-only (for when outbound email couldn't be relied on
+   *  for testing); productionized on request so a Head can activate a staff
+   *  member's account directly when an invite email never arrives, without
+   *  waiting on email-delivery troubleshooting. Tenant/role scoping below is
+   *  what keeps this safe in production, not the environment. */
   async adminSetPasswordAndAccept(actor: Principal, invitationId: string, password: string): Promise<{ userId: string; mfaSetupRequired: boolean }> {
-    if (this.env.APP_ENV === 'production' || this.env.APP_ENV === 'preproduction') {
-      throw AppError.notFound('Invitation not found.');
-    }
     const inv = await this.prisma.staffInvitation.findUnique({ where: { id: invitationId } });
     if (!inv || (inv.status !== 'PENDING' && inv.status !== 'EXPIRED')) throw AppError.notFound('Invitation not found.');
     // Same tenant/role restriction as create(): a non-super-admin can only
