@@ -81,7 +81,7 @@ export default async function PricingPage({ params }: { params: { locale: string
 
   return (
     <>
-      <PublicHeader locale={locale} />
+      <PublicHeader locale={locale} me={me} />
       <main id="main" className="mx-auto max-w-5xl px-4 py-10 md:py-14">
         <div className="mx-auto mb-9 max-w-2xl text-center">
           <span className="inline-flex items-center gap-2 rounded-full border border-teal-500/40 bg-teal-100 px-3 py-1.5 text-[13px] font-extrabold text-teal-600">

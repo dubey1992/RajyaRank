@@ -1,8 +1,10 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { cookies } from 'next/headers';
 import { resolveLocale } from '@/lib/i18n';
 import { apiFetchServer } from '@/lib/api';
+import { getMe } from '@/lib/student';
 import { PublicHeader } from '@/components/PublicHeader';
 import { MarkdownBody } from '@/components/MarkdownBody';
 import type { BlogPostSummary, BlogPostView } from '@rajyarank/contracts';
@@ -55,9 +57,11 @@ export default async function BlogPostPage({ params }: { params: { locale: strin
   const post = await getPost(params.slug);
   if (!post) notFound();
 
-  const related = ((await apiFetchServer<BlogPostSummary[]>(`/blog?category=${encodeURIComponent(post.category)}`, '')) ?? [])
-    .filter((p) => p.id !== post.id)
-    .slice(0, 3);
+  const [me, relatedRaw] = await Promise.all([
+    getMe(cookies().toString()),
+    apiFetchServer<BlogPostSummary[]>(`/blog?category=${encodeURIComponent(post.category)}`, ''),
+  ]);
+  const related = (relatedRaw ?? []).filter((p) => p.id !== post.id).slice(0, 3);
 
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -74,7 +78,7 @@ export default async function BlogPostPage({ params }: { params: { locale: strin
 
   return (
     <>
-      <PublicHeader locale={locale} />
+      <PublicHeader locale={locale} me={me} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <main id="main" className="mx-auto max-w-3xl px-4 py-10">
         <nav className="mb-6 text-sm text-muted">

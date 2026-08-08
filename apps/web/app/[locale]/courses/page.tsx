@@ -61,7 +61,7 @@ export default async function AllCoursesPage({ params }: { params: { locale: str
 
   return (
     <>
-      <PublicHeader locale={locale} />
+      <PublicHeader locale={locale} me={me} />
       <main id="main" className="mx-auto max-w-6xl px-4 py-10">
         <h1 className="text-3xl font-black text-navy-950">{heading}</h1>
         <p className="mt-2 max-w-2xl text-muted">

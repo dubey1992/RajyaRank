@@ -71,7 +71,7 @@ export default async function LandingPage({ params }: { params: { locale: string
       </div>
 
       {/* Header */}
-      <PublicHeader locale={locale} showInstitutesLink={!!(institutes && institutes.length)} />
+      <PublicHeader locale={locale} showInstitutesLink={!!(institutes && institutes.length)} me={me} />
 
       {/* Hero */}
       <section

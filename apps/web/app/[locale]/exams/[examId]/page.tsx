@@ -108,7 +108,7 @@ export default async function ExamDetailPage({ params }: { params: { locale: str
 
   return (
     <>
-      <PublicHeader locale={locale} />
+      <PublicHeader locale={locale} me={me} />
       <main id="main" className="mx-auto max-w-5xl px-4 py-10">{content}</main>
     </>
   );

@@ -92,7 +92,7 @@ export default async function CurrentAffairsPage({ params }: { params: { locale:
   // Public visitor → marketing header.
   return (
     <>
-      <PublicHeader locale={locale} />
+      <PublicHeader locale={locale} me={me} />
       <main id="main" className="mx-auto max-w-3xl px-4 py-10">
         <h1 className="text-3xl font-black text-navy-950">{L('करेंट अफेयर्स', 'Current Affairs')}</h1>
         <p className="mt-2 text-muted">{L('नि:शुल्क — बिना लॉगिन। परीक्षा-केंद्रित दैनिक अपडेट।', 'Free, no login. Exam-focused daily updates.')}</p>

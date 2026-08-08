@@ -1,16 +1,33 @@
 import Link from 'next/link';
 import { Logo } from '@rajyarank/ui';
 import { LanguageSwitch } from './LanguageSwitch';
+import { initialsOf } from '@/lib/student';
 import type { Locale } from '@/lib/i18n';
+import type { MeResponse } from '@rajyarank/contracts';
 
 /** Shared header for every public/marketing page (landing, exams, courses,
  *  current affairs, pricing, search). One component so nav links, the mobile
  *  menu, and styling can never drift between pages again. The mobile menu uses
  *  a native <details>/<summary> disclosure — no client JS needed, so this can
- *  stay a server component and still work with JS disabled. */
-export function PublicHeader({ locale, showInstitutesLink = false }: { locale: Locale; showInstitutesLink?: boolean }) {
+ *  stay a server component and still work with JS disabled.
+ *
+ *  `me` is deliberately a prop, not fetched in here — a couple of callers
+ *  (contact, request-demo) are `force-static`, and this component reading
+ *  cookies() itself would force them dynamic. Pass `me` wherever the page
+ *  already resolves it (most do, for their own isStudent gating); omit it
+ *  on pages that don't and this renders the same logged-out header as before. */
+export function PublicHeader({
+  locale,
+  showInstitutesLink = false,
+  me = null,
+}: {
+  locale: Locale;
+  showInstitutesLink?: boolean;
+  me?: MeResponse | null;
+}) {
   const hi = locale === 'hi';
   const L = (h: string, e: string) => (hi ? h : e);
+  const isStudent = me?.kind === 'STUDENT';
 
   const navItems = [
     { href: `/${locale}/exams`, label: L('परीक्षाएँ', 'Exams') },
@@ -42,18 +59,32 @@ export function PublicHeader({ locale, showInstitutesLink = false }: { locale: L
 
         <div className="flex items-center gap-2.5">
           <LanguageSwitch locale={locale} />
-          <Link
-            href={`/${locale}/login`}
-            className="hidden rounded-xl border-[1.5px] border-orange-500/50 bg-white px-4 py-2 text-sm font-extrabold text-orange-600 transition hover:border-orange-500 sm:inline-flex"
-          >
-            {L('लॉगिन', 'Login')}
-          </Link>
-          <Link
-            href={`/${locale}/signup`}
-            className="hidden rounded-xl bg-orange-500 px-4 py-2 text-sm font-extrabold text-white shadow-[0_8px_18px_rgba(249,115,22,0.22)] transition hover:bg-orange-600 sm:inline-flex"
-          >
-            {L('मुफ़्त शुरू करें', 'Start Free')}
-          </Link>
+          {isStudent ? (
+            <Link
+              href={`/${locale}${me.homeRoute}`}
+              className="hidden items-center gap-2 rounded-xl border-[1.5px] border-line bg-white py-1.5 pl-1.5 pr-3.5 text-sm font-extrabold text-navy-900 transition hover:border-orange-500/50 sm:inline-flex"
+            >
+              <span className="grid h-7 w-7 place-items-center rounded-lg bg-gradient-to-br from-orange-500 to-orange-100 text-[11px] font-black text-white">
+                {initialsOf(me.displayName)}
+              </span>
+              {L('डैशबोर्ड', 'Dashboard')}
+            </Link>
+          ) : (
+            <>
+              <Link
+                href={`/${locale}/login`}
+                className="hidden rounded-xl border-[1.5px] border-orange-500/50 bg-white px-4 py-2 text-sm font-extrabold text-orange-600 transition hover:border-orange-500 sm:inline-flex"
+              >
+                {L('लॉगिन', 'Login')}
+              </Link>
+              <Link
+                href={`/${locale}/signup`}
+                className="hidden rounded-xl bg-orange-500 px-4 py-2 text-sm font-extrabold text-white shadow-[0_8px_18px_rgba(249,115,22,0.22)] transition hover:bg-orange-600 sm:inline-flex"
+              >
+                {L('मुफ़्त शुरू करें', 'Start Free')}
+              </Link>
+            </>
+          )}
 
           {/* Mobile menu — nav collapses under lg, so this is the only way to
              reach Exams/Courses/Current Affairs/etc. on phones/tablets. */}
@@ -76,12 +107,20 @@ export function PublicHeader({ locale, showInstitutesLink = false }: { locale: L
               </nav>
               <div className="my-2 border-t border-line" />
               <div className="flex flex-col gap-2">
-                <Link href={`/${locale}/login`} className="rounded-lg border-[1.5px] border-orange-500/50 px-3 py-2 text-center text-sm font-extrabold text-orange-600">
-                  {L('लॉगिन', 'Login')}
-                </Link>
-                <Link href={`/${locale}/signup`} className="rounded-lg bg-orange-500 px-3 py-2 text-center text-sm font-extrabold text-white">
-                  {L('मुफ़्त शुरू करें', 'Start Free')}
-                </Link>
+                {isStudent ? (
+                  <Link href={`/${locale}${me.homeRoute}`} className="rounded-lg bg-orange-500 px-3 py-2 text-center text-sm font-extrabold text-white">
+                    {L('डैशबोर्ड पर जाएँ', 'Go to Dashboard')}
+                  </Link>
+                ) : (
+                  <>
+                    <Link href={`/${locale}/login`} className="rounded-lg border-[1.5px] border-orange-500/50 px-3 py-2 text-center text-sm font-extrabold text-orange-600">
+                      {L('लॉगिन', 'Login')}
+                    </Link>
+                    <Link href={`/${locale}/signup`} className="rounded-lg bg-orange-500 px-3 py-2 text-center text-sm font-extrabold text-white">
+                      {L('मुफ़्त शुरू करें', 'Start Free')}
+                    </Link>
+                  </>
+                )}
               </div>
             </div>
           </details>

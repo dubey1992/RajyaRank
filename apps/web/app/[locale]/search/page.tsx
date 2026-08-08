@@ -105,7 +105,7 @@ export default async function SearchPage({
 
   return (
     <>
-      <PublicHeader locale={locale} />
+      <PublicHeader locale={locale} me={me} />
       <main id="main" className="mx-auto max-w-4xl px-4 py-10">{content}</main>
     </>
   );

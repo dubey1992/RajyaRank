@@ -1,7 +1,9 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { cookies } from 'next/headers';
 import { resolveLocale } from '@/lib/i18n';
 import { apiFetchServer } from '@/lib/api';
+import { getMe } from '@/lib/student';
 import { PublicHeader } from '@/components/PublicHeader';
 import type { BlogPostSummary } from '@rajyarank/contracts';
 
@@ -48,13 +50,17 @@ export default async function BlogIndexPage({
   const activeCategory = searchParams.category;
 
   const qs = activeCategory ? `?category=${encodeURIComponent(activeCategory)}` : '';
-  const posts = (await apiFetchServer<BlogPostSummary[]>(`/blog${qs}`, '')) ?? [];
-  const allPosts = activeCategory ? ((await apiFetchServer<BlogPostSummary[]>('/blog', '')) ?? []) : posts;
+  const [me, posts, allPostsForCategories] = await Promise.all([
+    getMe(cookies().toString()),
+    apiFetchServer<BlogPostSummary[]>(`/blog${qs}`, '').then((r) => r ?? []),
+    activeCategory ? apiFetchServer<BlogPostSummary[]>('/blog', '').then((r) => r ?? []) : Promise.resolve(null),
+  ]);
+  const allPosts = allPostsForCategories ?? posts;
   const categories = Array.from(new Set(allPosts.map((p) => p.category))).sort();
 
   return (
     <>
-      <PublicHeader locale={locale} />
+      <PublicHeader locale={locale} me={me} />
       <main id="main" className="mx-auto max-w-6xl px-4 py-10">
         <div className="max-w-2xl">
           <h1 className="text-3xl font-black tracking-tight text-navy-950 md:text-4xl">{L('ब्लॉग', 'Blog')}</h1>
