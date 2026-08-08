@@ -178,12 +178,12 @@ export function SettlementsManager({
                               <button type="button" className="rounded-md border border-line px-2 py-1 text-xs font-bold hover:bg-surface-soft" onClick={() => void toggleKyc(a.orgId)}>
                                 {expandedOrgId === a.orgId ? L('छुपाएं', 'Hide') : L('KYC देखें', 'View KYC')}
                               </button>
-                              {a.kycStatus !== 'VERIFIED' ? (
+                              {a.kycStatus === 'PENDING' ? (
                                 <button type="button" disabled={rowBusy === a.orgId} className="rounded-md border border-line px-2 py-1 text-xs font-bold hover:bg-surface-soft disabled:opacity-50" onClick={() => void verifyKyc(a.orgId)}>
                                   {L('KYC सत्यापित करें', 'Verify KYC')}
                                 </button>
                               ) : null}
-                              {a.kycStatus !== 'VERIFIED' ? (
+                              {a.kycStatus === 'PENDING' ? (
                                 <button type="button" disabled={rowBusy === a.orgId} className="rounded-md border border-danger px-2 py-1 text-xs font-bold text-danger hover:bg-orange-100/50 disabled:opacity-50" onClick={() => startReject(a.orgId)}>
                                   {L('अस्वीकार करें', 'Reject KYC')}
                                 </button>
