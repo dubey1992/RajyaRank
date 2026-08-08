@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { resolveLocale } from '@/lib/i18n';
@@ -29,7 +30,21 @@ export default async function AccountPage({ params }: { params: { locale: string
     apiFetchServer<ProfileResponse>('/auth/me/profile', cookie),
     apiFetchServer<StudyGoals>('/student/profile/goals', cookie),
   ]);
-  const activeEntitlement = (entitlements ?? []).find((e) => e.status === 'ACTIVE') ?? (entitlements ?? [])[0];
+  // For the small profile-card badge: most recent entitlement regardless of
+  // whether it's still live — its own status label ("EXPIRED" etc.) already
+  // shows honestly, so this is informative rather than misleading.
+  const mostRecentEntitlement = (entitlements ?? []).find((e) => e.status === 'ACTIVE') ?? (entitlements ?? [])[0];
+
+  // For the "My plan" sidebar card: status ACTIVE alone isn't enough — nothing
+  // flips it to EXPIRED when endsAt passes, so a lapsed row can still read
+  // ACTIVE. Same live-check as the pricing page and the backend's own guards.
+  const isLive = (e: EntitlementView) => e.status === 'ACTIVE' && (!e.endsAt || new Date(e.endsAt) > new Date());
+  const liveEntitlements = (entitlements ?? []).filter(isLive);
+  const hasActivePlan = liveEntitlements.length > 0;
+  const activeEntitlementEndsAt = liveEntitlements.reduce<string | null>((latest, e) => {
+    if (!e.endsAt) return latest;
+    return !latest || e.endsAt > latest ? e.endsAt : latest;
+  }, null);
 
   return (
     <StudentShell
@@ -37,7 +52,8 @@ export default async function AccountPage({ params }: { params: { locale: string
       name={me.displayName ?? L('विद्यार्थी', 'Student')}
       initials={initialsOf(me.displayName)}
       target={L('प्रोफ़ाइल व सेटिंग्स', 'Profile & Settings')}
-      activeEntitlementEndsAt={activeEntitlement?.endsAt ?? null}
+      hasActivePlan={hasActivePlan}
+      activeEntitlementEndsAt={activeEntitlementEndsAt}
     >
       <div className="mb-6">
         <h1 className="text-[26px] font-black tracking-tight text-navy-950 md:text-[34px]">{L('प्रोफ़ाइल व सेटिंग्स', 'Profile & Settings')}</h1>
@@ -56,10 +72,10 @@ export default async function AccountPage({ params }: { params: { locale: string
             </div>
           ) : null}
           <span className="mt-3 block"><span className="inline-flex rounded-full bg-teal-100 px-2.5 py-1 text-[9px] font-black text-teal-600">{L('सत्यापित विद्यार्थी', 'VERIFIED STUDENT')}</span></span>
-          {activeEntitlement ? (
+          {mostRecentEntitlement ? (
             <div className="mt-4 rounded-xl bg-surface-soft p-3 text-left text-[10.5px]">
-              <div className="flex items-center justify-between"><span className="text-muted">{L('प्लान', 'Plan')}</span><strong className={activeEntitlement.status === 'ACTIVE' ? 'text-success' : 'text-ink'}>{activeEntitlement.status}</strong></div>
-              {activeEntitlement.endsAt ? <div className="mt-1 flex items-center justify-between"><span className="text-muted">{L('वैध तक', 'Valid till')}</span><strong>{activeEntitlement.endsAt.slice(0, 10)}</strong></div> : null}
+              <div className="flex items-center justify-between"><span className="text-muted">{L('प्लान', 'Plan')}</span><strong className={mostRecentEntitlement.status === 'ACTIVE' ? 'text-success' : 'text-ink'}>{mostRecentEntitlement.status}</strong></div>
+              {mostRecentEntitlement.endsAt ? <div className="mt-1 flex items-center justify-between"><span className="text-muted">{L('वैध तक', 'Valid till')}</span><strong>{mostRecentEntitlement.endsAt.slice(0, 10)}</strong></div> : null}
             </div>
           ) : null}
         </aside>
@@ -92,7 +108,10 @@ export default async function AccountPage({ params }: { params: { locale: string
           <section className="rounded-[18px] border border-line bg-white p-5 shadow-[0_7px_22px_rgba(6,29,49,0.04)]">
             <h2 className="mb-3 text-base font-black tracking-tight text-navy-950">{L('मेरी सदस्यताएँ', 'My entitlements')}</h2>
             {(entitlements ?? []).length === 0 ? (
-              <p className="text-sm text-muted">{L('अभी कोई सक्रिय सदस्यता नहीं।', 'No active entitlements yet.')}</p>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-sm text-muted">{L('अभी कोई सक्रिय सदस्यता नहीं।', 'No active entitlements yet.')}</p>
+                <Link href={`/${locale}/pricing`} className="rounded-lg bg-orange-500 px-3 py-2 text-xs font-black text-white">{L('प्लान देखें', 'Browse plans')}</Link>
+              </div>
             ) : (
               <ul className="grid gap-2 text-sm">
                 {(entitlements ?? []).map((e) => (

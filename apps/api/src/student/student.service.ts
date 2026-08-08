@@ -239,8 +239,11 @@ export class StudentService {
       return { lessonId: c.lessonId, titleHi: lv?.titleHi ?? '', titleEn: lv?.titleEn ?? '', percentComplete: c.percentComplete };
     });
 
+    // status: 'ACTIVE' alone isn't enough — nothing flips it to EXPIRED when
+    // endsAt passes, so a lapsed entitlement stays ACTIVE in the row until
+    // something else touches it. Same live-check as hasCourseAccess/isLive.
     const activeEntitlements = await this.prisma.entitlement.findMany({
-      where: { userId, status: 'ACTIVE' },
+      where: { userId, status: 'ACTIVE', OR: [{ endsAt: null }, { endsAt: { gt: new Date() } }] },
       select: { endsAt: true },
     });
     const activeEntitlementEndsAt = activeEntitlements.length
@@ -299,6 +302,7 @@ export class StudentService {
       continueWatching: continueOut,
       currentAffairs: affairs.map((a) => ({ id: a.id, titleHi: a.titleHi, titleEn: a.titleEn, dateFor: a.dateFor.toISOString() })),
       onboarded: Boolean(profile?.onboardedAt),
+      hasActivePlan: activeEntitlements.length > 0,
       activeEntitlementEndsAt: activeEntitlementEndsAt ? activeEntitlementEndsAt.toISOString() : null,
     };
   }

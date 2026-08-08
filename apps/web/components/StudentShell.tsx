@@ -38,6 +38,7 @@ export function StudentShell({
   initials,
   target,
   notifCount,
+  hasActivePlan,
   activeEntitlementEndsAt,
   children,
 }: {
@@ -46,10 +47,13 @@ export function StudentShell({
   initials: string;
   target: string;
   notifCount?: number;
-  /** ISO expiry of the student's active plan, when known. Omit when the page
-   *  hasn't fetched entitlement data — the sidebar card is hidden rather than
-   *  showing a guessed/fake date. Pass `null` explicitly for "no expiry known
-   *  yet" (no active entitlement, or a lifetime one). */
+  /** Whether the student holds any live entitlement right now. Omit when the
+   *  page hasn't fetched entitlement data — the sidebar card is hidden rather
+   *  than guessing. Required (paired with activeEntitlementEndsAt) to tell
+   *  "no plan" apart from "an active lifetime plan with no expiry date". */
+  hasActivePlan?: boolean;
+  /** ISO expiry of the student's active plan, when it has one (null for none
+   *  active, or for an active lifetime plan — check hasActivePlan). */
   activeEntitlementEndsAt?: string | null;
   children: ReactNode;
 }) {
@@ -144,19 +148,25 @@ export function StudentShell({
         <div className="px-3 pb-1.5 pt-4 text-[9.5px] font-black uppercase tracking-[0.14em] text-[#7898ad]">{L('सहायता', 'Connect')}</div>
         <nav className="grid gap-1">{connect.map((it) => <NavLink key={it.href} item={it} />)}</nav>
 
-        {activeEntitlementEndsAt !== undefined ? (
+        {hasActivePlan !== undefined ? (
           <div className="mt-auto pt-5">
-            <div className="rounded-2xl border border-teal-500/20 bg-gradient-to-br from-teal-600/25 to-white/[0.07] p-4">
-              <strong className="text-[13px]">{L('मेरा प्लान', 'My plan')}</strong>
+            <div className={`rounded-2xl border p-4 ${hasActivePlan ? 'border-teal-500/20 bg-gradient-to-br from-teal-600/25 to-white/[0.07]' : 'border-orange-500/25 bg-gradient-to-br from-orange-500/20 to-white/[0.07]'}`}>
+              <strong className="text-[13px]">{hasActivePlan ? L('मेरा प्लान', 'My plan') : L('कोई सक्रिय प्लान नहीं', 'No active plan')}</strong>
               <p className="my-1.5 text-[10.5px] text-[#bcd3df]">
-                {activeEntitlementEndsAt
-                  ? L(
-                      `एक्सेस ${new Date(activeEntitlementEndsAt).toLocaleDateString('hi-IN', { day: 'numeric', month: 'short', year: 'numeric' })} तक वैध।`,
-                      `Access valid until ${new Date(activeEntitlementEndsAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}.`,
-                    )
-                  : L('अपनी सदस्यता व प्लान प्रबंधित करें।', 'Manage your plan and entitlements.')}
+                {hasActivePlan
+                  ? activeEntitlementEndsAt
+                    ? L(
+                        `एक्सेस ${new Date(activeEntitlementEndsAt).toLocaleDateString('hi-IN', { day: 'numeric', month: 'short', year: 'numeric' })} तक वैध।`,
+                        `Access valid until ${new Date(activeEntitlementEndsAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}.`,
+                      )
+                    : L('आजीवन एक्सेस।', 'Lifetime access.')
+                  : L('पूरे कोर्स व टेस्ट सीरीज़ खोलने के लिए एक प्लान खरीदें।', 'Buy a plan to unlock full courses and test series.')}
               </p>
-              <Link href={p('/account')} className="block w-full rounded-lg bg-white py-2 text-center text-[11px] font-black text-navy-900">{L('मेरा प्लान देखें', 'View my plan')}</Link>
+              {hasActivePlan ? (
+                <Link href={p('/account')} className="block w-full rounded-lg bg-white py-2 text-center text-[11px] font-black text-navy-900">{L('मेरा प्लान देखें', 'View my plan')}</Link>
+              ) : (
+                <Link href={p('/pricing')} className="block w-full rounded-lg bg-orange-500 py-2 text-center text-[11px] font-black text-white">{L('प्लान खरीदें', 'Buy a plan')}</Link>
+              )}
             </div>
           </div>
         ) : null}

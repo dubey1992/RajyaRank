@@ -64,7 +64,7 @@ export default async function DashboardPage({ params }: { params: { locale: stri
   };
 
   return (
-    <StudentShell locale={locale} name={name} initials={initials} target={targetLabel} activeEntitlementEndsAt={data.activeEntitlementEndsAt}>
+    <StudentShell locale={locale} name={name} initials={initials} target={targetLabel} hasActivePlan={data.hasActivePlan} activeEntitlementEndsAt={data.activeEntitlementEndsAt}>
       {/* Page head */}
       <div className="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-start">
         <div>

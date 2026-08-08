@@ -101,7 +101,15 @@ export interface DashboardResponse {
   continueWatching: { lessonId: string; titleHi: string; titleEn: string; percentComplete: number }[];
   currentAffairs: { id: string; titleHi: string; titleEn: string; dateFor: string }[];
   onboarded: boolean;
-  /** Soonest-relevant active entitlement expiry, or null when the student has none. */
+  /** Whether the student currently holds any ACTIVE entitlement (course or
+   *  subscription plan) — the source of truth for whether to prompt "Buy a
+   *  plan" vs "View my plan". Needed alongside activeEntitlementEndsAt because
+   *  a lifetime entitlement (no expiry) is indistinguishable from "no plan at
+   *  all" if you only look at the date. */
+  hasActivePlan: boolean;
+  /** Latest expiry among active entitlements that have one, or null when the
+   *  student has none active OR their only active entitlement(s) are lifetime
+   *  (no expiry) — check hasActivePlan to tell those two apart. */
   activeEntitlementEndsAt: string | null;
 }
 
