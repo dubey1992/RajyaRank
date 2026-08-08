@@ -25,8 +25,6 @@ export class AnalyticsService {
       pendingReview,
       attempts,
       completedAttempts,
-      revenue,
-      paidOrders,
       openDoubts,
       openTickets,
     ] = await Promise.all([
@@ -37,8 +35,6 @@ export class AnalyticsService {
       this.prisma.lessonVersion.count({ where: { status: { in: ['SUBMITTED', 'UNDER_REVIEW'] } } }),
       this.prisma.attempt.count(),
       this.prisma.attempt.count({ where: { submittedAt: { not: null } } }),
-      this.prisma.payment.aggregate({ _sum: { amountMinor: true }, where: { status: 'PAID' } }),
-      this.prisma.order.count({ where: { status: 'PAID' } }),
       this.prisma.doubt.count({ where: { status: { notIn: ['RESOLVED', 'CLOSED'] } } }),
       this.prisma.supportTicket.count({ where: { status: { notIn: ['RESOLVED', 'CLOSED'] } } }),
     ]);
@@ -51,10 +47,132 @@ export class AnalyticsService {
       pendingReview,
       attempts,
       completedAttempts,
-      revenueMinor: revenue._sum.amountMinor ?? 0,
-      paidOrders,
       openDoubts,
       openTickets,
+    };
+  }
+
+  /** Super Admin revenue dashboard — combines the two direct-sale revenue
+   *  streams that nothing previously summed together: student Orders/Payments
+   *  (course + subscription-plan purchases) and institution InstitutionInvoices
+   *  (platform licence fees). Deliberately excludes marketplace commission
+   *  (Transfer.platformFeeMinor, shown separately in the existing "Platform
+   *  Finance" card) — that's RajyaRank's cut of an institution's OWN course
+   *  sales, a different revenue mechanism, not money paid directly to
+   *  RajyaRank the way these two streams are. */
+  async revenueOverview() {
+    const now = new Date();
+    const twelveMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+    const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const dayAgo = new Date(now.getTime() - 24 * 3_600_000);
+    const twoDaysAgo = new Date(now.getTime() - 48 * 3_600_000);
+
+    const [
+      allStudentPayments,
+      allInstitutionInvoices,
+      recentStudentPayments,
+      recentInstitutionInvoices,
+      activeInstitutionSubs,
+      activeStudentPlans,
+      overdueInvoiceCount,
+      institutionPlanRows,
+      studentPlanRows,
+      stalledTrials,
+      overdueInvoiceRows,
+      unpaidOrderRows,
+    ] = await Promise.all([
+      this.prisma.payment.aggregate({ _sum: { amountMinor: true }, where: { status: 'PAID' } }),
+      this.prisma.institutionInvoice.aggregate({ _sum: { totalMinor: true }, where: { status: 'PAID' } }),
+      this.prisma.payment.findMany({ where: { status: 'PAID', paidAt: { gte: twelveMonthsAgo } }, select: { amountMinor: true, paidAt: true } }),
+      this.prisma.institutionInvoice.findMany({ where: { status: 'PAID', paidAt: { gte: twelveMonthsAgo } }, select: { totalMinor: true, paidAt: true } }),
+      this.prisma.organizationSubscription.count({ where: { status: 'ACTIVE' } }),
+      this.prisma.entitlement.count({ where: { status: 'ACTIVE', product: { kind: 'SUBSCRIPTION' }, OR: [{ endsAt: null }, { endsAt: { gt: now } }] } }),
+      this.prisma.institutionInvoice.count({ where: { status: 'OVERDUE' } }),
+      this.prisma.organizationSubscription.findMany({ where: { status: 'ACTIVE' }, select: { plan: { select: { nameHi: true, nameEn: true } } } }),
+      this.prisma.entitlement.findMany({
+        where: { status: 'ACTIVE', product: { kind: 'SUBSCRIPTION' }, OR: [{ endsAt: null }, { endsAt: { gt: now } }] },
+        select: { product: { select: { titleHi: true, titleEn: true } } },
+      }),
+      this.prisma.organizationSubscription.findMany({
+        where: { status: 'TRIALING', createdAt: { lt: twoDaysAgo } },
+        select: { orgId: true, createdAt: true, organization: { select: { name: true } }, plan: { select: { nameEn: true } } },
+        orderBy: { createdAt: 'asc' },
+        take: 10,
+      }),
+      this.prisma.institutionInvoice.findMany({
+        where: { status: 'OVERDUE' },
+        select: { id: true, invoiceNumber: true, totalMinor: true, dueAt: true, subscription: { select: { organization: { select: { name: true } } } } },
+        orderBy: { dueAt: 'asc' },
+        take: 10,
+      }),
+      this.prisma.order.findMany({
+        where: { status: 'CREATED', createdAt: { lt: dayAgo } },
+        select: { id: true, amountMinor: true, createdAt: true, user: { select: { displayName: true, email: true, phone: true } }, product: { select: { titleEn: true } } },
+        orderBy: { createdAt: 'asc' },
+        take: 10,
+      }),
+    ]);
+
+    const recentInstitutionAmounts = recentInstitutionInvoices.map((i) => ({ amountMinor: i.totalMinor, paidAt: i.paidAt }));
+    const sumInRange = (rows: { amountMinor: number; paidAt: Date | null }[], from: Date, to?: Date) =>
+      rows.reduce((sum, r) => (!r.paidAt || r.paidAt < from || (to && r.paidAt >= to) ? sum : sum + r.amountMinor), 0);
+
+    // Last 12 calendar months, oldest first, keyed YYYY-MM.
+    const months = Array.from({ length: 12 }, (_, i) => {
+      const d = new Date(twelveMonthsAgo.getFullYear(), twelveMonthsAgo.getMonth() + i, 1);
+      return { label: d.toLocaleDateString('en-IN', { month: 'short', year: '2-digit' }), start: d, end: new Date(d.getFullYear(), d.getMonth() + 1, 1) };
+    });
+    const monthly = months.map((m) => ({
+      month: m.label,
+      studentRevenueMinor: sumInRange(recentStudentPayments, m.start, m.end),
+      institutionRevenueMinor: sumInRange(recentInstitutionAmounts, m.start, m.end),
+    }));
+
+    const countBy = <T,>(rows: T[], keyOf: (row: T) => string) => {
+      const map = new Map<string, number>();
+      for (const row of rows) map.set(keyOf(row), (map.get(keyOf(row)) ?? 0) + 1);
+      return map;
+    };
+    const institutionPlanCounts = countBy(institutionPlanRows, (r) => r.plan.nameEn);
+    const institutionPlanMix = Array.from(institutionPlanCounts, ([nameEn, count]) => ({ nameEn, count }));
+    const studentPlanCounts = countBy(studentPlanRows, (r) => r.product.titleEn);
+    const studentPlanMix = Array.from(studentPlanCounts, ([titleEn, count]) => ({ titleEn, count }));
+
+    const dayMs = 86_400_000;
+    return {
+      totalRevenueMinor: (allStudentPayments._sum.amountMinor ?? 0) + (allInstitutionInvoices._sum.totalMinor ?? 0),
+      thisMonthRevenueMinor: sumInRange(recentStudentPayments, startOfThisMonth) + sumInRange(recentInstitutionAmounts, startOfThisMonth),
+      lastMonthRevenueMinor:
+        sumInRange(recentStudentPayments, startOfLastMonth, startOfThisMonth) + sumInRange(recentInstitutionAmounts, startOfLastMonth, startOfThisMonth),
+      activeInstitutionSubs,
+      activeStudentPlans,
+      overdueInvoiceCount,
+      monthly,
+      institutionPlanMix,
+      studentPlanMix,
+      needsAttention: {
+        stalledTrials: stalledTrials.map((s) => ({
+          orgId: s.orgId,
+          orgName: s.organization.name,
+          planNameEn: s.plan.nameEn,
+          sinceDays: Math.floor((now.getTime() - s.createdAt.getTime()) / dayMs),
+        })),
+        overdueInvoices: overdueInvoiceRows.map((i) => ({
+          id: i.id,
+          invoiceNumber: i.invoiceNumber,
+          orgName: i.subscription.organization.name,
+          amountMinor: i.totalMinor,
+          dueAt: i.dueAt.toISOString(),
+        })),
+        unpaidOrders: unpaidOrderRows.map((o) => ({
+          id: o.id,
+          buyer: o.user.displayName ?? o.user.email ?? o.user.phone ?? '—',
+          product: o.product.titleEn,
+          amountMinor: o.amountMinor,
+          createdAt: o.createdAt.toISOString(),
+        })),
+      },
     };
   }
 

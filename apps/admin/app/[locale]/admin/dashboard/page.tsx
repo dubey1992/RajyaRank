@@ -5,6 +5,7 @@ import { getMeOrRedirect } from '@/lib/auth';
 import { apiFetchServer } from '@/lib/api';
 import { Shell, showsMergedContent } from '@/components/Shell';
 import { AnalyticsCards, type Overview } from '@/components/AnalyticsCards';
+import { RevenueDashboard, type RevenueOverview } from '@/components/RevenueDashboard';
 import { InstitutionOverviewCards } from '@/components/InstitutionOverviewCards';
 import { ContentPipelineCards, type ContentPipelineOverview } from '@/components/ContentPipelineCards';
 import { ReviewOverviewCards, type ReviewOverview } from '@/components/ReviewOverviewCards';
@@ -36,9 +37,10 @@ export default async function AdminDashboard({ params }: { params: { locale: str
   const showsContentPipeline = can(me, 'content.edit_all');
   const isReviewer = can(me, 'content.review');
 
-  const [orgs, overview, institution, contentPipeline, reviewOverview, financeSummary, institutionEarnings] = await Promise.all([
+  const [orgs, overview, revenueOverview, institution, contentPipeline, reviewOverview, financeSummary, institutionEarnings] = await Promise.all([
     isSuper ? apiFetchServer<OrganizationView[]>('/admin/organizations', cookie) : Promise.resolve(null),
     can(me, 'audit.view') ? apiFetchServer<Overview>('/admin/analytics/overview', cookie) : Promise.resolve(null),
+    can(me, 'payment.manage') ? apiFetchServer<RevenueOverview>('/admin/analytics/revenue-overview', cookie) : Promise.resolve(null),
     isOrgUserManager ? apiFetchServer<InstitutionOverview>('/admin/analytics/institution-overview', cookie) : Promise.resolve(null),
     showsContentPipeline ? apiFetchServer<ContentPipelineOverview>('/admin/analytics/content-pipeline', cookie) : Promise.resolve(null),
     isReviewer ? apiFetchServer<ReviewOverview>('/admin/analytics/review-overview', cookie) : Promise.resolve(null),
@@ -68,6 +70,9 @@ export default async function AdminDashboard({ params }: { params: { locale: str
           </Link>
         </section>
       ) : null}
+
+      {/* Super Admin: combined revenue dashboard (student + institution direct sales) */}
+      {revenueOverview ? <RevenueDashboard data={revenueOverview} locale={locale} /> : null}
 
       {/* Super Admin: platform finance summary (institution subscriptions + marketplace commission) */}
       {financeSummary ? (

@@ -14,6 +14,14 @@ export class AnalyticsController {
     return this.analytics.overview();
   }
 
+  /** Super Admin revenue dashboard — combined student + institution direct
+   *  revenue, trends, plan mix, and payments needing attention. */
+  @Get('revenue-overview')
+  @RequirePermission('payment.manage')
+  revenueOverview() {
+    return this.analytics.revenueOverview();
+  }
+
   /** Academic Head dashboard — throws (403) if the caller has no orgId. */
   @Get('institution-overview')
   @RequirePermission('user.manage')
