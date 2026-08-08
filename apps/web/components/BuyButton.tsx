@@ -23,11 +23,39 @@ function loadRazorpay(): Promise<boolean> {
   });
 }
 
-export function BuyButton({ productId, locale, accessCode }: { productId: string; locale: string; accessCode?: string }) {
+export function BuyButton({
+  productId,
+  locale,
+  accessCode,
+  loggedIn = true,
+  next,
+}: {
+  productId: string;
+  locale: string;
+  accessCode?: string;
+  /** Server already knows whether a session cookie is present — skips a
+   *  wasted round trip and shows honest button copy instead of "Buy now"
+   *  followed by a surprise redirect. */
+  loggedIn?: boolean;
+  /** Path to return to after login (e.g. this same pricing page) so the
+   *  student doesn't lose their place mid-purchase. */
+  next?: string;
+}) {
   const hi = locale === 'hi';
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+
+  if (!loggedIn) {
+    return (
+      <Button
+        onClick={() => router.push(`/${locale}/login${next ? `?next=${encodeURIComponent(next)}` : ''}`)}
+        className="w-full"
+      >
+        {hi ? 'खरीदने के लिए लॉगिन करें' : 'Login to buy'}
+      </Button>
+    );
+  }
 
   async function buy() {
     setBusy(true);
@@ -75,7 +103,9 @@ export function BuyButton({ productId, locale, accessCode }: { productId: string
       rzp.open();
     } catch (e) {
       const err = e as ApiError;
-      if (err.code === 'AUTH_INVALID_CREDENTIALS' || err.code === 'PERMISSION_DENIED') router.push(`/${locale}/login`);
+      if (err.code === 'AUTH_INVALID_CREDENTIALS' || err.code === 'PERMISSION_DENIED') {
+        router.push(`/${locale}/login${next ? `?next=${encodeURIComponent(next)}` : ''}`);
+      }
       else setMsg(err.message);
     } finally {
       setBusy(false);

@@ -30,7 +30,12 @@ export class AllExceptionsFilter implements ExceptionFilter {
         code = (body as { code: ErrorCode }).code;
         message = (body as { message?: string }).message ?? message;
       } else {
-        code = status === HttpStatus.FORBIDDEN ? 'PERMISSION_DENIED' : 'INTERNAL_ERROR';
+        code =
+          status === HttpStatus.FORBIDDEN
+            ? 'PERMISSION_DENIED'
+            : status === HttpStatus.UNAUTHORIZED
+              ? 'AUTH_INVALID_CREDENTIALS'
+              : 'INTERNAL_ERROR';
         message = typeof body === 'string' ? body : (body as { message?: string }).message ?? message;
       }
     }

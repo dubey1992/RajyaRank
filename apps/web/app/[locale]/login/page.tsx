@@ -40,6 +40,11 @@ export default function StudentLoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const oauthError = searchParams.get('error');
+  // Where to send a student back to after signing in (e.g. the pricing page
+  // they clicked "Buy" from while logged out). Only ever a same-app relative
+  // path — never trust it as an absolute/protocol-relative URL (open-redirect guard).
+  const rawNext = searchParams.get('next');
+  const nextPath = rawNext && rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : null;
 
   const [tab, setTab] = useState<Tab>('student');
   const [step, setStep] = useState<Step>('phone');
@@ -138,7 +143,7 @@ export default function StudentLoginPage() {
         method: 'POST',
         body: JSON.stringify({ phone, code }),
       });
-      router.push(`/${locale}${res.homeRoute}`);
+      router.push(nextPath ?? `/${locale}${res.homeRoute}`);
     } catch (e) {
       const err2 = e as ApiError;
       // On any bad-OTP outcome, clear the field so the user re-enters cleanly.
@@ -172,7 +177,7 @@ export default function StudentLoginPage() {
         method: 'POST',
         body: JSON.stringify(payload),
       });
-      router.push(`/${locale}${res.homeRoute}`);
+      router.push(nextPath ?? `/${locale}${res.homeRoute}`);
     } catch (e) {
       setErrors(serverFieldErrors(e as ApiError));
     } finally {

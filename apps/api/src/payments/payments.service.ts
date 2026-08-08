@@ -97,6 +97,15 @@ export class PaymentsService {
       }
     }
 
+    // A student re-buying a product they already hold a live entitlement for
+    // would just pay twice for nothing — nothing upstream of this guarded
+    // against it (the pricing UI now hides the Buy button once active, but
+    // the API is the real boundary: direct/replayed calls must be rejected too).
+    const existingEntitlement = await this.prisma.entitlement.findFirst({
+      where: { userId: principal.userId, productId: product.id, status: 'ACTIVE', OR: [{ endsAt: null }, { endsAt: { gt: new Date() } }] },
+    });
+    if (existingEntitlement) throw AppError.conflict('You already have an active plan for this product.');
+
     // Coupon validation + redemption-slot reservation happen atomically with
     // order creation, inside one transaction holding a row lock on the
     // coupon — closes a TOCTOU race where concurrent checkouts could all
