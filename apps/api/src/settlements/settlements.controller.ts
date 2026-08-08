@@ -76,6 +76,15 @@ export class SettlementsAdminController {
     return this.settlements.listTransfers();
   }
 
+  /** Backs the "View Institute" page's earnings summary — same computation
+   *  as the Academic Head's own /academic/settlements/earnings, keyed by an
+   *  explicit orgId instead of the caller's own. */
+  @Get('institutions/:orgId/earnings')
+  @RequirePermission('org.manage')
+  institutionEarningsForOrg(@Param('orgId') orgId: string) {
+    return this.settlements.institutionEarningsForOrg(orgId);
+  }
+
   /** Re-attempt an ON_HOLD transfer's Razorpay Route call — e.g. once Route
    *  is enabled on the merchant account, or after a transient provider error. */
   @Post('transfers/:id/retry')

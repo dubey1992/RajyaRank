@@ -369,8 +369,14 @@ export class SettlementsService {
   // ── Academic Head: their own institution only ──
   async institutionEarnings(principal: Principal) {
     if (!principal.orgId) throw AppError.permissionDenied('No institution assigned.');
-    const orgId = principal.orgId;
+    return this.institutionEarningsForOrg(principal.orgId);
+  }
 
+  /** Same computation as institutionEarnings above, keyed by an explicit
+   *  orgId instead of the caller's own — backs Super Admin's read-only
+   *  "View Institute" page (org.manage), which needs to look at ANY
+   *  institution's earnings, not just its own. */
+  async institutionEarningsForOrg(orgId: string) {
     const [linkedAccountRaw, transfers] = await Promise.all([
       this.prisma.instituteLinkedAccount.findUnique({ where: { orgId }, include: { organization: { select: { name: true } } } }),
       this.listTransfers(orgId),

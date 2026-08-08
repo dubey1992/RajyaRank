@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import Link from 'next/link';
 import { Alert, Button, Field, Toast, ConfirmDialog, PasswordChecklist } from '@rajyarank/ui';
 import { apiFetch, type ApiError } from '@/lib/api';
 import { serverFieldErrors, validate } from '@/lib/form';
@@ -206,7 +207,10 @@ export function OrganizationsManager({ initial, locale }: { initial: Organizatio
                   const pendingHeadInvites = o.pendingHeadInvites ?? [];
                   return (
                   <tr key={o.id}>
-                    <td className="px-3 py-2"><div className="font-bold text-ink">{o.name}</div><div className="text-xs text-muted">{o.code}</div></td>
+                    <td className="px-3 py-2">
+                      <Link href={`/${locale}/admin/organizations/${o.id}`} className="font-bold text-teal-700 hover:underline">{o.name}</Link>
+                      <div className="text-xs text-muted">{o.code}</div>
+                    </td>
                     <td className="px-3 py-2 text-xs">
                       <div className="grid gap-1.5">
                         {o.heads && o.heads.length ? (
@@ -269,6 +273,9 @@ export function OrganizationsManager({ initial, locale }: { initial: Organizatio
                     <td className="px-3 py-2"><span className={`rounded-full px-2 py-0.5 text-xs font-extrabold ${o.status === 'ACTIVE' ? 'bg-teal-100 text-success' : 'bg-orange-100 text-danger'}`}>{o.status === 'ACTIVE' ? L('सक्रिय', 'Active') : L('निष्क्रिय', 'Inactive')}</span></td>
                     <td className="px-3 py-2">
                       <div className="flex flex-wrap justify-end gap-1.5">
+                        <Link href={`/${locale}/admin/organizations/${o.id}`} className={mini}>
+                          {L('संस्थान देखें', 'View Institute')}
+                        </Link>
                         <button type="button" disabled={rowBusy === o.id} className={mini} onClick={() => { setInviteFor(o); setIName(''); setIEmail(''); setIPhone(''); setIErrors({}); }}>
                           {L('प्रमुख आमंत्रित करें', 'Invite Head')}
                         </button>

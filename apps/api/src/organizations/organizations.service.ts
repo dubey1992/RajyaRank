@@ -190,6 +190,48 @@ export class OrganizationsService {
     return { ok: true };
   }
 
+  /** Super Admin's read-only "View Institute" page — an oversight summary
+   *  (KYC/subscription status, course-status breakdown, student/staff
+   *  counts), not a full impersonation of the Academic Head's own dashboard.
+   *  Deliberately doesn't expose per-student/per-course detail or any
+   *  action — course.manage/user.manage stay off Super Admin's permission
+   *  set (see packages/auth/src/permissions.ts), this only reads counts. */
+  async getDetail(actor: Principal, orgId: string) {
+    const org = await this.prisma.organization.findUnique({ where: { id: orgId } });
+    if (!org) throw AppError.notFound('Institution not found.');
+
+    const [linkedAccount, subscription, courseCounts, studentCount, staffCount] = await Promise.all([
+      this.prisma.instituteLinkedAccount.findUnique({ where: { orgId } }),
+      this.prisma.organizationSubscription.findUnique({ where: { orgId }, include: { plan: true } }),
+      this.prisma.course.groupBy({ by: ['status'], where: { orgId, deletedAt: null }, _count: { status: true } }),
+      this.prisma.user.count({ where: { orgId, kind: 'STUDENT', deletedAt: null } }),
+      this.prisma.user.count({ where: { orgId, kind: 'STAFF', deletedAt: null } }),
+    ]);
+
+    await this.audit.record({
+      actorUserId: actor.userId,
+      action: 'organizations.detail_viewed',
+      targetType: 'Organization',
+      targetId: orgId,
+      result: 'SUCCESS',
+    });
+
+    return {
+      id: org.id,
+      name: org.name,
+      code: org.code,
+      status: org.status,
+      createdAt: org.createdAt.toISOString(),
+      kyc: linkedAccount ? { status: linkedAccount.kycStatus, payoutsEnabled: linkedAccount.payoutsEnabled } : null,
+      subscription: subscription
+        ? { planNameEn: subscription.plan.nameEn, status: subscription.status, currentPeriodEnd: subscription.currentPeriodEnd?.toISOString() ?? null }
+        : null,
+      courseCountsByStatus: Object.fromEntries(courseCounts.map((c) => [c.status, c._count.status])),
+      studentCount,
+      staffCount,
+    };
+  }
+
   /** Super Admin registers an institution and invites its head (ACADEMIC_HEAD). */
   async register(actor: Principal, dto: RegisterOrganization, ctx: { ip?: string; ua?: string }) {
     const existing = await this.prisma.organization.findUnique({ where: { code: dto.code } });

@@ -36,6 +36,15 @@ export class OrganizationsController {
     return this.orgs.register(principal, body, { ip: req.ip, ua: req.header('user-agent') ?? undefined });
   }
 
+  /** Read-only oversight summary backing the "View Institute" page — see
+   *  OrganizationsService.getDetail for exactly what this does and
+   *  deliberately doesn't expose. */
+  @Get(':id/detail')
+  @RequirePermission('org.manage')
+  detail(@CurrentPrincipal() principal: Principal, @Param('id') id: string) {
+    return this.orgs.getDetail(principal, id);
+  }
+
   @Post(':id/heads')
   @RequirePermission('org.manage')
   inviteHead(

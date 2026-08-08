@@ -87,6 +87,29 @@ export interface OrganizationView {
 }
 export type CreateInvitation = z.infer<typeof createInvitationSchema>;
 
+/** Super Admin's read-only "View Institute" page — an oversight summary, not
+ *  a full impersonation of the Academic Head's own dashboard (see
+ *  organizations.service.ts's getDetail for what's deliberately excluded). */
+export interface OrganizationDetailView {
+  id: string;
+  name: string;
+  code: string;
+  status: string;
+  createdAt: string;
+  kyc: {
+    status: string;
+    payoutsEnabled: boolean;
+  } | null;
+  subscription: {
+    planNameEn: string;
+    status: string;
+    currentPeriodEnd: string | null;
+  } | null;
+  courseCountsByStatus: Record<string, number>;
+  studentCount: number;
+  staffCount: number;
+}
+
 /** Admin-set-password bypass for a pending invitation — non-production only,
  *  see InvitationsService.adminSetPasswordAndAccept. */
 export const adminSetInvitePasswordSchema = z.object({ password: passwordSchema });
