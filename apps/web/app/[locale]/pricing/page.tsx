@@ -69,7 +69,7 @@ export default async function PricingPage({ params }: { params: { locale: string
                       : hi ? 'आजीवन मान्य' : 'Valid for life'}
                   </p>
                 ) : (
-                  <BuyButton productId={p.id} locale={locale} loggedIn={loggedIn} next={`/${locale}/pricing`} />
+                  <BuyButton productId={p.id} locale={locale} loggedIn={loggedIn} next={`/${locale}/pricing`} showCoupon />
                 )}
               </div>
             </article>

@@ -70,9 +70,29 @@ export class SettlementsService {
       const platformFeeMinor = Math.round((net * feeBps) / 10000);
       const netMinor = net - platformFeeMinor;
 
-      const razorpayTransferId = providerPaymentId
-        ? await this.razorpay.createTransfer(providerPaymentId, linkedAccount.razorpayAccountId ?? '', netMinor)
-        : null;
+      // The real Razorpay Route call is the one step here that depends on an
+      // external account feature (Route must be separately enabled by
+      // Razorpay for the merchant account) and can fail for reasons entirely
+      // outside this app's control. Previously a failure here aborted the
+      // whole function before the Transfer row was ever created — the sale
+      // stayed real (order PAID, student entitled) but silently never
+      // appeared anywhere in Earnings/Payouts, with only a log line as any
+      // trace. Recording it as ON_HOLD instead keeps the sale visible to the
+      // institute (gross sales, order list) while correctly excluding it from
+      // "available payout" until someone resolves the underlying Razorpay
+      // issue and reconciles it.
+      let razorpayTransferId: string | null = null;
+      let status: 'PROCESSED' | 'ON_HOLD' = 'PROCESSED';
+      if (providerPaymentId) {
+        try {
+          razorpayTransferId = await this.razorpay.createTransfer(providerPaymentId, linkedAccount.razorpayAccountId ?? '', netMinor);
+        } catch (e) {
+          this.logger.error(`Razorpay transfer failed for order ${orderId} — recording as on-hold for manual reconciliation: ${(e as Error).message}`);
+          status = 'ON_HOLD';
+        }
+      } else {
+        status = 'ON_HOLD';
+      }
 
       await this.prisma.$transaction([
         this.prisma.transfer.create({
@@ -85,10 +105,14 @@ export class SettlementsService {
             reserveMinor,
             netMinor,
             razorpayTransferId,
-            status: 'PROCESSED',
+            status,
           },
         }),
-        this.prisma.instituteLinkedAccount.update({ where: { id: linkedAccount.id }, data: { reserveHeldMinor: { increment: reserveMinor } } }),
+        // Only a genuinely PROCESSED transfer actually moved money we need to
+        // hold reserve against — an ON_HOLD row hasn't settled anywhere yet.
+        ...(status === 'PROCESSED'
+          ? [this.prisma.instituteLinkedAccount.update({ where: { id: linkedAccount.id }, data: { reserveHeldMinor: { increment: reserveMinor } } })]
+          : []),
       ]);
     } catch (e) {
       this.logger.error(`Settlement split failed for order ${orderId}: ${(e as Error).message}`);
@@ -263,11 +287,14 @@ export class SettlementsService {
 
   async superSummary() {
     const transfers = await this.prisma.transfer.findMany();
+    const processed = transfers.filter((t) => t.status === 'PROCESSED');
+    const held = transfers.filter((t) => t.status === 'ON_HOLD');
     const grossMinor = transfers.reduce((sum, t) => sum + t.grossMinor, 0);
-    const institutionPayableMinor = transfers.reduce((sum, t) => sum + t.netMinor, 0);
-    const platformRevenueMinor = transfers.reduce((sum, t) => sum + t.platformFeeMinor, 0);
+    const institutionPayableMinor = processed.reduce((sum, t) => sum + t.netMinor, 0);
+    const platformRevenueMinor = processed.reduce((sum, t) => sum + t.platformFeeMinor, 0);
+    const heldMinor = held.reduce((sum, t) => sum + t.netMinor, 0);
     const reserveHeldMinor = (await this.prisma.instituteLinkedAccount.aggregate({ _sum: { reserveHeldMinor: true } }))._sum.reserveHeldMinor ?? 0;
-    return { grossMinor, institutionPayableMinor, platformRevenueMinor, reserveHeldMinor };
+    return { grossMinor, institutionPayableMinor, platformRevenueMinor, reserveHeldMinor, heldMinor };
   }
 
   async listTransfers(orgId?: string) {
@@ -325,7 +352,8 @@ export class SettlementsService {
       externalFeeMinor: sum(external, 'platformFeeMinor'),
       gatewayFeeMinor: sum(transfers, 'gatewayFeeMinor'),
       reserveHeldMinor: linkedAccount?.reserveHeldMinor ?? 0,
-      payableMinor: transfers.reduce((s, t) => s + t.netMinor, 0),
+      payableMinor: transfers.filter((t) => t.status === 'PROCESSED').reduce((s, t) => s + t.netMinor, 0),
+      heldMinor: transfers.filter((t) => t.status === 'ON_HOLD').reduce((s, t) => s + t.netMinor, 0),
       linkedAccount,
       transfers,
     };

@@ -29,6 +29,7 @@ export function BuyButton({
   accessCode,
   loggedIn = true,
   next,
+  showCoupon = false,
 }: {
   productId: string;
   locale: string;
@@ -40,11 +41,19 @@ export function BuyButton({
   /** Path to return to after login (e.g. this same pricing page) so the
    *  student doesn't lose their place mid-purchase. */
   next?: string;
+  /** Reveals a "Have a coupon code?" field above the button. Coupons are
+   *  validated server-side at order-creation time (payments.service.ts's
+   *  applyCoupon) — there's no separate preview/verify step like the
+   *  institute-code flow, so an invalid code just surfaces createOrder's
+   *  error message instead of blocking the click. */
+  showCoupon?: boolean;
 }) {
   const hi = locale === 'hi';
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [couponOpen, setCouponOpen] = useState(false);
+  const [couponCode, setCouponCode] = useState('');
 
   if (!loggedIn) {
     return (
@@ -63,7 +72,11 @@ export function BuyButton({
     try {
       const order = await apiFetch<CreateOrderResponse>('/orders', {
         method: 'POST',
-        body: JSON.stringify(accessCode ? { productId, accessCode } : { productId }),
+        body: JSON.stringify({
+          productId,
+          ...(accessCode ? { accessCode } : {}),
+          ...(couponCode.trim() ? { couponCode: couponCode.trim() } : {}),
+        }),
       });
 
       if (!order.razorpayKeyId) {
@@ -120,6 +133,26 @@ export function BuyButton({
 
   return (
     <div>
+      {showCoupon ? (
+        couponOpen ? (
+          <div className="mb-2 flex gap-1.5">
+            <input
+              value={couponCode}
+              onChange={(e) => setCouponCode(e.target.value)}
+              placeholder={hi ? 'कूपन कोड' : 'Coupon code'}
+              className="w-full rounded-md border border-line px-2.5 py-1.5 text-xs outline-none focus:border-orange-500"
+            />
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setCouponOpen(true)}
+            className="mb-2 text-xs font-extrabold text-teal-600 hover:underline"
+          >
+            {hi ? 'कूपन कोड है?' : 'Have a coupon code?'}
+          </button>
+        )
+      ) : null}
       <Button onClick={() => void buy()} loading={busy} className="w-full">
         {hi ? 'खरीदें' : 'Buy now'}
       </Button>

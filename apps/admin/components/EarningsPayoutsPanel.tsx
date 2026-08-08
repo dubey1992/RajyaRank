@@ -40,6 +40,20 @@ export function EarningsPayoutsPanel({
         </div>
       </div>
 
+      {earnings.heldMinor > 0 ? (
+        <div className="rounded-lg border border-orange-200 bg-orange-50 p-4 text-sm">
+          <p className="font-extrabold text-orange-700">
+            {L(`${rupees(earnings.heldMinor)} भुगतान समीक्षाधीन है`, `${rupees(earnings.heldMinor)} pending reconciliation`)}
+          </p>
+          <p className="mt-1 text-orange-700">
+            {L(
+              'ये बिक्री सफलतापूर्वक हुई और छात्र को एक्सेस मिल गया, लेकिन भुगतान विभाजन तकनीकी कारण से पूरा नहीं हो सका। हमारी टीम इसे जल्द ठीक करेगी।',
+              'These sales completed and the student got access, but the payout split could not go through for a technical reason. Our team will reconcile this shortly.',
+            )}
+          </p>
+        </div>
+      ) : null}
+
       <div className="grid gap-6 lg:grid-cols-2">
         <section className="rounded-lg border border-line bg-white p-5">
           <h2 className="mb-3 text-lg font-extrabold text-navy-900">{L('भुगतान विवरण', 'Payout statement')}</h2>
@@ -109,6 +123,7 @@ export function EarningsPayoutsPanel({
                   <th className="px-3 py-2">{L('चैनल', 'Channel')}</th>
                   <th className="px-3 py-2">{L('सकल', 'Gross')}</th>
                   <th className="px-3 py-2">{L('शुद्ध', 'Net')}</th>
+                  <th className="px-3 py-2">{L('स्थिति', 'Status')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
@@ -118,6 +133,15 @@ export function EarningsPayoutsPanel({
                     <td className="px-3 py-2">{t.audience === 'INSTITUTE' ? L('आंतरिक', 'Internal') : L('बाहरी', 'External')}</td>
                     <td className="px-3 py-2">{rupees(t.grossMinor)}</td>
                     <td className="px-3 py-2 font-bold">{rupees(t.netMinor)}</td>
+                    <td className="px-3 py-2">
+                      {t.status === 'ON_HOLD' ? (
+                        <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-extrabold text-orange-700">{L('समीक्षाधीन', 'Pending')}</span>
+                      ) : t.status === 'REVERSED' ? (
+                        <span className="rounded-full bg-line px-2 py-0.5 text-xs font-extrabold text-muted">{L('उलटा', 'Reversed')}</span>
+                      ) : (
+                        <span className="rounded-full bg-teal-100 px-2 py-0.5 text-xs font-extrabold text-success">{L('निपटाया', 'Settled')}</span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>

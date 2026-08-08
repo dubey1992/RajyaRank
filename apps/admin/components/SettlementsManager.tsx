@@ -129,6 +129,15 @@ export function SettlementsManager({
         </div>
       </div>
 
+      {summary.heldMinor > 0 ? (
+        <Alert tone="error">
+          {L(
+            `${rupees(summary.heldMinor)} — Razorpay ट्रांसफर विफल होने के कारण समीक्षाधीन (नीचे "समीक्षाधीन" स्थिति देखें)। मैन्युअल रूप से सुलझाएं या Razorpay Route सक्षम करें।`,
+            `${rupees(summary.heldMinor)} pending reconciliation — the Razorpay transfer call failed for these sales (see "Pending" rows below). Resolve manually or check that Razorpay Route is enabled on the account.`,
+          )}
+        </Alert>
+      ) : null}
+
       <section className="rounded-lg border border-line bg-white p-5">
         <h2 className="mb-3 text-lg font-extrabold text-navy-900">{L('संस्थान लिंक्ड खाते व KYC', 'Institute linked accounts & KYC')} ({accounts.length})</h2>
         {error ? <div className="mb-3"><Alert tone="error">{error}</Alert></div> : null}
@@ -270,7 +279,15 @@ export function SettlementsManager({
                     <td className="px-3 py-2">{rupees(t.grossMinor)}</td>
                     <td className="px-3 py-2">{rupees(t.platformFeeMinor)}</td>
                     <td className="px-3 py-2 font-bold">{rupees(t.netMinor)}</td>
-                    <td className="px-3 py-2"><span className="rounded-full bg-teal-100 px-2 py-0.5 text-xs font-extrabold text-success">{t.status}</span></td>
+                    <td className="px-3 py-2">
+                      {t.status === 'ON_HOLD' ? (
+                        <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-extrabold text-orange-700">{L('समीक्षाधीन', 'Pending')}</span>
+                      ) : t.status === 'REVERSED' ? (
+                        <span className="rounded-full bg-line px-2 py-0.5 text-xs font-extrabold text-muted">{L('उलटा', 'Reversed')}</span>
+                      ) : (
+                        <span className="rounded-full bg-teal-100 px-2 py-0.5 text-xs font-extrabold text-success">{L('निपटाया', 'Settled')}</span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>

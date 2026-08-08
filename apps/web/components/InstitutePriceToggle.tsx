@@ -81,6 +81,9 @@ export function InstitutePriceToggle({
   }
 
   const autoInstitute = qualifiesForInstitute && instituteProduct ? instituteProduct : null;
+  // Whichever discount path unlocked it — used only to warn the Public tab,
+  // never to auto-switch away from what the student is actively looking at.
+  const unlockedInstitute = autoInstitute ?? verified?.product ?? null;
 
   return (
     <div className="mt-5 max-w-xs rounded-lg border border-line bg-white p-5">
@@ -105,9 +108,25 @@ export function InstitutePriceToggle({
         publicProduct ? (
           <>
             <PriceBlock product={publicProduct} locale={locale} />
+            {unlockedInstitute && unlockedInstitute.priceMinor < publicProduct.priceMinor ? (
+              <div className="mt-3 rounded-md border border-orange-300 bg-orange-50 p-3 text-xs">
+                <p className="font-extrabold text-orange-700">
+                  {hi
+                    ? `आपके संस्थान का मूल्य ₹${(unlockedInstitute.priceMinor / 100).toLocaleString('en-IN')} उपलब्ध है — यहाँ खरीदने पर आप ज़्यादा भुगतान करेंगे।`
+                    : `Your institute price of ₹${(unlockedInstitute.priceMinor / 100).toLocaleString('en-IN')} is available — buying here means paying more.`}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setMode('institute')}
+                  className="mt-2 w-full rounded-md border border-orange-400 bg-white px-3 py-1.5 font-extrabold text-orange-700 hover:bg-orange-100"
+                >
+                  {hi ? 'संस्थान मूल्य पर स्विच करें' : 'Switch to institute price'}
+                </button>
+              </div>
+            ) : null}
             <div className="mt-4">
               {isStudent ? (
-                <BuyButton productId={publicProduct.id} locale={locale} />
+                <BuyButton productId={publicProduct.id} locale={locale} showCoupon />
               ) : (
                 <Link href={`/${locale}/login`} className="block rounded-md bg-orange-500 px-4 py-2 text-center text-sm font-extrabold text-white hover:bg-orange-600">
                   {hi ? 'खरीदने हेतु लॉगिन करें' : 'Log in to buy'}
@@ -122,7 +141,7 @@ export function InstitutePriceToggle({
         <>
           <PriceBlock product={autoInstitute} locale={locale} note={hi ? 'आपके संस्थान का विशेष मूल्य' : 'Your institute’s special price'} />
           <div className="mt-4">
-            <BuyButton productId={autoInstitute.id!} locale={locale} />
+            <BuyButton productId={autoInstitute.id!} locale={locale} showCoupon />
           </div>
         </>
       ) : verified ? (
@@ -130,7 +149,7 @@ export function InstitutePriceToggle({
           <PriceBlock product={verified.product} locale={locale} note={hi ? `सत्यापित — ${verified.orgName}` : `Verified — ${verified.orgName}`} />
           <div className="mt-4">
             {isStudent ? (
-              <BuyButton productId={verified.product.id} locale={locale} accessCode={code.trim()} />
+              <BuyButton productId={verified.product.id} locale={locale} accessCode={code.trim()} showCoupon />
             ) : (
               <Link href={`/${locale}/login`} className="block rounded-md bg-orange-500 px-4 py-2 text-center text-sm font-extrabold text-white hover:bg-orange-600">
                 {hi ? 'खरीदने हेतु लॉगिन करें' : 'Log in to buy'}

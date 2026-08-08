@@ -122,6 +122,10 @@ export interface SettlementSummaryView {
   institutionPayableMinor: number;
   platformRevenueMinor: number;
   reserveHeldMinor: number;
+  // Real sales whose Razorpay Route transfer failed (e.g. Route not enabled
+  // on the merchant account) — money was collected but not yet split to the
+  // institute; excluded from institutionPayableMinor until reconciled.
+  heldMinor: number;
 }
 
 /** One institution's own payout statement, for the Academic Head view. */
@@ -133,6 +137,9 @@ export interface InstitutionEarningsView {
   gatewayFeeMinor: number;
   reserveHeldMinor: number;
   payableMinor: number;
+  // Same caveat as SettlementSummaryView.heldMinor — real sales pending
+  // reconciliation because the Razorpay Route transfer failed.
+  heldMinor: number;
   linkedAccount: LinkedAccountView | null;
   transfers: TransferView[];
 }

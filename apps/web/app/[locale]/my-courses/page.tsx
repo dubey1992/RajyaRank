@@ -105,7 +105,7 @@ export default async function MyCoursesPage({ params }: { params: { locale: stri
                         ) : null}
                       </div>
                       <div className="mt-3">
-                        <BuyButton productId={product.id!} locale={locale} />
+                        <BuyButton productId={product.id!} locale={locale} showCoupon />
                       </div>
                     </>
                   ) : (

@@ -130,7 +130,7 @@ export default async function CourseDetailPage({
           </div>
           <p className="mt-1 text-xs text-muted">{buyProduct.validityDays ? L(`${buyProduct.validityDays} दिन वैधता`, `${buyProduct.validityDays} days validity`) : L('आजीवन', 'Lifetime')}</p>
           <div className="mt-4">
-            <BuyButton productId={buyProduct.id!} locale={locale} />
+            <BuyButton productId={buyProduct.id!} locale={locale} showCoupon />
           </div>
         </div>
       ) : (
