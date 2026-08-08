@@ -94,7 +94,13 @@ export function BuyButton({
                 razorpaySignature: resp.razorpay_signature,
               }),
             });
-            router.push(`/${locale}/account`);
+            // Full navigation, not router.push: /account (or wherever this
+            // page is embedded) may already be sitting in the client Router
+            // Cache from before this purchase — a client-side transition can
+            // replay that stale pre-payment snapshot instead of fetching the
+            // order/entitlement that was just created. Same fix as the
+            // post-login redirect in login/page.tsx.
+            window.location.assign(`/${locale}/account`);
           } catch (e) {
             setMsg((e as ApiError).message);
           }
