@@ -46,6 +46,16 @@ export default function StudentLoginPage() {
   const rawNext = searchParams.get('next');
   const nextPath = rawNext && rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : null;
 
+  // A plain router.push back to `next` can show stale logged-out content —
+  // Next's client Router Cache may still hold the page's pre-login RSC
+  // payload from moments earlier (e.g. the pricing page the student was just
+  // on). A full navigation guarantees a fresh, cookie-aware server render;
+  // homeRoute doesn't need this since it's a route the client hasn't cached yet.
+  function goAfterLogin(homeRoute: string) {
+    if (nextPath) window.location.assign(nextPath);
+    else router.push(`/${locale}${homeRoute}`);
+  }
+
   const [tab, setTab] = useState<Tab>('student');
   const [step, setStep] = useState<Step>('phone');
   const [phone, setPhone] = useState('');
@@ -143,7 +153,7 @@ export default function StudentLoginPage() {
         method: 'POST',
         body: JSON.stringify({ phone, code }),
       });
-      router.push(nextPath ?? `/${locale}${res.homeRoute}`);
+      goAfterLogin(res.homeRoute);
     } catch (e) {
       const err2 = e as ApiError;
       // On any bad-OTP outcome, clear the field so the user re-enters cleanly.
@@ -177,7 +187,7 @@ export default function StudentLoginPage() {
         method: 'POST',
         body: JSON.stringify(payload),
       });
-      router.push(nextPath ?? `/${locale}${res.homeRoute}`);
+      goAfterLogin(res.homeRoute);
     } catch (e) {
       setErrors(serverFieldErrors(e as ApiError));
     } finally {
