@@ -203,6 +203,17 @@ export class RazorpayService {
     return safeEqual(expected, signature);
   }
 
+  /** HMAC of `${paymentId}|${subscriptionId}` with key secret === signature —
+   *  a different formula from order payments (verifyPaymentSignature above),
+   *  per Razorpay's Checkout-for-Subscriptions contract. */
+  verifySubscriptionPaymentSignature(subscriptionId: string, paymentId: string, signature: string): boolean {
+    if (!this.env.RAZORPAY_KEY_SECRET) return false;
+    const expected = createHmac('sha256', this.env.RAZORPAY_KEY_SECRET)
+      .update(`${paymentId}|${subscriptionId}`)
+      .digest('hex');
+    return safeEqual(expected, signature);
+  }
+
   /** HMAC of the raw request body with the webhook secret === signature. */
   verifyWebhookSignature(rawBody: string, signature: string): boolean {
     if (!this.env.RAZORPAY_WEBHOOK_SECRET) return false;

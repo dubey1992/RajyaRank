@@ -41,13 +41,24 @@ export const subscribeOrganizationSchema = z.object({
 });
 export type SubscribeOrganization = z.infer<typeof subscribeOrganizationSchema>;
 
-/** POST /academic/billing/subscribe response — checkoutUrl is Razorpay's own
- *  hosted page where the Head actually authorizes payment; the subscription
- *  isn't real (no platform access unlocked) until they complete it there. */
+/** POST /academic/billing/subscribe response — the frontend opens Razorpay's
+ *  Checkout (subscription_id + razorpayKeyId) right there rather than
+ *  redirecting away; the subscription isn't real (no platform access
+ *  unlocked) until POST /academic/billing/subscribe/verify confirms it.
+ *  checkoutUrl (Razorpay's own hosted page for this subscription) is kept as
+ *  a fallback link in case the in-page Checkout script fails to load. */
 export interface SelfServeSubscribeResult {
   subscriptionId: string;
   checkoutUrl: string | null;
+  razorpayKeyId: string | null;
 }
+
+export const confirmSelfServePaymentSchema = z.object({
+  subscriptionId: z.string().min(1),
+  razorpayPaymentId: z.string().min(1),
+  razorpaySignature: z.string().min(1),
+});
+export type ConfirmSelfServePayment = z.infer<typeof confirmSelfServePaymentSchema>;
 
 export interface OrganizationSubscriptionView {
   id: string;

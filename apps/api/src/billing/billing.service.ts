@@ -1,7 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
 import type { Principal } from '@rajyarank/auth';
-import type { UpsertSubscriptionPlan, SubscribeOrganization } from '@rajyarank/contracts';
+import type { UpsertSubscriptionPlan, SubscribeOrganization, ConfirmSelfServePayment } from '@rajyarank/contracts';
+import type { OrganizationSubscription, SubscriptionPlan } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { RazorpayService } from '../payments/razorpay.service';
@@ -242,7 +243,29 @@ export class BillingService {
       throw AppError.conflict('Complete your institution KYC verification before purchasing a subscription plan.');
     }
     const { subscription, checkoutUrl } = await this.provisionSubscription(actor, actor.orgId, dto, { settledImmediately: false });
-    return { subscriptionId: subscription.id, checkoutUrl };
+    return { subscriptionId: subscription.id, checkoutUrl, razorpayKeyId: this.razorpay.configured ? this.razorpay.keyId : null };
+  }
+
+  /** Confirms payment for a self-serve subscription right after Razorpay's
+   *  in-page Checkout succeeds — the synchronous counterpart to
+   *  handleSubscriptionEvent's subscription.charged branch below, so the
+   *  Head sees ACTIVE immediately instead of waiting on a webhook (which
+   *  still arrives and safely no-ops via the same idempotency guard). */
+  async confirmSelfServePayment(actor: Principal, dto: ConfirmSelfServePayment) {
+    if (!actor.orgId) throw AppError.conflict('You are not linked to an institution.');
+    const subscription = await this.prisma.organizationSubscription.findUnique({ where: { orgId: actor.orgId }, include: { plan: true } });
+    if (!subscription || subscription.razorpaySubscriptionId !== dto.subscriptionId) {
+      throw AppError.notFound('Subscription not found.');
+    }
+    if (subscription.status === 'ACTIVE') return { status: 'ACTIVE', alreadyProcessed: true };
+
+    const ok = this.razorpay.verifySubscriptionPaymentSignature(dto.subscriptionId, dto.razorpayPaymentId, dto.razorpaySignature);
+    if (!ok) {
+      await this.audit.record({ actorUserId: actor.userId, action: 'billing.self_serve_verify', targetType: 'Organization', targetId: actor.orgId, result: 'FAILED', reasonCode: 'PAYMENT_SIGNATURE_INVALID' });
+      throw AppError.paymentSignatureInvalid();
+    }
+    await this.activateChargedSubscription(subscription);
+    return { status: 'ACTIVE' };
   }
 
   /** The calling Academic Head's own subscription + KYC status, for the
@@ -311,35 +334,46 @@ export class BillingService {
     if (!subscription) return;
 
     if (eventType === 'subscription.charged') {
-      const now = new Date();
-      const periodEnd = new Date(subscription.currentPeriodEnd ?? now);
-      if (subscription.billingCycle === 'MONTHLY') periodEnd.setMonth(periodEnd.getMonth() + 1);
-      else periodEnd.setFullYear(periodEnd.getFullYear() + 1);
-      const amountMinor = subscription.billingCycle === 'MONTHLY' ? subscription.plan.priceMonthlyMinor : subscription.plan.priceAnnualMinor;
-      await this.prisma.$transaction([
-        this.prisma.organizationSubscription.update({
-          where: { id: subscription.id },
-          data: { status: 'ACTIVE', currentPeriodStart: now, currentPeriodEnd: periodEnd },
-        }),
-        // Each renewal charge is its own invoice — not just an updated period on the subscription.
-        this.prisma.institutionInvoice.create({
-          data: {
-            invoiceNumber: generateInvoiceNumber(now),
-            subscriptionId: subscription.id,
-            periodLabel: subscription.billingCycle === 'MONTHLY' ? now.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) : 'Annual',
-            basePlanMinor: amountMinor,
-            totalMinor: amountMinor,
-            status: 'PAID',
-            dueAt: now,
-            paidAt: now,
-          },
-        }),
-      ]);
+      await this.activateChargedSubscription(subscription);
     } else if (eventType === 'subscription.cancelled') {
       await this.prisma.organizationSubscription.update({ where: { id: subscription.id }, data: { status: 'CANCELED' } });
     } else if (eventType === 'subscription.pending' || eventType === 'subscription.halted') {
       await this.prisma.organizationSubscription.update({ where: { id: subscription.id }, data: { status: 'PAST_DUE' } });
     }
+  }
+
+  /** Flips a TRIALING/PAST_DUE subscription to ACTIVE and records the charge
+   *  as a paid invoice. Reachable from two independent triggers for the same
+   *  real-world charge — the Head's own Checkout success callback (immediate)
+   *  and Razorpay's subscription.charged webhook (eventual, redundant) — so
+   *  the status-guarded conditional update (not a plain update) is the actual
+   *  idempotency guard: whichever caller loses the race sees count === 0 and
+   *  skips creating a second invoice for one charge. */
+  private async activateChargedSubscription(subscription: OrganizationSubscription & { plan: SubscriptionPlan }) {
+    const now = new Date();
+    const periodEnd = new Date(subscription.currentPeriodEnd ?? now);
+    if (subscription.billingCycle === 'MONTHLY') periodEnd.setMonth(periodEnd.getMonth() + 1);
+    else periodEnd.setFullYear(periodEnd.getFullYear() + 1);
+    const amountMinor = subscription.billingCycle === 'MONTHLY' ? subscription.plan.priceMonthlyMinor : subscription.plan.priceAnnualMinor;
+
+    const { count } = await this.prisma.organizationSubscription.updateMany({
+      where: { id: subscription.id, status: { not: 'ACTIVE' } },
+      data: { status: 'ACTIVE', currentPeriodStart: now, currentPeriodEnd: periodEnd },
+    });
+    if (count === 0) return; // another concurrent caller (webhook vs. sync verify) already handled this charge
+
+    await this.prisma.institutionInvoice.create({
+      data: {
+        invoiceNumber: generateInvoiceNumber(now),
+        subscriptionId: subscription.id,
+        periodLabel: subscription.billingCycle === 'MONTHLY' ? now.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) : 'Annual',
+        basePlanMinor: amountMinor,
+        totalMinor: amountMinor,
+        status: 'PAID',
+        dueAt: now,
+        paidAt: now,
+      },
+    });
   }
 
   async getInvoiceForPdf(id: string) {

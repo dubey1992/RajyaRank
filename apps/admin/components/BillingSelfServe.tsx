@@ -5,6 +5,24 @@ import { Alert, Button, Toast } from '@rajyarank/ui';
 import { apiFetch, type ApiError } from '@/lib/api';
 import type { SubscriptionPlanView, MySubscriptionView, SelfServeSubscribeResult } from '@rajyarank/contracts';
 
+// Razorpay's checkout.js attaches a global constructor.
+declare global {
+  interface Window {
+    Razorpay?: new (options: Record<string, unknown>) => { open: () => void };
+  }
+}
+
+function loadRazorpay(): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (window.Razorpay) return resolve(true);
+    const s = document.createElement('script');
+    s.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    s.onload = () => resolve(true);
+    s.onerror = () => resolve(false);
+    document.body.appendChild(s);
+  });
+}
+
 function rupees(minor: number) {
   return `₹${(minor / 100).toLocaleString('en-IN')}`;
 }
@@ -37,6 +55,10 @@ export function BillingSelfServe({
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Set only if the in-page Checkout script fails to load — Razorpay's own
+  // hosted page for this subscription, as a degrade path (no auto-return to
+  // this app afterward, but better than a dead end).
+  const [fallbackCheckoutUrl, setFallbackCheckoutUrl] = useState<string | null>(null);
 
   const activeSub = summary.subscription?.status === 'ACTIVE' ? summary.subscription : null;
   // Awaiting Razorpay authorization — a checkout was started but not
@@ -47,22 +69,55 @@ export function BillingSelfServe({
   async function buy(planId: string, billingCycle: 'MONTHLY' | 'ANNUAL') {
     setBusyKey(`${planId}-${billingCycle}`);
     setError(null);
+    setFallbackCheckoutUrl(null);
     try {
       const res = await apiFetch<SelfServeSubscribeResult>('/academic/billing/subscribe', {
         method: 'POST',
         body: JSON.stringify({ planId, billingCycle }),
       });
-      if (res.checkoutUrl) {
-        // Full navigation to Razorpay's own hosted checkout — this is where
-        // payment actually gets authorized, not here. Nothing is active yet.
-        window.location.href = res.checkoutUrl;
+
+      if (!res.razorpayKeyId) {
+        // Razorpay isn't configured in this environment (dev/local) — nothing
+        // to check out with, just reflect the new (TRIALING) state.
+        const refreshed = await apiFetch<MySubscriptionView>('/academic/billing/subscription');
+        setSummary(refreshed);
+        setToast(L('अनुरोध दर्ज कर लिया गया है।', 'Request recorded.'));
         return;
       }
-      // No checkoutUrl means Razorpay isn't configured in this environment
-      // (dev/local) — nothing to redirect to, just reflect the new state.
-      const refreshed = await apiFetch<MySubscriptionView>('/academic/billing/subscription');
-      setSummary(refreshed);
-      setToast(L('अनुरोध दर्ज कर लिया गया है।', 'Request recorded.'));
+
+      const ok = await loadRazorpay();
+      if (!ok || !window.Razorpay) {
+        setError(hi ? 'भुगतान विंडो लोड नहीं हो सकी।' : 'Could not load the payment window.');
+        setFallbackCheckoutUrl(res.checkoutUrl);
+        return;
+      }
+
+      const rzp = new window.Razorpay({
+        key: res.razorpayKeyId,
+        subscription_id: res.subscriptionId,
+        name: 'RajyaRank',
+        description: L('संस्थान सदस्यता', 'Institution subscription'),
+        handler: async (resp: { razorpay_payment_id: string; razorpay_signature: string }) => {
+          try {
+            await apiFetch('/academic/billing/subscribe/verify', {
+              method: 'POST',
+              body: JSON.stringify({
+                subscriptionId: res.subscriptionId,
+                razorpayPaymentId: resp.razorpay_payment_id,
+                razorpaySignature: resp.razorpay_signature,
+              }),
+            });
+            // Full navigation, not client state update: this page may have
+            // already rendered the pre-payment (no-plan/TRIALING) view before
+            // the Head paid — force a fresh, cookie-and-DB-aware server render
+            // so the newly-ACTIVE plan actually shows.
+            window.location.reload();
+          } catch (e) {
+            setError((e as ApiError).message);
+          }
+        },
+      });
+      rzp.open();
     } catch (e) {
       setError((e as ApiError).message);
     } finally {
@@ -132,7 +187,19 @@ export function BillingSelfServe({
         </Alert>
       ) : null}
 
-      {error ? <Alert tone="error">{error}</Alert> : null}
+      {error ? (
+        <Alert tone="error">
+          {error}
+          {fallbackCheckoutUrl ? (
+            <>
+              {' '}
+              <a href={fallbackCheckoutUrl} className="font-bold underline">
+                {L('इसके बजाय Razorpay पर भुगतान करें →', 'Pay on Razorpay instead →')}
+              </a>
+            </>
+          ) : null}
+        </Alert>
+      ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {plans.map((p) => {

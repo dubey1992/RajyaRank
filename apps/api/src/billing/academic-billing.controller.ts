@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Post } from '@nestjs/common';
 import type { Principal } from '@rajyarank/auth';
-import { subscribeOrganizationSchema, type SubscribeOrganization } from '@rajyarank/contracts';
+import { subscribeOrganizationSchema, confirmSelfServePaymentSchema, type SubscribeOrganization, type ConfirmSelfServePayment } from '@rajyarank/contracts';
 import { CurrentPrincipal } from '../common/decorators/current-principal.decorator';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 import { RequirePermission } from '../authz/decorators';
@@ -38,5 +38,18 @@ export class AcademicBillingController {
     @Body(new ZodValidationPipe(subscribeOrganizationSchema)) body: SubscribeOrganization,
   ) {
     return this.billing.selfServeSubscribe(principal, body);
+  }
+
+  /** Confirms the Razorpay Checkout payment that just happened in-page —
+   *  no AAL2 here, same as the student payments/razorpay/verify endpoint:
+   *  confirming a payment already authorized isn't itself a sensitive
+   *  state-change requiring step-up. */
+  @Post('subscribe/verify')
+  @RequirePermission('course.manage', { bypassSubscriptionGate: true })
+  verify(
+    @CurrentPrincipal() principal: Principal,
+    @Body(new ZodValidationPipe(confirmSelfServePaymentSchema)) body: ConfirmSelfServePayment,
+  ) {
+    return this.billing.confirmSelfServePayment(principal, body);
   }
 }
