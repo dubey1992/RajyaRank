@@ -84,12 +84,23 @@ export class CatalogueController {
     return map;
   }
 
+  /** Institutes whose KYC was rejected — excluded from every public
+   *  discovery surface below so a rejected institute's courses can't gain
+   *  new buyers while payments.service.ts blocks checkout anyway; only
+   *  REJECTED is excluded, not PENDING/unverified, so institutes still
+   *  completing onboarding aren't retroactively delisted. */
+  private async rejectedKycOrgIds(): Promise<string[]> {
+    const rows = await this.prisma.instituteLinkedAccount.findMany({ where: { kycStatus: 'REJECTED' }, select: { orgId: true } });
+    return rows.map((r) => r.orgId);
+  }
+
   /** Publicly discoverable courses (active + public only). */
   @Public()
   @Get('courses')
   async courses() {
+    const rejectedOrgIds = await this.rejectedKycOrgIds();
     const rows = await this.prisma.course.findMany({
-      where: { deletedAt: null, status: 'ACTIVE', visibility: 'PUBLIC' },
+      where: { deletedAt: null, status: 'ACTIVE', visibility: 'PUBLIC', OR: [{ orgId: null }, { orgId: { notIn: rejectedOrgIds } }] },
       orderBy: { sequence: 'asc' },
       select: {
         id: true, code: true, titleHi: true, titleEn: true, stateId: true, examId: true, orgId: true,
@@ -119,8 +130,9 @@ export class CatalogueController {
   @Public()
   @Get('institutes')
   async institutes(): Promise<PartnerInstituteView[]> {
+    const rejectedOrgIds = await this.rejectedKycOrgIds();
     const orgs = await this.prisma.organization.findMany({
-      where: { status: 'ACTIVE' },
+      where: { status: 'ACTIVE', id: { notIn: rejectedOrgIds } },
       select: { id: true, name: true, courses: { where: { deletedAt: null, status: 'ACTIVE' }, select: { id: true } } },
     });
     const active = orgs.filter((o) => o.courses.length > 0);

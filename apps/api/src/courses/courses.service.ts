@@ -336,6 +336,16 @@ export class CoursesService {
       where: { courseId: id, kind: 'COURSE', audience: 'PUBLIC', active: true },
     });
 
+    // A rejected KYC only auto-blocks future payouts (settlements.service.ts)
+    // — nothing previously stopped the institute from continuing to publish
+    // and sell more courses in the meantime. Re-checked live on every
+    // going-live attempt so a rejection issued after this course was already
+    // live doesn't retroactively unpublish it, but does stop it from
+    // re-publishing or any *new* course going live until KYC is resubmitted
+    // and re-verified.
+    const linkedAccount = course.orgId ? await this.prisma.instituteLinkedAccount.findUnique({ where: { orgId: course.orgId } }) : null;
+    const kycNotRejected = linkedAccount?.kycStatus !== 'REJECTED';
+
     const topics = course.subjects.flatMap((s) => s.chapters.flatMap((c) => c.topics));
     const lessons = topics.flatMap((t) => t.lessons);
 
@@ -353,6 +363,7 @@ export class CoursesService {
       { key: 'metadata', labelHi: 'शीर्षक व विवरण पूर्ण', labelEn: 'Title and description complete', passed: hasMetadata, hard: false },
       { key: 'freePreview', labelHi: 'नि:शुल्क पूर्वावलोकन उपलब्ध', labelEn: 'Free preview available', passed: hasFreePreview, hard: false },
       { key: 'learningOutcomes', labelHi: 'सीखने के परिणाम जोड़े गए', labelEn: 'Learning outcomes added', passed: hasOutcomes, hard: false },
+      { key: 'kycVerified', labelHi: 'संस्थान KYC अस्वीकृत नहीं है', labelEn: "Institution's KYC is not rejected", passed: kycNotRejected, hard: true },
     ];
 
     return {

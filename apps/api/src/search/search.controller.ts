@@ -15,6 +15,12 @@ export class SearchController {
     const term = (q ?? '').trim();
     if (term.length < 2) return { exams: [], courses: [] };
 
+    // Excludes only REJECTED-KYC institutes' courses (not PENDING/unverified)
+    // — mirrors the same exclusion in catalogue.controller.ts's public
+    // course/institute listings, so a rejected institute can't be found via
+    // search either, not just hidden from browse.
+    const rejectedOrgIds = (await this.prisma.instituteLinkedAccount.findMany({ where: { kycStatus: 'REJECTED' }, select: { orgId: true } })).map((r) => r.orgId);
+
     const [exams, courses] = await Promise.all([
       this.prisma.exam.findMany({
         where: {
@@ -32,10 +38,15 @@ export class SearchController {
           deletedAt: null,
           status: 'ACTIVE',
           visibility: 'PUBLIC',
-          OR: [
-            { titleEn: { contains: term, mode: 'insensitive' } },
-            { titleHi: { contains: term } },
-            { code: { contains: term, mode: 'insensitive' } },
+          AND: [
+            {
+              OR: [
+                { titleEn: { contains: term, mode: 'insensitive' } },
+                { titleHi: { contains: term } },
+                { code: { contains: term, mode: 'insensitive' } },
+              ],
+            },
+            { OR: [{ orgId: null }, { orgId: { notIn: rejectedOrgIds } }] },
           ],
         },
         select: { id: true, code: true, titleHi: true, titleEn: true, examId: true },

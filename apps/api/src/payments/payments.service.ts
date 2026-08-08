@@ -84,6 +84,19 @@ export class PaymentsService {
 
     const product = await this.prisma.product.findFirst({ where: { id: dto.productId, active: true }, include: { course: { include: { organization: true } } } });
     if (!product) throw AppError.notFound('Product not available.');
+
+    // A rejected KYC only ever auto-blocked future payouts to the institute
+    // (settlements.service.ts createTransferForOrder) — an already-live
+    // course kept accepting new sales regardless. Re-checked live on every
+    // checkout so a rejection issued after the course went live still stops
+    // further sales immediately, without needing to touch the course itself.
+    if (product.course?.orgId) {
+      const linkedAccount = await this.prisma.instituteLinkedAccount.findUnique({ where: { orgId: product.course.orgId } });
+      if (linkedAccount?.kycStatus === 'REJECTED') {
+        throw AppError.conflict("This institution's KYC was rejected and its courses are temporarily unavailable for purchase.");
+      }
+    }
+
     if (product.audience === 'INSTITUTE') {
       const ownerOrgId = product.course?.orgId;
       const isMember = !!ownerOrgId && principal.orgId === ownerOrgId;

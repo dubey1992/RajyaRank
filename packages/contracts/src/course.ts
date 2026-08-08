@@ -37,7 +37,7 @@ export type UpdateCourse = z.infer<typeof updateCourseSchema>;
 /** One pass/fail check in the Course Studio's Review step. Hard gates block
  *  publishing (status→ACTIVE + visibility→PUBLIC); soft gates only nudge. */
 export interface CourseReadinessGate {
-  key: 'curriculum' | 'publishedLesson' | 'pricing' | 'metadata' | 'freePreview' | 'learningOutcomes';
+  key: 'curriculum' | 'publishedLesson' | 'pricing' | 'metadata' | 'freePreview' | 'learningOutcomes' | 'kycVerified';
   labelHi: string;
   labelEn: string;
   passed: boolean;
