@@ -46,6 +46,10 @@ export function InstitutionBillingManager({
   const [sendingId, setSendingId] = useState<string | null>(null);
   const [cancelingOrgId, setCancelingOrgId] = useState<string | null>(null);
   const [cancelTarget, setCancelTarget] = useState<OrganizationSubscriptionView | null>(null);
+  const [orgFilter, setOrgFilter] = useState('');
+  const filterQuery = orgFilter.trim().toLowerCase();
+  const filteredSubscriptions = filterQuery ? subscriptions.filter((s) => s.orgName.toLowerCase().includes(filterQuery)) : subscriptions;
+  const filteredInvoices = filterQuery ? invoices.filter((i) => i.orgName.toLowerCase().includes(filterQuery)) : invoices;
 
   async function downloadInvoicePdf(invoice: InstitutionInvoiceView) {
     setDownloadingId(invoice.id);
@@ -112,10 +116,30 @@ export function InstitutionBillingManager({
 
   return (
     <div className="grid gap-6">
+      <div className="flex items-center gap-2">
+        <input
+          type="search"
+          value={orgFilter}
+          onChange={(e) => setOrgFilter(e.target.value)}
+          placeholder={L('संस्थान के नाम से फ़िल्टर करें…', 'Filter by institution name…')}
+          className="w-full max-w-sm rounded-md border border-line px-3 py-2 text-sm"
+          aria-label={L('संस्थान के नाम से फ़िल्टर करें', 'Filter by institution name')}
+        />
+        {filterQuery ? (
+          <button type="button" onClick={() => setOrgFilter('')} className="rounded-md border border-line px-3 py-2 text-xs font-bold text-navy-900 hover:bg-surface-soft">
+            {L('साफ़ करें', 'Clear')}
+          </button>
+        ) : null}
+      </div>
+
       <section className="rounded-lg border border-line bg-white p-5">
-        <h2 className="mb-3 text-lg font-extrabold text-navy-900">{L('संस्थान भुगतान स्वास्थ्य', 'Institution payment health')} ({subscriptions.length})</h2>
+        <h2 className="mb-3 text-lg font-extrabold text-navy-900">
+          {L('संस्थान भुगतान स्वास्थ्य', 'Institution payment health')} ({filterQuery ? `${filteredSubscriptions.length} / ${subscriptions.length}` : subscriptions.length})
+        </h2>
         {subscriptions.length === 0 ? (
           <p className="mb-4 text-sm text-muted">{L('अभी कोई संस्थान सब्सक्राइब नहीं है।', 'No institution is subscribed yet.')}</p>
+        ) : filteredSubscriptions.length === 0 ? (
+          <p className="mb-4 text-sm text-muted">{L('इस नाम से कोई संस्थान नहीं मिला।', 'No institution matches this name.')}</p>
         ) : (
           <div className="mb-2 overflow-x-auto rounded-lg border border-line">
             <table className="w-full text-left text-sm">
@@ -130,7 +154,7 @@ export function InstitutionBillingManager({
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {subscriptions.map((s) => (
+                {filteredSubscriptions.map((s) => (
                   <tr key={s.id}>
                     <td className="px-3 py-2 font-bold text-ink">{s.orgName}</td>
                     <td className="px-3 py-2">{hi ? s.planNameHi : s.planNameEn}</td>
@@ -179,9 +203,13 @@ export function InstitutionBillingManager({
       </section>
 
       <section className="rounded-lg border border-line bg-white p-5">
-        <h2 className="mb-3 text-lg font-extrabold text-navy-900">{L('संस्थान चालान', 'Institute invoices')} ({invoices.length})</h2>
+        <h2 className="mb-3 text-lg font-extrabold text-navy-900">
+          {L('संस्थान चालान', 'Institute invoices')} ({filterQuery ? `${filteredInvoices.length} / ${invoices.length}` : invoices.length})
+        </h2>
         {invoices.length === 0 ? (
           <p className="text-sm text-muted">{L('अभी कोई चालान नहीं।', 'No invoices yet.')}</p>
+        ) : filteredInvoices.length === 0 ? (
+          <p className="text-sm text-muted">{L('इस नाम से कोई चालान नहीं मिला।', 'No invoice matches this name.')}</p>
         ) : (
           <div className="overflow-x-auto rounded-lg border border-line">
             <table className="w-full text-left text-sm">
@@ -198,7 +226,7 @@ export function InstitutionBillingManager({
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {invoices.map((i) => (
+                {filteredInvoices.map((i) => (
                   <tr key={i.id}>
                     <td className="px-3 py-2 font-mono text-xs">{i.invoiceNumber}</td>
                     <td className="px-3 py-2 font-bold text-ink">{i.orgName}</td>

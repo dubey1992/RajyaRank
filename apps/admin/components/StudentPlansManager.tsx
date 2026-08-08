@@ -14,6 +14,7 @@ export function StudentPlansManager({ initial, exams, locale }: { initial: Stude
   const L = (h: string, e: string) => (hi ? h : e);
   const [rows, setRows] = useState<StudentPlanView[]>(initial);
   const [toast, setToast] = useState<string | null>(null);
+  const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
   const [rowBusy, setRowBusy] = useState<string | null>(null);
 
   const [examId, setExamId] = useState(''); // '' = Pro / all exams
@@ -30,6 +31,7 @@ export function StudentPlansManager({ initial, exams, locale }: { initial: Stude
       await apiFetch(`/admin/student-plans/${row.id}`, { method: 'PATCH', body: JSON.stringify({ active: !row.active }) });
       setRows((r) => r.map((x) => (x.id === row.id ? { ...x, active: !x.active } : x)));
     } catch (e) {
+      setToastTone('error');
       setToast((e as ApiError).message);
     } finally {
       setRowBusy(null);
@@ -59,6 +61,7 @@ export function StudentPlansManager({ initial, exams, locale }: { initial: Stude
       });
       setRows((r) => [...r, created]);
       setExamId(''); setTitleHi(''); setTitleEn(''); setPrice(''); setValidityDays('30'); setErrors({});
+      setToastTone('success');
       setToast(L('योजना बनाई गई।', 'Plan created.'));
     } catch (e) {
       setErrors(serverFieldErrors(e as ApiError));
@@ -131,7 +134,7 @@ export function StudentPlansManager({ initial, exams, locale }: { initial: Stude
           <Button type="submit" loading={busy} className="w-full">{L('योजना बनाएँ', 'Create plan')}</Button>
         </div>
       </form>
-      <Toast message={toast} tone="success" onDismiss={() => setToast(null)} />
+      <Toast message={toast} tone={toastTone} onDismiss={() => setToast(null)} />
     </section>
   );
 }

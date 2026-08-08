@@ -14,6 +14,7 @@ export function SubscriptionPlansManager({ initial, locale }: { initial: Subscri
   const L = (h: string, e: string) => (hi ? h : e);
   const [rows, setRows] = useState<SubscriptionPlanView[]>(initial);
   const [toast, setToast] = useState<string | null>(null);
+  const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
   const [rowBusy, setRowBusy] = useState<string | null>(null);
 
   const [code, setCode] = useState('');
@@ -34,6 +35,7 @@ export function SubscriptionPlansManager({ initial, locale }: { initial: Subscri
       await apiFetch(`/admin/billing/plans/${row.id}`, { method: 'PATCH', body: JSON.stringify({ active: !row.active }) });
       setRows((r) => r.map((x) => (x.id === row.id ? { ...x, active: !x.active } : x)));
     } catch (e) {
+      setToastTone('error');
       setToast((e as ApiError).message);
     } finally {
       setRowBusy(null);
@@ -70,6 +72,7 @@ export function SubscriptionPlansManager({ initial, locale }: { initial: Subscri
       });
       setRows((r) => [...r, created]);
       setCode(''); setNameHi(''); setNameEn(''); setPriceMonthly(''); setMaxStudents(''); setMaxStaff(''); setStorageGb(''); setInternalFeePct(''); setExternalFeePct(''); setErrors({});
+      setToastTone('success');
       setToast(L('योजना बनाई गई।', 'Plan created.'));
     } catch (e) {
       setErrors(serverFieldErrors(e as ApiError));
@@ -136,7 +139,7 @@ export function SubscriptionPlansManager({ initial, locale }: { initial: Subscri
           <Button type="submit" loading={busy} className="w-full">{L('योजना बनाएँ', 'Create plan')}</Button>
         </div>
       </form>
-      <Toast message={toast} tone="success" onDismiss={() => setToast(null)} />
+      <Toast message={toast} tone={toastTone} onDismiss={() => setToast(null)} />
     </section>
   );
 }

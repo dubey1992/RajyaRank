@@ -51,6 +51,16 @@ export class BillingService {
   async updatePlan(actor: Principal, id: string, dto: Partial<UpsertSubscriptionPlan>) {
     const plan = await this.prisma.subscriptionPlan.findUnique({ where: { id } });
     if (!plan) throw AppError.notFound('Plan not found.');
+    if (dto.active === false) {
+      const inUse = await this.prisma.organizationSubscription.count({
+        where: { planId: id, status: { in: ['ACTIVE', 'TRIALING', 'PAST_DUE'] } },
+      });
+      if (inUse > 0) {
+        throw AppError.conflict(
+          `This plan is currently in use by ${inUse} institution${inUse === 1 ? '' : 's'} and cannot be deactivated. Cancel or migrate those subscriptions first.`,
+        );
+      }
+    }
     const updated = await this.prisma.subscriptionPlan.update({ where: { id }, data: dto });
     await this.audit.record({ actorUserId: actor.userId, action: 'billing.plan_updated', targetType: 'SubscriptionPlan', targetId: id, result: 'SUCCESS', after: dto });
     return updated;

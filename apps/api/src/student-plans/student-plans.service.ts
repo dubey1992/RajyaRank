@@ -82,6 +82,16 @@ export class StudentPlansService {
       const exam = await this.prisma.exam.findUnique({ where: { id: dto.examId } });
       if (!exam) throw AppError.notFound('Exam not found.');
     }
+    if (dto.active === false) {
+      const inUse = await this.prisma.entitlement.count({
+        where: { productId: id, status: 'ACTIVE', OR: [{ endsAt: null }, { endsAt: { gt: new Date() } }] },
+      });
+      if (inUse > 0) {
+        throw AppError.conflict(
+          `This plan is currently held by ${inUse} student${inUse === 1 ? '' : 's'} with a live entitlement and cannot be deactivated.`,
+        );
+      }
+    }
     const row = await this.prisma.product.update({
       where: { id },
       data: {
