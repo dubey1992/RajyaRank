@@ -177,10 +177,6 @@ export default async function LandingPage({ params }: { params: { locale: string
                   <span key={m} className="rounded-lg border border-line bg-surface-soft px-2.5 py-1.5 text-xs text-[#475569]">{m}</span>
                 ))}
               </div>
-              <div className="mt-auto border-t border-line pt-4">
-                <strong className="text-[22px] font-black text-navy-950">{c.price}</strong>
-                <small className="block text-muted">{c.validity}</small>
-              </div>
             </article>
           ))}
         </div>
