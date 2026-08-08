@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { Alert, Button, Toast } from '@rajyarank/ui';
+import { Alert, Button, ConfirmDialog, Toast } from '@rajyarank/ui';
 import { apiFetch, apiDownload, type ApiError } from '@/lib/api';
 import type { OrganizationSubscriptionView, InstitutionInvoiceView, SubscriptionPlanView } from '@rajyarank/contracts';
 
@@ -45,6 +45,7 @@ export function InstitutionBillingManager({
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [sendingId, setSendingId] = useState<string | null>(null);
   const [cancelingOrgId, setCancelingOrgId] = useState<string | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<OrganizationSubscriptionView | null>(null);
 
   async function downloadInvoicePdf(invoice: InstitutionInvoiceView) {
     setDownloadingId(invoice.id);
@@ -69,8 +70,9 @@ export function InstitutionBillingManager({
     }
   }
 
-  async function cancelSubscription(s: OrganizationSubscriptionView) {
-    if (!window.confirm(L(`${s.orgName} की सदस्यता रद्द करें?`, `Cancel ${s.orgName}'s subscription?`))) return;
+  async function cancelSubscription() {
+    if (!cancelTarget) return;
+    const s = cancelTarget;
     setCancelingOrgId(s.orgId);
     try {
       await apiFetch(`/admin/billing/organizations/${s.orgId}/cancel`, { method: 'POST' });
@@ -81,6 +83,7 @@ export function InstitutionBillingManager({
       setToast((e as ApiError).message);
     } finally {
       setCancelingOrgId(null);
+      setCancelTarget(null);
     }
   }
 
@@ -140,7 +143,7 @@ export function InstitutionBillingManager({
                           type="button"
                           disabled={cancelingOrgId === s.orgId}
                           className="rounded-md border border-line px-2 py-1 text-xs font-bold text-danger hover:bg-surface-soft disabled:opacity-50"
-                          onClick={() => void cancelSubscription(s)}
+                          onClick={() => setCancelTarget(s)}
                         >
                           {cancelingOrgId === s.orgId ? L('रद्द हो रहा है…', 'Canceling…') : L('रद्द करें', 'Cancel')}
                         </button>
@@ -227,6 +230,24 @@ export function InstitutionBillingManager({
           </div>
         )}
       </section>
+      <ConfirmDialog
+        open={!!cancelTarget}
+        title={L('सदस्यता रद्द करें?', 'Cancel subscription?')}
+        message={
+          cancelTarget
+            ? L(
+                `"${cancelTarget.orgName}" की ${hi ? cancelTarget.planNameHi : cancelTarget.planNameEn} सदस्यता तुरंत रद्द कर दी जाएगी और संस्थान की प्लेटफ़ॉर्म एक्सेस बंद हो जाएगी।`,
+                `"${cancelTarget.orgName}"'s ${cancelTarget.planNameEn} subscription will be canceled immediately, and the institution will lose platform access.`,
+              )
+            : ''
+        }
+        confirmLabel={L('रद्द करें', 'Cancel subscription')}
+        cancelLabel={L('वापस जाएँ', 'Keep it')}
+        tone="danger"
+        busy={cancelingOrgId === cancelTarget?.orgId}
+        onConfirm={() => void cancelSubscription()}
+        onCancel={() => setCancelTarget(null)}
+      />
       <Toast message={toast} tone="success" onDismiss={() => setToast(null)} />
     </div>
   );
