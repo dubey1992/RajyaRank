@@ -75,6 +75,14 @@ export class SettlementsAdminController {
   listTransfers() {
     return this.settlements.listTransfers();
   }
+
+  /** Re-attempt an ON_HOLD transfer's Razorpay Route call — e.g. once Route
+   *  is enabled on the merchant account, or after a transient provider error. */
+  @Post('transfers/:id/retry')
+  @RequirePermission('org.manage', { assurance: 'AAL2' })
+  retryTransfer(@CurrentPrincipal() principal: Principal, @Param('id') id: string) {
+    return this.settlements.retryTransfer(principal, id);
+  }
 }
 
 /** Academic Head: their own institution's earnings only — org-scope is

@@ -28,8 +28,9 @@ export function SettlementsManager({
   const hi = locale === 'hi';
   const L = (h: string, e: string) => (hi ? h : e);
   const [accounts, setAccounts] = useState(initialLinkedAccounts);
-  const [transfers] = useState(initialTransfers);
+  const [transfers, setTransfers] = useState(initialTransfers);
   const [rowBusy, setRowBusy] = useState<string | null>(null);
+  const [retryBusy, setRetryBusy] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [expandedOrgId, setExpandedOrgId] = useState<string | null>(null);
@@ -76,6 +77,20 @@ export function SettlementsManager({
       setError((e as ApiError).message);
     } finally {
       setRowBusy(null);
+    }
+  }
+
+  async function retryTransfer(id: string) {
+    setRetryBusy(id);
+    setError(null);
+    try {
+      const updated = await apiFetch<TransferView>(`/admin/settlements/transfers/${id}/retry`, { method: 'POST' });
+      setTransfers((rows) => rows.map((t) => (t.id === id ? updated : t)));
+      setToast(updated.status === 'PROCESSED' ? L('ट्रांसफर सफल हुआ।', 'Transfer succeeded.') : L('अभी भी विफल — समीक्षाधीन बना रहेगा।', 'Still failing — remains pending.'));
+    } catch (e) {
+      setError((e as ApiError).message);
+    } finally {
+      setRetryBusy(null);
     }
   }
 
@@ -269,6 +284,7 @@ export function SettlementsManager({
                   <th className="px-3 py-2">{L('मंच शुल्क', 'Platform fee')}</th>
                   <th className="px-3 py-2">{L('संस्थान शुद्ध', 'Institute net')}</th>
                   <th className="px-3 py-2">{L('स्थिति', 'Status')}</th>
+                  <th className="px-3 py-2 text-right">{L('कार्रवाई', 'Actions')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
@@ -287,6 +303,18 @@ export function SettlementsManager({
                       ) : (
                         <span className="rounded-full bg-teal-100 px-2 py-0.5 text-xs font-extrabold text-success">{L('निपटाया', 'Settled')}</span>
                       )}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      {t.status === 'ON_HOLD' ? (
+                        <button
+                          type="button"
+                          disabled={retryBusy === t.id}
+                          onClick={() => void retryTransfer(t.id)}
+                          className="rounded-md border border-line px-2 py-1 text-xs font-bold hover:bg-surface-soft disabled:opacity-50"
+                        >
+                          {retryBusy === t.id ? L('पुनः प्रयास…', 'Retrying…') : L('पुनः प्रयास करें', 'Retry')}
+                        </button>
+                      ) : null}
                     </td>
                   </tr>
                 ))}

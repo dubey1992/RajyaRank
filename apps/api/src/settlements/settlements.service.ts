@@ -119,6 +119,53 @@ export class SettlementsService {
     }
   }
 
+  /** Super Admin: re-attempt the Razorpay transfer for an ON_HOLD row — e.g.
+   *  once Route has been enabled on the merchant account, or after any other
+   *  transient provider issue. No-ops on an already-PROCESSED row so a stale
+   *  double-click (or two admins clicking Retry at once) can't double-pay. A
+   *  renewed provider failure is an expected, non-exceptional outcome here
+   *  (the row just stays ON_HOLD) — only a missing payment/transfer is a
+   *  real error, since retrying is meaningless without one. */
+  async retryTransfer(actor: Principal, transferId: string) {
+    const transfer = await this.prisma.transfer.findUnique({
+      where: { id: transferId },
+      include: { order: { include: { product: true, payments: { where: { status: 'PAID' }, take: 1 } } }, linkedAccount: true },
+    });
+    if (!transfer) throw AppError.notFound('Transfer not found.');
+
+    const toView = (t: typeof transfer) => ({
+      id: t.id,
+      orderId: t.orderId,
+      productTitle: t.order.product.titleEn,
+      audience: t.order.product.audience,
+      grossMinor: t.grossMinor,
+      gatewayFeeMinor: t.gatewayFeeMinor,
+      platformFeeMinor: t.platformFeeMinor,
+      reserveMinor: t.reserveMinor,
+      netMinor: t.netMinor,
+      status: t.status,
+      createdAt: t.createdAt.toISOString(),
+    });
+
+    if (transfer.status !== 'ON_HOLD') return toView(transfer);
+
+    const providerPaymentId = transfer.order.payments[0]?.providerPaymentId;
+    if (!providerPaymentId) throw AppError.conflict('No paid payment found for this order — cannot retry.');
+
+    try {
+      const razorpayTransferId = await this.razorpay.createTransfer(providerPaymentId, transfer.linkedAccount.razorpayAccountId ?? '', transfer.netMinor);
+      const [updated] = await this.prisma.$transaction([
+        this.prisma.transfer.update({ where: { id: transferId }, data: { status: 'PROCESSED', razorpayTransferId }, include: { order: { include: { product: true, payments: { where: { status: 'PAID' }, take: 1 } } }, linkedAccount: true } }),
+        this.prisma.instituteLinkedAccount.update({ where: { id: transfer.linkedAccountId }, data: { reserveHeldMinor: { increment: transfer.reserveMinor } } }),
+      ]);
+      await this.audit.record({ actorUserId: actor.userId, actorRole: actor.roleKeys.join(','), action: 'settlements.transfer_retried', targetType: 'Transfer', targetId: transferId, result: 'SUCCESS' });
+      return toView(updated);
+    } catch (e) {
+      this.logger.error(`Retry failed for transfer ${transferId} — remains on-hold: ${(e as Error).message}`);
+      return toView(transfer);
+    }
+  }
+
   /** Whether an order's sale has already been settled to the institute —
    *  refunding it needs the transfer reversed, and always escalates to
    *  Super Admin (an Academic Head can't unwind money already paid out). */
