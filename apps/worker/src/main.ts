@@ -3,11 +3,13 @@
  *
  * Consumes the API's outbound queues (Redis lists) and runs scheduled
  * maintenance. Kept dependency-light for Phase 1; can be migrated to BullMQ
- * when retry/backoff/DLQ semantics are needed at scale.
+ * when per-job scheduling, priorities or cross-worker visibility are needed at
+ * scale — retry/backoff/dead-lettering are handled inline below.
  *
  * Queues:
  *   rr:queue:email → deliver via SMTP (mailhog in dev)
  *   rr:queue:sms   → deliver via SMS gateway (logged in dev)
+ *   <queue>:dead   → jobs that exhausted every delivery attempt
  * Scheduled:
  *   expire stale staff invitations; purge expired login sessions;
  *   institute risk-signal sweep (Institute Intervention Radar, Phase 3).
@@ -43,7 +45,19 @@ const mailer = nodemailer.createTransport({
 const EMAIL_QUEUE = 'rr:queue:email';
 const SMS_QUEUE = 'rr:queue:sms';
 
+/** Delivery attempts per job, and the waits between them. BRPOP removes a job
+ *  from the queue before delivery is attempted, so without this a single SMTP
+ *  hiccup silently destroyed the message — a student saw "code sent" and no
+ *  code ever arrived. Total backoff is kept under ECS's 30s SIGTERM grace so a
+ *  deployment mid-retry can drain rather than kill the job (see shutdown()). */
+const MAX_ATTEMPTS = 4;
+const RETRY_BACKOFF_MS = [1_000, 4_000, 10_000];
+/** Dead-lettered jobs are capped so a sustained outage can't exhaust Redis. */
+const DEAD_LETTER_MAX = 500;
+
 let running = true;
+/** The delivery in progress, so shutdown can wait for it instead of killing it. */
+let inFlight: Promise<void> | null = null;
 
 async function consumeLoop() {
   const blocking = new Redis(env.REDIS_URL); // dedicated connection for BRPOP
@@ -52,14 +66,63 @@ async function consumeLoop() {
       const popped = await blocking.brpop(EMAIL_QUEUE, SMS_QUEUE, 5);
       if (!popped) continue;
       const [queue, payload] = popped;
-      if (queue === EMAIL_QUEUE) await handleEmail(payload);
-      else if (queue === SMS_QUEUE) await handleSms(payload);
+      inFlight = deliver(queue, payload);
+      await inFlight;
+      inFlight = null;
     } catch (err) {
+      // deliver() never throws, so this is a Redis/connection fault only.
       console.error('[worker] consume error', err);
       await sleep(1000);
     }
   }
   await blocking.quit();
+}
+
+/**
+ * Delivers one job, retrying transient failures in-process and dead-lettering
+ * anything that exhausts its attempts. Never throws — a poisoned payload must
+ * not be able to stop the consume loop.
+ *
+ * Residual gap: a job is held in memory while it retries, so a hard crash (or
+ * SIGKILL after the stop grace) still loses it. Closing that needs a
+ * BLMOVE-to-processing-list plus a reaper, which is only safe once we decide
+ * how it should behave with more than one worker task running; until then the
+ * dead-letter list is the recovery path.
+ */
+async function deliver(queue: string, payload: string): Promise<void> {
+  const handle = queue === EMAIL_QUEUE ? handleEmail : handleSms;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      await handle(payload);
+      if (attempt > 1) console.log(`[worker] ${queue} delivered on attempt ${attempt}`);
+      return;
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      console.error(`[worker] ${queue} attempt ${attempt}/${MAX_ATTEMPTS} failed: ${reason}`);
+      if (attempt === MAX_ATTEMPTS) {
+        await deadLetter(queue, payload, reason);
+        return;
+      }
+      await sleep(RETRY_BACKOFF_MS[attempt - 1]!);
+    }
+  }
+}
+
+/** Parks an undeliverable job on `<queue>:dead` with enough context to
+ *  diagnose it. Replay is a manual `RPOPLPUSH <queue>:dead <queue>` after
+ *  stripping the wrapper — deliberately not automatic, since everything here
+ *  has already failed every attempt. */
+async function deadLetter(queue: string, payload: string, reason: string): Promise<void> {
+  const key = `${queue}:dead`;
+  try {
+    await redis.lpush(key, JSON.stringify({ failedAt: new Date().toISOString(), reason, payload }));
+    await redis.ltrim(key, 0, DEAD_LETTER_MAX - 1);
+    const depth = await redis.llen(key);
+    console.error(`[worker] job dead-lettered → ${key} (${depth} held): ${reason}`);
+  } catch (err) {
+    // Redis itself is unhealthy; the payload is lost, so make that explicit.
+    console.error(`[worker] DEAD-LETTER WRITE FAILED, job lost from ${queue}:`, err);
+  }
 }
 
 async function handleEmail(raw: string) {
@@ -86,22 +149,22 @@ async function handleSms(raw: string) {
   // Real gateway: MSG91 v5 flow API (India DLT). The referenced template must
   // define a `body` variable that carries the message/OTP text. Falls back to
   // logging when not configured (dev / SMS_PROVIDER=log).
+  // Failures throw so deliver() retries and ultimately dead-letters them; a
+  // swallowed error here dropped the OTP exactly as the email path used to.
+  // Delivery is therefore at-least-once: a send that succeeded at the gateway
+  // but answered non-2xx will be retried, so a duplicate SMS is possible.
   if (env.SMS_PROVIDER === 'msg91' && env.SMS_API_KEY && env.MSG91_TEMPLATE_ID) {
-    try {
-      const res = await fetch('https://control.msg91.com/api/v5/flow/', {
-        method: 'POST',
-        headers: { authkey: env.SMS_API_KEY, 'content-type': 'application/json', accept: 'application/json' },
-        body: JSON.stringify({
-          template_id: env.MSG91_TEMPLATE_ID,
-          ...(env.MSG91_SENDER_ID ? { sender: env.MSG91_SENDER_ID } : {}),
-          recipients: [{ mobiles: mobile, body: job.text }],
-        }),
-      });
-      if (!res.ok) console.error(`[worker] MSG91 send failed: HTTP ${res.status}`);
-      else console.log(`[worker] sms sent via MSG91 → ••••${mobile.slice(-4)}`);
-    } catch (err) {
-      console.error('[worker] MSG91 error', err);
-    }
+    const res = await fetch('https://control.msg91.com/api/v5/flow/', {
+      method: 'POST',
+      headers: { authkey: env.SMS_API_KEY, 'content-type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify({
+        template_id: env.MSG91_TEMPLATE_ID,
+        ...(env.MSG91_SENDER_ID ? { sender: env.MSG91_SENDER_ID } : {}),
+        recipients: [{ mobiles: mobile, body: job.text }],
+      }),
+    });
+    if (!res.ok) throw new Error(`MSG91 send failed: HTTP ${res.status}`);
+    console.log(`[worker] sms sent via MSG91 → ••••${mobile.slice(-4)}`);
     return;
   }
 
@@ -467,6 +530,12 @@ async function main() {
     clearInterval(expiryTimer);
     clearInterval(planTimer);
     clearInterval(riskTimer);
+    // Let an in-progress delivery (including its retry backoff) finish rather
+    // than losing the job to the deploy. Bounded well inside ECS's 30s grace.
+    if (inFlight) {
+      console.log('[worker] shutdown: waiting for in-flight delivery');
+      await Promise.race([inFlight, sleep(20_000)]);
+    }
     await Promise.allSettled([redis.quit(), prisma.$disconnect()]);
     process.exit(0);
   };
