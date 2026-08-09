@@ -120,13 +120,23 @@ export function CourseStudioShell({
   // server on every refresh (e.g. after adding a curriculum item) would
   // silently clobber whatever the user picked in the Audience step. Derive
   // it from the server exactly once per mount, never again.
+  //
+  // …and only when `visibility` actually carries a user decision. A course
+  // that has never been published is DRAFT + PRIVATE purely from the Prisma
+  // defaults, which is indistinguishable from a deliberate "Institute only"
+  // choice — so gate on status too (publish sets ACTIVE and nothing moves a
+  // course back to DRAFT). Without that gate every new course opened the
+  // Audience step on INSTITUTE_ONLY, overriding the PUBLIC_AND_INSTITUTE
+  // default above.
   const audienceHydrated = useRef(false);
 
   function hydrate(c: StudioCourse) {
     setCode(c.code); setStateId(c.stateId ?? ''); setExamId(c.examId ?? '');
     setTitleHi(c.titleHi); setTitleEn(c.titleEn); setDescHi(c.descHi ?? ''); setDescEn(c.descEn ?? '');
     if (!audienceHydrated.current) {
-      setAudience(c.orgId && c.visibility === 'PRIVATE' ? 'INSTITUTE_ONLY' : 'PUBLIC_AND_INSTITUTE');
+      setAudience(
+        c.orgId && c.status !== 'DRAFT' && c.visibility === 'PRIVATE' ? 'INSTITUTE_ONLY' : 'PUBLIC_AND_INSTITUTE',
+      );
       audienceHydrated.current = true;
     }
     setCoursePromiseHi(c.coursePromiseHi ?? ''); setCoursePromiseEn(c.coursePromiseEn ?? '');
