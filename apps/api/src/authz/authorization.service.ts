@@ -92,6 +92,17 @@ export class AuthorizationService {
     await this.prisma.role.update({ where: { id: roleId }, data: { permVersion: { increment: 1 } } });
   }
 
+  /** Bump permVersion for every user of an org — invalidates every cached
+   *  principal's orgSubscriptionActive flag (resolvePrincipal folds it in at
+   *  cache time, not on every check, so it would otherwise stay stale for up
+   *  to the 300s TTL after a subscription activates). Called right after a
+   *  subscription flips to ACTIVE so the Head who just paid — and any staff
+   *  of that org — aren't stuck behind the "subscription isn't active" gate
+   *  for minutes after a successful payment. */
+  async invalidateOrg(orgId: string): Promise<void> {
+    await this.prisma.user.updateMany({ where: { orgId }, data: { permVersion: { increment: 1 } } });
+  }
+
   check(
     principal: Principal,
     permission: string,

@@ -5,6 +5,7 @@ import type { UpsertSubscriptionPlan, SubscribeOrganization, ConfirmSelfServePay
 import type { OrganizationSubscription, SubscriptionPlan } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { AuthorizationService } from '../authz/authorization.service';
 import { RazorpayService } from '../payments/razorpay.service';
 import { NotifierService } from '../notifications/notifier.service';
 import { institutionInvoiceEmail } from '../notifications/email-templates/payments';
@@ -26,6 +27,7 @@ export class BillingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly authz: AuthorizationService,
     private readonly razorpay: RazorpayService,
     private readonly notifier: NotifierService,
   ) {}
@@ -376,6 +378,12 @@ export class BillingService {
       data: { status: 'ACTIVE', currentPeriodStart: now, currentPeriodEnd: periodEnd },
     });
     if (count === 0) return; // another concurrent caller (webhook vs. sync verify) already handled this charge
+
+    // Without this, the Head who just paid (and any staff of that org) stays
+    // stuck behind the "subscription isn't active" gate for up to 300s — the
+    // cached Principal's orgSubscriptionActive flag doesn't otherwise refresh
+    // until its Redis TTL expires (see AuthorizationService.resolvePrincipal).
+    await this.authz.invalidateOrg(subscription.orgId);
 
     await this.prisma.institutionInvoice.create({
       data: {
