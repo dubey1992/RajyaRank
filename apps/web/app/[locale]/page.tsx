@@ -330,7 +330,11 @@ export default async function LandingPage({ params }: { params: { locale: string
               <h2 className="mt-3 text-3xl font-black tracking-tight text-navy-950 md:text-[40px]">{L('छात्र योजनाएँ', 'Student Plans')}</h2>
               <p className="mt-2 text-muted">{L('एक बार भुगतान करें, तय दिनों तक पहुँच पाएं — कोई ऑटो-रिन्यू नहीं।', 'Pay once, get access for a fixed number of days — no auto-renewal.')}</p>
             </div>
-            <div className="mx-auto grid max-w-3xl gap-5 sm:grid-cols-2">
+            {/* A lone plan in a 2-col grid sits in column 1, reading as
+                shifted left instead of centered — collapse to a single
+                narrow centered column until there's a second plan to pair
+                it with. */}
+            <div className={`mx-auto grid gap-5 ${plans.length === 1 ? 'max-w-sm' : 'max-w-3xl sm:grid-cols-2'}`}>
               {plans.map((p) => (
                 <article key={p.id} className="flex flex-col rounded-lg border border-line bg-white p-6 shadow-[0_10px_28px_rgba(15,23,42,0.05)]">
                   <span className="w-fit rounded-full bg-orange-100 px-2.5 py-1 text-[11px] font-extrabold text-orange-600">
