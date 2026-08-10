@@ -92,17 +92,27 @@ async function seedReference() {
   // orgId is null (platform-seeded) for both — Prisma's compound-unique
   // findUnique/upsert can't take a literal null for a nullable key component,
   // so these use findFirst + create instead of upsert.
-  let bpscPt = await prisma.exam.findFirst({ where: { code: 'BPSC_PT', orgId: null } });
-  if (!bpscPt) {
-    bpscPt = await prisma.exam.create({
-      data: { code: 'BPSC_PT', nameEn: 'BPSC Prelims', nameHi: 'बीपीएससी प्रारंभिक', examBodyId: bpsc.id, stateId: bihar.id },
-    });
-  }
-  let jsscCgl = await prisma.exam.findFirst({ where: { code: 'JSSC_CGL', orgId: null } });
-  if (!jsscCgl) {
-    jsscCgl = await prisma.exam.create({
-      data: { code: 'JSSC_CGL', nameEn: 'JSSC CGL', nameHi: 'जेएसएससी सीजीएल', examBodyId: jssc.id, stateId: jharkhand.id },
-    });
+  //
+  // Dev/demo data only — these two exams exist solely to support the demo
+  // users/courses seeded below (seedDemoUsers, seedDemoCourse,
+  // seedInstituteCourse), which are themselves skipped in production. A
+  // production institute creates its own exams; the platform must not show
+  // these as if they were real institute content.
+  let bpscPt: Awaited<ReturnType<typeof prisma.exam.findFirst>> = null;
+  let jsscCgl: Awaited<ReturnType<typeof prisma.exam.findFirst>> = null;
+  if (!isProd) {
+    bpscPt = await prisma.exam.findFirst({ where: { code: 'BPSC_PT', orgId: null } });
+    if (!bpscPt) {
+      bpscPt = await prisma.exam.create({
+        data: { code: 'BPSC_PT', nameEn: 'BPSC Prelims', nameHi: 'बीपीएससी प्रारंभिक', examBodyId: bpsc.id, stateId: bihar.id },
+      });
+    }
+    jsscCgl = await prisma.exam.findFirst({ where: { code: 'JSSC_CGL', orgId: null } });
+    if (!jsscCgl) {
+      jsscCgl = await prisma.exam.create({
+        data: { code: 'JSSC_CGL', nameEn: 'JSSC CGL', nameHi: 'जेएसएससी सीजीएल', examBodyId: jssc.id, stateId: jharkhand.id },
+      });
+    }
   }
 
   // Permissions
@@ -201,7 +211,7 @@ async function seedDemoUsers(ref: Awaited<ReturnType<typeof seedReference>>) {
   await makeStaff('super-admin@rajyarank.dev', 'Priya Sinha', 'SUPER_ADMIN', true, '9876500016');
 
   // Scoped assignments: Teacher→EXAM, Reviewer→STATE.
-  await upsertAssignment(teacher.id, 'EXAM', { stateId: ref.bihar.id, examId: ref.bpscPt.id });
+  await upsertAssignment(teacher.id, 'EXAM', { stateId: ref.bihar.id, examId: ref.bpscPt!.id });
   await upsertAssignment(reviewer.id, 'STATE', { stateId: ref.bihar.id });
   // Platform Content Admin operates platform-wide (all states/exams), not geo-locked:
   // a STATE assignment with no dimensions pinned covers every resource by the
@@ -230,7 +240,7 @@ async function seedDemoUsers(ref: Awaited<ReturnType<typeof seedReference>>) {
       phone: '9876543210',
       phoneVerified: true,
       displayName: 'Demo Student',
-      studentProfile: { create: { fullName: 'Demo Student', stateId: ref.bihar.id, targetExamId: ref.bpscPt.id } },
+      studentProfile: { create: { fullName: 'Demo Student', stateId: ref.bihar.id, targetExamId: ref.bpscPt!.id } },
     },
   });
   const studentRole = await prisma.role.findUniqueOrThrow({ where: { key: 'STUDENT' } });
@@ -254,7 +264,7 @@ async function seedDemoUsers(ref: Awaited<ReturnType<typeof seedReference>>) {
       phoneVerified: true,
       displayName: 'Green Valley Student',
       orgId: org.id,
-      studentProfile: { create: { fullName: 'Green Valley Student', stateId: ref.bihar.id, targetExamId: ref.bpscPt.id, onboardedAt: new Date() } },
+      studentProfile: { create: { fullName: 'Green Valley Student', stateId: ref.bihar.id, targetExamId: ref.bpscPt!.id, onboardedAt: new Date() } },
     },
   });
   await prisma.userRole.upsert({
@@ -284,7 +294,7 @@ async function seedDemoCourse(ref: Awaited<ReturnType<typeof seedReference>>) {
     create: {
       code: 'BPSC_PT_FULL',
       stateId: ref.bihar.id,
-      examId: ref.bpscPt.id,
+      examId: ref.bpscPt!.id,
       titleHi: 'बीपीएससी प्रारंभिक — संपूर्ण कोर्स',
       titleEn: 'BPSC Prelims — Complete Course',
       descHi: 'सिलेबस, नोट्स, टेस्ट और डेली प्लान के साथ पूरी तैयारी।',
@@ -367,7 +377,7 @@ async function seedInstituteCourse(ref: Awaited<ReturnType<typeof seedReference>
     create: {
       code: 'GV_JSSC_CGL',
       stateId: ref.jharkhand.id,
-      examId: ref.jsscCgl.id,
+      examId: ref.jsscCgl!.id,
       titleHi: 'जेएसएससी सीजीएल — संपूर्ण कोर्स',
       titleEn: 'JSSC CGL — Complete Course',
       descHi: 'ग्रीन वैली इंस्टिट्यूट द्वारा — वीडियो, नोट्स और टेस्ट के साथ।',

@@ -20,6 +20,7 @@ on:
           - seed-reference-data
           - bootstrap-super-admin
           - fix-super-admin-placeholder-email
+          - remove-default-exams
 
 permissions:
   id-token: write
@@ -64,6 +65,9 @@ jobs:
               ;;
             fix-super-admin-placeholder-email)
               echo 'command=["node","apps/api/scripts/fix-super-admin-placeholder-email.js"]' >> "$GITHUB_OUTPUT"
+              ;;
+            remove-default-exams)
+              echo 'command=["node","apps/api/scripts/remove-default-exams.js"]' >> "$GITHUB_OUTPUT"
               ;;
             *)
               echo "::error::Unknown operation ${{ inputs.operation }}"
