@@ -15,15 +15,16 @@ function buildCsp(nonce: string): string {
   // too — in dev this is the local MinIO endpoint, in prod the real S3/CDN host.
   const storage = process.env.NEXT_PUBLIC_S3_ENDPOINT ?? 'http://localhost:9000';
   const scriptSrc = IS_DEV
-    ? "script-src 'self' 'unsafe-eval' 'unsafe-inline'"
-    : `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`;
+    ? "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://checkout.razorpay.com"
+    : `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://checkout.razorpay.com`;
   return [
     "default-src 'self'",
     "img-src 'self' data: blob:",
     "font-src 'self' data:",
     "style-src 'self' 'unsafe-inline'",
     scriptSrc,
-    `connect-src 'self' ${api} ${storage}`,
+    `connect-src 'self' ${api} ${storage} https://api.razorpay.com https://lumberjack.razorpay.com`,
+    'frame-src https://api.razorpay.com https://checkout.razorpay.com',
     "object-src 'none'",
     "base-uri 'self'",
     "frame-ancestors 'none'",
