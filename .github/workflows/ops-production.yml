@@ -19,6 +19,7 @@ on:
         options:
           - seed-reference-data
           - bootstrap-super-admin
+          - fix-super-admin-placeholder-email
 
 permissions:
   id-token: write
@@ -60,6 +61,9 @@ jobs:
               ;;
             bootstrap-super-admin)
               echo 'command=["node","apps/api/scripts/bootstrap-super-admin.js"]' >> "$GITHUB_OUTPUT"
+              ;;
+            fix-super-admin-placeholder-email)
+              echo 'command=["node","apps/api/scripts/fix-super-admin-placeholder-email.js"]' >> "$GITHUB_OUTPUT"
               ;;
             *)
               echo "::error::Unknown operation ${{ inputs.operation }}"
