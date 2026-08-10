@@ -114,6 +114,10 @@ export const upsertCoursePricingSchema = z
   .refine((d) => !d.originalPriceMinor || d.originalPriceMinor >= d.priceMinor, {
     message: 'Original price must be at least the sale price.',
     path: ['originalPriceMinor'],
+  })
+  .refine((d) => d.accessType !== 'PAID' || d.priceMinor > 0, {
+    message: 'A paid course must have a price greater than zero — use Free instead.',
+    path: ['priceMinor'],
   });
 export type UpsertCoursePricing = z.infer<typeof upsertCoursePricingSchema>;
 

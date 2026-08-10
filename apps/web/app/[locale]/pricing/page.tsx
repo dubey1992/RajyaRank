@@ -53,10 +53,16 @@ export default async function PricingPage({ params }: { params: { locale: string
               </div>
               <h2 className="mt-3 text-lg font-black text-navy-900">{hi ? p.titleHi : p.titleEn}</h2>
               <div className="my-3 flex items-end gap-2">
-                <span className="text-3xl font-black text-navy-950">₹{(p.priceMinor / 100).toLocaleString('en-IN')}</span>
-                {p.originalPriceMinor && p.originalPriceMinor > p.priceMinor ? (
-                  <span className="mb-1 text-sm text-muted line-through">₹{(p.originalPriceMinor / 100).toLocaleString('en-IN')}</span>
-                ) : null}
+                {p.priceMinor === 0 ? (
+                  <span className="text-3xl font-black text-navy-950">{hi ? 'नि:शुल्क' : 'Free'}</span>
+                ) : (
+                  <>
+                    <span className="text-3xl font-black text-navy-950">₹{(p.priceMinor / 100).toLocaleString('en-IN')}</span>
+                    {p.originalPriceMinor && p.originalPriceMinor > p.priceMinor ? (
+                      <span className="mb-1 text-sm text-muted line-through">₹{(p.originalPriceMinor / 100).toLocaleString('en-IN')}</span>
+                    ) : null}
+                  </>
+                )}
               </div>
               <p className="mb-4 text-xs text-muted">
                 {p.validityDays ? `${p.validityDays} ${hi ? 'दिन वैधता' : 'days validity'}` : hi ? 'आजीवन' : 'Lifetime'} · {p.accessType}

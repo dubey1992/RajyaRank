@@ -99,10 +99,16 @@ export default async function MyCoursesPage({ params }: { params: { locale: stri
                   {product ? (
                     <>
                       <div className="mt-3 flex items-end gap-2">
-                        <strong className="text-xl font-black text-navy-950">₹{(product.priceMinor / 100).toLocaleString('en-IN')}</strong>
-                        {product.originalPriceMinor && product.originalPriceMinor > product.priceMinor ? (
-                          <span className="text-xs text-muted line-through">₹{(product.originalPriceMinor / 100).toLocaleString('en-IN')}</span>
-                        ) : null}
+                        {product.priceMinor === 0 ? (
+                          <strong className="text-xl font-black text-navy-950">{L('नि:शुल्क', 'Free')}</strong>
+                        ) : (
+                          <>
+                            <strong className="text-xl font-black text-navy-950">₹{(product.priceMinor / 100).toLocaleString('en-IN')}</strong>
+                            {product.originalPriceMinor && product.originalPriceMinor > product.priceMinor ? (
+                              <span className="text-xs text-muted line-through">₹{(product.originalPriceMinor / 100).toLocaleString('en-IN')}</span>
+                            ) : null}
+                          </>
+                        )}
                       </div>
                       <div className="mt-3">
                         <BuyButton productId={product.id!} locale={locale} showCoupon />

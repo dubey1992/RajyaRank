@@ -338,10 +338,16 @@ export default async function LandingPage({ params }: { params: { locale: string
                   </span>
                   <h3 className="mt-3 text-lg font-black text-navy-900">{hi ? p.titleHi : p.titleEn}</h3>
                   <div className="my-3 flex items-end gap-2">
-                    <span className="text-3xl font-black text-navy-950">₹{(p.priceMinor / 100).toLocaleString('en-IN')}</span>
-                    {p.originalPriceMinor && p.originalPriceMinor > p.priceMinor ? (
-                      <span className="mb-1 text-sm text-muted line-through">₹{(p.originalPriceMinor / 100).toLocaleString('en-IN')}</span>
-                    ) : null}
+                    {p.priceMinor === 0 ? (
+                      <span className="text-3xl font-black text-navy-950">{L('नि:शुल्क', 'Free')}</span>
+                    ) : (
+                      <>
+                        <span className="text-3xl font-black text-navy-950">₹{(p.priceMinor / 100).toLocaleString('en-IN')}</span>
+                        {p.originalPriceMinor && p.originalPriceMinor > p.priceMinor ? (
+                          <span className="mb-1 text-sm text-muted line-through">₹{(p.originalPriceMinor / 100).toLocaleString('en-IN')}</span>
+                        ) : null}
+                      </>
+                    )}
                   </div>
                   <p className="text-xs text-muted">{p.validityDays ? `${p.validityDays} ${L('दिन वैधता', 'days validity')}` : L('आजीवन', 'Lifetime')}</p>
                 </article>
@@ -485,6 +491,8 @@ export default async function LandingPage({ params }: { params: { locale: string
               {/* Refund policy intentionally hidden from the footer for now — the /refund route itself still works for anyone who reaches it directly. */}
               <li><Link className="transition hover:text-white" href={`/${locale}/privacy`}>{L('गोपनीयता', 'Privacy')}</Link></li>
               <li><Link className="transition hover:text-white" href={`/${locale}/terms`}>{L('शर्तें', 'Terms')}</Link></li>
+              <li><a className="transition hover:text-white" href="mailto:support@rajyarank.com">support@rajyarank.com</a></li>
+              <li><a className="transition hover:text-white" href="tel:+918676913831">+91-8676913831</a></li>
             </ul>
           </div>
         </div>

@@ -123,10 +123,16 @@ export default async function CourseDetailPage({
       ) : buyProduct ? (
         <div className="mt-5 max-w-xs rounded-lg border border-line bg-white p-5">
           <div className="flex items-end gap-2">
-            <strong className="text-3xl font-black text-navy-950">₹{(buyProduct.priceMinor / 100).toLocaleString('en-IN')}</strong>
-            {buyProduct.originalPriceMinor && buyProduct.originalPriceMinor > buyProduct.priceMinor ? (
-              <span className="text-sm text-muted line-through">₹{(buyProduct.originalPriceMinor / 100).toLocaleString('en-IN')}</span>
-            ) : null}
+            {buyProduct.priceMinor === 0 ? (
+              <strong className="text-3xl font-black text-navy-950">{L('नि:शुल्क', 'Free')}</strong>
+            ) : (
+              <>
+                <strong className="text-3xl font-black text-navy-950">₹{(buyProduct.priceMinor / 100).toLocaleString('en-IN')}</strong>
+                {buyProduct.originalPriceMinor && buyProduct.originalPriceMinor > buyProduct.priceMinor ? (
+                  <span className="text-sm text-muted line-through">₹{(buyProduct.originalPriceMinor / 100).toLocaleString('en-IN')}</span>
+                ) : null}
+              </>
+            )}
           </div>
           <p className="mt-1 text-xs text-muted">{buyProduct.validityDays ? L(`${buyProduct.validityDays} दिन वैधता`, `${buyProduct.validityDays} days validity`) : L('आजीवन', 'Lifetime')}</p>
           <div className="mt-4">

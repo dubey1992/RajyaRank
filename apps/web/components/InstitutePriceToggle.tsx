@@ -17,10 +17,16 @@ function PriceBlock({ product, locale, note }: { product: PriceLike; locale: str
     <div>
       {note ? <p className="mb-2 text-xs font-extrabold text-orange-600">{note}</p> : null}
       <div className="flex items-end gap-2">
-        <strong className="text-3xl font-black text-navy-950">₹{(product.priceMinor / 100).toLocaleString('en-IN')}</strong>
-        {product.originalPriceMinor && product.originalPriceMinor > product.priceMinor ? (
-          <span className="text-sm text-muted line-through">₹{(product.originalPriceMinor / 100).toLocaleString('en-IN')}</span>
-        ) : null}
+        {product.priceMinor === 0 ? (
+          <strong className="text-3xl font-black text-navy-950">{hi ? 'नि:शुल्क' : 'Free'}</strong>
+        ) : (
+          <>
+            <strong className="text-3xl font-black text-navy-950">₹{(product.priceMinor / 100).toLocaleString('en-IN')}</strong>
+            {product.originalPriceMinor && product.originalPriceMinor > product.priceMinor ? (
+              <span className="text-sm text-muted line-through">₹{(product.originalPriceMinor / 100).toLocaleString('en-IN')}</span>
+            ) : null}
+          </>
+        )}
       </div>
       <p className="mt-1 text-xs text-muted">
         {product.validityDays ? (hi ? `${product.validityDays} दिन वैधता` : `${product.validityDays} days validity`) : hi ? 'आजीवन' : 'Lifetime'}

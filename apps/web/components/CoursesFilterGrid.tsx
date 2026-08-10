@@ -169,10 +169,16 @@ export function CoursesFilterGrid({
             const priceBlock = (
               <div className="mt-auto border-t border-line pt-4">
                 <div className="flex items-end gap-2">
-                  <strong className="text-[22px] font-black text-navy-950">₹{(c.priceMinor / 100).toLocaleString('en-IN')}</strong>
-                  {c.originalPriceMinor && c.originalPriceMinor > c.priceMinor ? (
-                    <span className="text-sm text-muted line-through">₹{(c.originalPriceMinor / 100).toLocaleString('en-IN')}</span>
-                  ) : null}
+                  {c.priceMinor === 0 ? (
+                    <strong className="text-[22px] font-black text-navy-950">{hi ? 'नि:शुल्क' : 'Free'}</strong>
+                  ) : (
+                    <>
+                      <strong className="text-[22px] font-black text-navy-950">₹{(c.priceMinor / 100).toLocaleString('en-IN')}</strong>
+                      {c.originalPriceMinor && c.originalPriceMinor > c.priceMinor ? (
+                        <span className="text-sm text-muted line-through">₹{(c.originalPriceMinor / 100).toLocaleString('en-IN')}</span>
+                      ) : null}
+                    </>
+                  )}
                 </div>
                 <span className="mt-1.5 inline-block rounded-full bg-surface-soft px-2 py-1 text-[10px] font-extrabold text-muted">
                   {c.validityDays ? (hi ? `${c.validityDays} दिन वैधता` : `${c.validityDays} days validity`) : hi ? 'आजीवन' : 'Lifetime'}
