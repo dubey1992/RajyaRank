@@ -434,7 +434,7 @@ export default async function LandingPage({ params }: { params: { locale: string
               <h2 className="mt-3 text-3xl font-black tracking-tight text-navy-950 md:text-[40px]">{t('nav.faq')}</h2>
             </div>
             <div className="grid gap-3">
-              {faqRows.map((f) => (
+              {faqRows.slice(0, 5).map((f) => (
                 <details key={f.id} className="group rounded-md border border-line bg-white">
                   <summary className="flex cursor-pointer items-center justify-between gap-3 px-5 py-4 font-extrabold text-navy-900 [&::-webkit-details-marker]:hidden">
                     <span>{hi ? f.questionHi : f.questionEn}</span>
@@ -444,6 +444,18 @@ export default async function LandingPage({ params }: { params: { locale: string
                 </details>
               ))}
             </div>
+            {faqRows.length > 5 ? (
+              <div className="mt-6 text-center">
+                <a
+                  href={`/${locale}/faq`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 text-sm font-extrabold text-navy-900 hover:underline"
+                >
+                  {L('सभी सामान्य प्रश्न देखें', 'View all FAQs')} →
+                </a>
+              </div>
+            ) : null}
           </div>
         </section>
       ) : null}
