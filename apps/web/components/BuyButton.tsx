@@ -79,6 +79,15 @@ export function BuyButton({
         }),
       });
 
+      if (order.alreadyPaid) {
+        // Free product (or a coupon that zeroed it out) — the backend
+        // already granted the entitlement; there's nothing to pay, so never
+        // touch Razorpay. Same post-purchase navigation as a real payment,
+        // for the same stale-Router-Cache reason noted below.
+        window.location.assign(`/${locale}/account`);
+        return;
+      }
+
       if (!order.razorpayKeyId) {
         setMsg(hi ? 'इस डेमो में लाइव भुगतान बंद है (Razorpay कुंजी सेट नहीं)। एडमिन एक्सेस दे सकता है।' : 'Live checkout is disabled here (no Razorpay key). An admin can grant access.');
         return;

@@ -30,11 +30,17 @@ export type CreateOrder = z.infer<typeof createOrderSchema>;
 
 export interface CreateOrderResponse {
   orderId: string;
-  providerOrderId: string;
+  // Null when no payment gateway order was created — see alreadyPaid below.
+  providerOrderId: string | null;
   amountMinor: number;
   currency: string;
   razorpayKeyId: string;
   productTitle: string;
+  // True for a free product (or a coupon that discounted it to zero): the
+  // entitlement was already granted server-side and there is nothing to pay
+  // — Razorpay rejects a zero-amount order outright, so this path never
+  // goes near it. The client should skip opening Razorpay entirely.
+  alreadyPaid?: boolean;
 }
 
 /** Frontend posts Razorpay's callback here; the backend re-verifies the HMAC. */

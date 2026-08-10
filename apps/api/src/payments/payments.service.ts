@@ -69,7 +69,7 @@ export class PaymentsService {
         if (existing.userId !== principal.userId) {
           throw AppError.conflict('This idempotency key is already in use.');
         }
-        if (existing.providerOrderId) {
+        if (existing.providerOrderId || existing.status === 'PAID') {
           return {
             orderId: existing.id,
             providerOrderId: existing.providerOrderId,
@@ -77,6 +77,7 @@ export class PaymentsService {
             currency: existing.currency,
             razorpayKeyId: this.razorpay.keyId,
             productTitle: existing.product.titleEn,
+            alreadyPaid: existing.status === 'PAID' ? true : undefined,
           };
         }
       }
@@ -133,13 +134,48 @@ export class PaymentsService {
           productId: product.id,
           amountMinor,
           currency: product.currency,
-          status: 'CREATED',
+          // A free product (or a coupon discounting it to zero) is PAID the
+          // instant it's created — there's no payment to wait on.
+          status: amountMinor <= 0 ? 'PAID' : 'CREATED',
           couponId: coupon?.id ?? null,
           idempotencyKey: dto.idempotencyKey ?? null,
         },
       });
       return { order, amountMinor };
     });
+
+    // Razorpay rejects an order below its minimum amount outright (a real
+    // ₹0 checkout attempt on staging hit exactly this — "Order amount less
+    // than minimum amount allowed", surfaced as an unhandled 500). A free
+    // product has no payment to collect in the first place, so skip the
+    // gateway entirely rather than special-casing its rejection.
+    if (amountMinor <= 0) {
+      const payment = await this.prisma.payment.create({
+        data: { orderId: order.id, status: 'PAID', amountMinor: 0, currency: product.currency, paidAt: new Date() },
+      });
+      await this.entitlements.grantFromOrder(order, product, payment);
+      await this.notifications.emit({
+        userId: order.userId,
+        category: 'PAYMENT',
+        titleHi: 'नामांकन सफल',
+        titleEn: 'Enrollment successful',
+        bodyHi: `${product.titleHi} अब आपके खाते में सक्रिय है।`,
+        bodyEn: `${product.titleEn} is now active in your account.`,
+        data: { orderId: order.id },
+        email: (locale) => paymentReceiptEmail(locale, product.titleHi, product.titleEn, 0, product.currency),
+      });
+      await this.audit.record({ actorUserId: principal.userId, action: 'order.created', targetType: 'Order', targetId: order.id, result: 'SUCCESS', after: { amountMinor: 0, productId: product.id, free: true } });
+      await this.audit.record({ actorUserId: principal.userId, action: 'payment.paid', targetType: 'Order', targetId: order.id, result: 'SUCCESS' });
+      return {
+        orderId: order.id,
+        providerOrderId: null,
+        amountMinor: 0,
+        currency: product.currency,
+        razorpayKeyId: this.razorpay.keyId,
+        productTitle: product.titleEn,
+        alreadyPaid: true,
+      };
+    }
 
     const providerOrderId = await this.razorpay.createOrder(amountMinor, product.currency, order.id);
     await this.prisma.$transaction([
