@@ -116,7 +116,7 @@ export class BillingService {
     orgId: string,
     dto: SubscribeOrganization,
     opts: { settledImmediately: boolean },
-  ): Promise<{ subscription: { id: string }; checkoutUrl: string | null }> {
+  ): Promise<{ subscription: { id: string; razorpaySubscriptionId: string | null }; checkoutUrl: string | null }> {
     const org = await this.prisma.organization.findUnique({ where: { id: orgId } });
     if (!org) throw AppError.notFound('Institution not found.');
     if (!org.headUserId) throw AppError.conflict('This institution has no accepted Academic Head yet — it cannot be subscribed to a plan until the invited head accepts.');
@@ -253,7 +253,12 @@ export class BillingService {
       throw AppError.conflict('Complete your institution KYC verification before purchasing a subscription plan.');
     }
     const { subscription, checkoutUrl } = await this.provisionSubscription(actor, actor.orgId, dto, { settledImmediately: false });
-    return { subscriptionId: subscription.id, checkoutUrl, razorpayKeyId: this.razorpay.configured ? this.razorpay.keyId : null };
+    // Self-serve always takes provisionSubscription's !settledImmediately branch, which
+    // always calls razorpay.createSubscription and so always sets razorpaySubscriptionId
+    // (a real sub_* id, or a dev-fallback sub_dev_* one) — this is the id Razorpay's
+    // in-page Checkout widget needs as subscription_id, not the local row id.
+    if (!subscription.razorpaySubscriptionId) throw AppError.conflict('Subscription payment could not be initialized.');
+    return { subscriptionId: subscription.razorpaySubscriptionId, checkoutUrl, razorpayKeyId: this.razorpay.configured ? this.razorpay.keyId : null };
   }
 
   /** Confirms payment for a self-serve subscription right after Razorpay's
