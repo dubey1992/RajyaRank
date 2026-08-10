@@ -33,6 +33,18 @@ export interface PartnerInstituteView {
   instituteCount: number;
 }
 
+/** Real, live-computed counts for the marketing page's trust strip — no
+ *  page-view/visitor tracking exists in this codebase, so this deliberately
+ *  surfaces counts the platform can already prove rather than a vanity
+ *  "visits" number. */
+export interface PlatformStatsView {
+  /** Active STUDENT users — registered and not deactivated. */
+  students: number;
+  /** Active organizations with at least one live course — same population
+   *  already shown on the public partner-institutes directory. */
+  institutes: number;
+}
+
 export const verifyInstituteCodeSchema = z.object({
   code: z.string().min(2).max(40),
 });

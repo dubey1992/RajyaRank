@@ -8,7 +8,7 @@ import { CoursesFilterGrid } from '@/components/CoursesFilterGrid';
 import { toFilterableCourses, type CourseListItem } from '@/lib/courses';
 import { apiFetchServer } from '@/lib/api';
 import { getMe } from '@/lib/student';
-import type { ProductView, PartnerInstituteView, State, Exam, TestimonialView, FaqView, StudyContentTeaserView } from '@rajyarank/contracts';
+import type { ProductView, PartnerInstituteView, PlatformStatsView, State, Exam, TestimonialView, FaqView, StudyContentTeaserView } from '@rajyarank/contracts';
 
 const TEASER_STYLE: Record<StudyContentTeaserView['kind'], { icon: string; color: string; fg: string }> = {
   VIDEO: { icon: '▶', color: 'edf4ff', fg: '2e69ba' },
@@ -30,7 +30,7 @@ export default async function LandingPage({ params }: { params: { locale: string
   const L = (h: string, e: string) => (hi ? h : e);
 
   const cookie = cookies().toString();
-  const [me, courseList, products, institutes, states, examList, testimonials, faqRows, teasers] = await Promise.all([
+  const [me, courseList, products, institutes, states, examList, testimonials, faqRows, teasers, platformStats] = await Promise.all([
     getMe(cookie),
     apiFetchServer<CourseListItem[]>('/courses', ''),
     apiFetchServer<ProductView[]>('/products', ''),
@@ -40,6 +40,7 @@ export default async function LandingPage({ params }: { params: { locale: string
     apiFetchServer<TestimonialView[]>('/testimonials', ''),
     apiFetchServer<FaqView[]>('/faqs', ''),
     apiFetchServer<StudyContentTeaserView[]>('/study-content-teasers', ''),
+    apiFetchServer<PlatformStatsView>('/platform-stats', ''),
   ]);
   const isStudent = !!me && me.kind === 'STUDENT';
   const courses = toFilterableCourses(courseList ?? [], products ?? []).slice(0, 24);
@@ -139,10 +140,19 @@ export default async function LandingPage({ params }: { params: { locale: string
         </div>
       </section>
 
-      {/* Proof strip */}
+      {/* Proof strip — the first two tiles are real, live counts (not a page-
+          view/visitor number, which this platform has no tracking for); the
+          rest describe available content volume. */}
       <section className="mx-auto max-w-6xl px-4 py-8">
-        <div className="grid grid-cols-2 gap-4 rounded-lg border border-line bg-white p-6 text-center shadow-[0_9px_28px_rgba(15,23,42,0.05)] md:grid-cols-4">
-          {[['100+', L('संरचित पाठ', 'Structured lessons')], ['1,500+', L('अभ्यास प्रश्न', 'Practice questions')], ['25+', L('मॉक टेस्ट', 'Mock tests')], ['2', L('इंटरफ़ेस भाषाएँ', 'Interface languages')]].map(([n, label]) => (
+        <div className="grid grid-cols-2 gap-4 rounded-lg border border-line bg-white p-6 text-center shadow-[0_9px_28px_rgba(15,23,42,0.05)] sm:grid-cols-3 md:grid-cols-6">
+          {[
+            [`${(platformStats?.students ?? 0).toLocaleString('en-IN')}+`, L('सक्रिय छात्र', 'Active students')],
+            [`${(platformStats?.institutes ?? 0).toLocaleString('en-IN')}+`, L('साझेदार संस्थान', 'Partner institutes')],
+            ['100+', L('संरचित पाठ', 'Structured lessons')],
+            ['1,500+', L('अभ्यास प्रश्न', 'Practice questions')],
+            ['25+', L('मॉक टेस्ट', 'Mock tests')],
+            ['2', L('इंटरफ़ेस भाषाएँ', 'Interface languages')],
+          ].map(([n, label]) => (
             <div key={label}>
               <div className="text-2xl font-black text-navy-900">{n}</div>
               <div className="text-xs font-semibold text-muted">{label}</div>

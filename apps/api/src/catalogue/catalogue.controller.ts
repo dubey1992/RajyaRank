@@ -12,6 +12,7 @@ import {
   type VerifyInstituteCode,
   type VerifyInstituteCodeResponse,
   type PartnerInstituteView,
+  type PlatformStatsView,
   type CourseOutlineView,
 } from '@rajyarank/contracts';
 import { Public } from '../common/decorators/public.decorator';
@@ -157,6 +158,25 @@ export class CatalogueController {
     }
 
     return active.map((o) => ({ id: o.id, name: o.name, ...counts.get(o.id)! }));
+  }
+
+  /** Real, live counts for the marketing page's trust strip (active students,
+   *  active institutes with a live course) — deliberately NOT a page-view
+   *  counter, since no visitor-tracking infra exists in this codebase; see
+   *  PlatformStatsView's doc comment for the reasoning. */
+  @Public()
+  @Get('platform-stats')
+  async platformStats(): Promise<PlatformStatsView> {
+    const rejectedOrgIds = await this.rejectedKycOrgIds();
+    const [students, orgs] = await Promise.all([
+      this.prisma.user.count({ where: { kind: 'STUDENT', status: 'ACTIVE', deletedAt: null } }),
+      this.prisma.organization.findMany({
+        where: { status: 'ACTIVE', id: { notIn: rejectedOrgIds } },
+        select: { courses: { where: { deletedAt: null, status: 'ACTIVE' }, select: { id: true } } },
+      }),
+    ]);
+    const institutes = orgs.filter((o) => o.courses.length > 0).length;
+    return { students, institutes };
   }
 
   /** Preview an institute price-redemption code against a course, without
