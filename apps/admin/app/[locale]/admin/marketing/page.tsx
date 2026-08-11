@@ -8,6 +8,7 @@ import { AccessDenied } from '@/components/AccessDenied';
 import { TestimonialsManager } from '@/components/TestimonialsManager';
 import { FaqManager } from '@/components/FaqManager';
 import { StudyContentTeaserManager } from '@/components/StudyContentTeaserManager';
+import { BroadcastEmailManager } from '@/components/BroadcastEmailManager';
 import type { TestimonialView, FaqView, StudyContentTeaserView } from '@rajyarank/contracts';
 
 export const dynamic = 'force-dynamic';
@@ -44,6 +45,7 @@ export default async function MarketingPage({ params }: { params: { locale: stri
         <TestimonialsManager initial={testimonials ?? []} locale={locale} />
         <FaqManager initial={faqs ?? []} locale={locale} />
         <StudyContentTeaserManager initial={teasers ?? []} locale={locale} />
+        <BroadcastEmailManager locale={locale} />
       </div>
     </Shell>
   );

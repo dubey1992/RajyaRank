@@ -1,12 +1,16 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import type { Principal } from '@rajyarank/auth';
 import {
   upsertTestimonialSchema,
   upsertFaqSchema,
   upsertStudyContentTeaserSchema,
+  sendBroadcastEmailSchema,
+  broadcastAudienceSchema,
   type UpsertTestimonial,
   type UpsertFaq,
   type UpsertStudyContentTeaser,
+  type SendBroadcastEmail,
+  type BroadcastAudienceValue,
 } from '@rajyarank/contracts';
 import { Public } from '../common/decorators/public.decorator';
 import { CurrentPrincipal } from '../common/decorators/current-principal.decorator';
@@ -133,5 +137,20 @@ export class MarketingAdminController {
   @RequirePermission('marketing.manage')
   deleteStudyContentTeaser(@Param('id') id: string) {
     return this.marketing.deleteStudyContentTeaser(id);
+  }
+
+  @Get('broadcast-email/audience-count')
+  @RequirePermission('marketing.manage')
+  async broadcastAudienceCount(@Query('audience', new ZodValidationPipe(broadcastAudienceSchema)) audience: BroadcastAudienceValue) {
+    return { audience, recipientCount: await this.marketing.broadcastAudienceCount(audience) };
+  }
+
+  @Post('broadcast-email')
+  @RequirePermission('marketing.manage')
+  sendBroadcastEmail(
+    @CurrentPrincipal() principal: Principal,
+    @Body(new ZodValidationPipe(sendBroadcastEmailSchema)) body: SendBroadcastEmail,
+  ) {
+    return this.marketing.sendBroadcastEmail(principal.userId, body);
   }
 }

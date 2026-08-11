@@ -66,3 +66,30 @@ export const upsertStudyContentTeaserSchema = z.object({
   published: z.boolean().default(true),
 });
 export type UpsertStudyContentTeaser = z.infer<typeof upsertStudyContentTeaserSchema>;
+
+/** Super Admin-composed promotional/marketing broadcast — one email, sent
+ *  once, to a whole audience segment. Deliberately not per-recipient
+ *  bilingual (the admin writes one message in one language, unlike the
+ *  transactional templates which have fixed hi/en copy). */
+export const broadcastAudienceSchema = z.enum(['ALL_STUDENTS', 'ACADEMIC_HEADS', 'ALL_STAFF']);
+export type BroadcastAudienceValue = z.infer<typeof broadcastAudienceSchema>;
+
+export const sendBroadcastEmailSchema = z.object({
+  audience: broadcastAudienceSchema,
+  subject: z.string().min(1).max(200),
+  message: z.string().min(1).max(20000),
+  ctaLabel: z.string().min(1).max(60).optional(),
+  ctaHref: z.string().url().max(500).optional(),
+});
+export type SendBroadcastEmail = z.infer<typeof sendBroadcastEmailSchema>;
+
+export interface BroadcastAudienceCountView {
+  audience: BroadcastAudienceValue;
+  recipientCount: number;
+}
+
+export interface BroadcastEmailResult {
+  queued: number;
+  skippedMuted: number;
+  truncated: boolean;
+}

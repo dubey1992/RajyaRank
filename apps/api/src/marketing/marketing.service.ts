@@ -1,13 +1,22 @@
 import { Injectable } from '@nestjs/common';
-import type { UpsertTestimonial, UpsertFaq, UpsertStudyContentTeaser } from '@rajyarank/contracts';
+import type { UpsertTestimonial, UpsertFaq, UpsertStudyContentTeaser, SendBroadcastEmail, BroadcastAudienceValue, BroadcastEmailResult } from '@rajyarank/contracts';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 import { NotificationService } from '../notifications/notification.service';
+import { promotionalEmail } from '../notifications/email-templates/marketing';
 import { AppError } from '../common/errors/app-error';
+
+/** Hard ceiling on a single broadcast's recipient count — a safety backstop
+ *  against an accidental full-table send, not a real product limit at this
+ *  user scale. If the audience genuinely exceeds this, the send is truncated
+ *  and BroadcastEmailResult.truncated tells the caller so (never silently). */
+const AUDIENCE_CAP = 5000;
 
 @Injectable()
 export class MarketingService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
     private readonly notifications: NotificationService,
   ) {}
 
@@ -97,5 +106,69 @@ export class MarketingService {
     if (!row) throw AppError.notFound('Study content teaser not found.');
     await this.prisma.studyContentTeaser.delete({ where: { id } });
     return { ok: true };
+  }
+
+  // ── Promotional email broadcast (Super Admin only) ──
+  private async audienceUserIds(audience: BroadcastAudienceValue): Promise<string[]> {
+    if (audience === 'ALL_STUDENTS') {
+      const rows = await this.prisma.user.findMany({ where: { kind: 'STUDENT', status: 'ACTIVE', deletedAt: null }, select: { id: true } });
+      return rows.map((r) => r.id);
+    }
+    if (audience === 'ALL_STAFF') {
+      const rows = await this.prisma.user.findMany({ where: { kind: 'STAFF', status: 'ACTIVE', deletedAt: null }, select: { id: true } });
+      return rows.map((r) => r.id);
+    }
+    const rows = await this.prisma.user.findMany({
+      where: { kind: 'STAFF', status: 'ACTIVE', deletedAt: null, roles: { some: { role: { key: 'ACADEMIC_HEAD' } } } },
+      select: { id: true },
+    });
+    return rows.map((r) => r.id);
+  }
+
+  async broadcastAudienceCount(audience: BroadcastAudienceValue): Promise<number> {
+    return (await this.audienceUserIds(audience)).length;
+  }
+
+  /** Queues one promotional email per recipient in the chosen audience, via
+   *  NotificationService.emit (category ANNOUNCEMENT) so it honors each
+   *  recipient's own mute/emailEnabled preference and leaves an in-app
+   *  Notification record — the same path every other user-facing email in
+   *  the app already goes through, just fanned out across a whole segment
+   *  instead of one user. */
+  async sendBroadcastEmail(actorUserId: string, dto: SendBroadcastEmail): Promise<BroadcastEmailResult> {
+    const ids = await this.audienceUserIds(dto.audience);
+    const truncated = ids.length > AUDIENCE_CAP;
+    const targetIds = truncated ? ids.slice(0, AUDIENCE_CAP) : ids;
+    const email = promotionalEmail(dto.subject, dto.message, dto.ctaLabel && dto.ctaHref ? { label: dto.ctaLabel, href: dto.ctaHref } : undefined);
+
+    let queued = 0;
+    let skippedMuted = 0;
+    for (const userId of targetIds) {
+      const pref = await this.prisma.notificationPreference.findUnique({ where: { userId } });
+      if (pref?.mutedCategories?.includes('ANNOUNCEMENT') || pref?.emailEnabled === false) {
+        skippedMuted++;
+        continue;
+      }
+      await this.notifications.emit({
+        userId,
+        category: 'ANNOUNCEMENT',
+        titleHi: dto.subject,
+        titleEn: dto.subject,
+        bodyHi: dto.message,
+        bodyEn: dto.message,
+        email,
+      });
+      queued++;
+    }
+
+    await this.audit.record({
+      actorUserId,
+      action: 'marketing.broadcast_sent',
+      targetType: 'Broadcast',
+      targetId: dto.audience,
+      result: 'SUCCESS',
+      after: { audience: dto.audience, subject: dto.subject, queued, skippedMuted, truncated },
+    });
+    return { queued, skippedMuted, truncated };
   }
 }
