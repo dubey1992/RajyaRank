@@ -3,13 +3,14 @@ import { Prisma } from '@prisma/client';
 import type { Principal } from '@rajyarank/auth';
 import type { AttemptResult, MistakeType, SaveAnswer, StartAttemptResponse, StudentTestListItem } from '@rajyarank/contracts';
 import { PrismaService } from '../prisma/prisma.service';
+import { EntitlementService } from '../payments/entitlement.service';
 import { AppError } from '../common/errors/app-error';
 import { isResponseCorrect } from '../question-bank/answer-shape';
 import { classifyMistake } from './mistake-classifier';
 
 const FULL_VERSION_INCLUDE = Prisma.validator<Prisma.TestVersionDefaultArgs>()({
   include: {
-    test: { select: { orgId: true } },
+    test: { select: { orgId: true, examId: true, courseId: true, freeDemo: true } },
     sections: {
       orderBy: { sequence: 'asc' },
       include: {
@@ -25,7 +26,10 @@ type FullVersion = Prisma.TestVersionGetPayload<typeof FULL_VERSION_INCLUDE>;
 
 @Injectable()
 export class StudentTestsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly entitlements: EntitlementService,
+  ) {}
 
   private studentId(p: Principal): string {
     if (p.kind !== 'STUDENT') throw AppError.permissionDenied('Student account required.');
@@ -49,7 +53,7 @@ export class StudentTestsService {
     const tests = await this.prisma.testVersion.findMany({
       where: { status: 'PUBLISHED', test: this.orgScopeFilter(p) },
       include: {
-        test: { select: { titleHi: true, titleEn: true, type: true, examId: true } },
+        test: { select: { titleHi: true, titleEn: true, type: true, examId: true, courseId: true, freeDemo: true } },
         sections: { select: { _count: { select: { questions: true } } } },
       },
       orderBy: { publishedAt: 'desc' },
@@ -73,6 +77,24 @@ export class StudentTestsService {
       if (!completedByVersion.has(a.testVersionId)) completedByVersion.set(a.testVersionId, a.id);
     }
 
+    // Batch access check: one entitlements fetch covers every test in the
+    // list, instead of a per-test round trip (there could be up to 100
+    // here). Mirrors the direct-course-or-subscription duality in
+    // EntitlementService.hasCourseAccess/hasExamAccess, just computed
+    // in-memory across the whole batch instead of per call.
+    const now = new Date();
+    const activeEntitlements = await this.prisma.entitlement.findMany({
+      where: { userId: studentId, status: 'ACTIVE', OR: [{ endsAt: null }, { endsAt: { gt: now } }] },
+      select: { courseId: true, product: { select: { kind: true, examId: true } } },
+    });
+    const directCourseIds = new Set(activeEntitlements.filter((e) => e.courseId).map((e) => e.courseId as string));
+    const hasProSubscription = activeEntitlements.some((e) => e.product.kind === 'SUBSCRIPTION' && e.product.examId === null);
+    const plusExamIds = new Set(
+      activeEntitlements.filter((e) => e.product.kind === 'SUBSCRIPTION' && e.product.examId !== null).map((e) => e.product.examId as string),
+    );
+    const isAccessible = (test: { courseId: string | null; examId: string; freeDemo: boolean }) =>
+      test.freeDemo || (test.courseId !== null && directCourseIds.has(test.courseId)) || hasProSubscription || plusExamIds.has(test.examId);
+
     return tests.map((tv) => ({
       testVersionId: tv.id,
       titleHi: tv.test.titleHi,
@@ -81,6 +103,7 @@ export class StudentTestsService {
       durationMinutes: tv.durationMinutes,
       questionCount: tv.sections.reduce((n, s) => n + s._count.questions, 0),
       completedAttemptId: completedByVersion.get(tv.id) ?? null,
+      accessible: isAccessible(tv.test),
     }));
   }
 
@@ -92,6 +115,17 @@ export class StudentTestsService {
     // list, actually unattemptable by a student outside the owning institute
     // (or with no institute at all), even if they already have the id.
     if (tv.test.orgId && tv.test.orgId !== p.orgId) throw AppError.notFound('Test is not available.');
+
+    // Free-tier gate: freeDemo tests are attemptable with zero entitlements;
+    // everything else needs a direct purchase of the linked course (if any)
+    // or a Plus/Pro subscription covering this test's exam. Same pattern as
+    // the lesson-playback gate in student.service.ts.
+    if (!tv.test.freeDemo) {
+      const hasAccess =
+        (tv.test.courseId !== null && (await this.entitlements.hasCourseAccess(studentId, tv.test.courseId))) ||
+        (await this.entitlements.hasExamAccess(studentId, tv.test.examId));
+      if (!hasAccess) throw AppError.entitlementRequired();
+    }
 
     const now = Date.now();
     if (tv.availableFrom && tv.availableFrom.getTime() > now) throw AppError.conflict('Test has not opened yet.');

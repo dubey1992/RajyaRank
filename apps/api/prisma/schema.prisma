@@ -790,6 +790,11 @@ model Test {
   type             TestType
   titleHi          String    @map("title_hi")
   titleEn          String    @map("title_en")
+  // Mirrors Lesson.freePreview — a zero-entitlement student can attempt this
+  // one test regardless of Plus/Pro status. Every other test requires an
+  // active entitlement (direct course purchase or a Plus/Pro subscription
+  // covering this exam) — see EntitlementService.hasExamAccess.
+  freeDemo         Boolean   @default(false) @map("free_demo")
   currentVersionId String?   @unique @map("current_version_id")
   createdBy        String    @map("created_by")
   createdAt        DateTime  @default(now()) @map("created_at")

@@ -52,7 +52,7 @@ export class TestBuilderService {
     this.authorize(principal, 'test.create', scope);
     const test = await this.prisma.$transaction(async (tx) => {
       const t = await tx.test.create({
-        data: { examId: dto.examId, orgId: principal.orgId ?? null, courseId: dto.courseId ?? null, type: dto.type, titleHi: dto.titleHi, titleEn: dto.titleEn, createdBy: principal.userId },
+        data: { examId: dto.examId, orgId: principal.orgId ?? null, courseId: dto.courseId ?? null, type: dto.type, titleHi: dto.titleHi, titleEn: dto.titleEn, freeDemo: dto.freeDemo, createdBy: principal.userId },
       });
       const v = await tx.testVersion.create({
         data: {
@@ -120,6 +120,7 @@ export class TestBuilderService {
           type: dto.type,
           titleHi: dto.titleHi,
           titleEn: dto.titleEn,
+          freeDemo: dto.freeDemo,
           createdBy: principal.userId,
         },
       });

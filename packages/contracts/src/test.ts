@@ -63,6 +63,8 @@ export const createTestSchema = z.object({
   attemptLimit: z.number().int().positive().optional(),
   /** Minimum % of maxScore to "pass" the test (0–100). Optional. */
   passingScore: z.number().int().min(0).max(100).optional(),
+  /** Mirrors Lesson.freePreview — attemptable with zero entitlements. */
+  freeDemo: z.boolean().default(false),
 });
 export type CreateTest = z.infer<typeof createTestSchema>;
 
@@ -96,6 +98,8 @@ export const quickCreateQuizSchema = z
     questionVersionIds: z.array(z.string().uuid()).default([]),
     newQuestions: z.array(createQuestionSchema).default([]),
     submitForReview: z.boolean().default(true),
+    /** Mirrors Lesson.freePreview — attemptable with zero entitlements. */
+    freeDemo: z.boolean().default(false),
   })
   .refine((d) => d.questionVersionIds.length + d.newQuestions.length >= 1, {
     message: 'Add at least one question (pick existing or bulk-upload new).',
@@ -205,6 +209,11 @@ export interface StudentTestListItem {
   durationMinutes: number;
   questionCount: number;
   completedAttemptId: string | null;
+  /** freeDemo OR the student holds a covering entitlement (direct course
+   *  purchase, or a Plus/Pro subscription covering this test's exam). A
+   *  test the student can't yet start still appears (locked), same pattern
+   *  as a locked lesson in the curriculum panel. */
+  accessible: boolean;
 }
 
 /** A weak area for the student — usually a curriculum Topic, but a Subject

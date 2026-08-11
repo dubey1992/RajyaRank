@@ -44,11 +44,12 @@ export default async function TestsPage({ params }: { params: { locale: string }
         <div className="grid gap-[18px] sm:grid-cols-2 lg:grid-cols-3">
           {tests.map((t) => {
             const meta = TYPE_META[t.type] ?? { icon: '📝', tone: 'bg-navy-100 text-navy-800' };
+            const locked = !t.accessible && !t.completedAttemptId;
             return (
-              <article key={t.testVersionId} className="relative overflow-hidden rounded-[18px] border border-line bg-white p-[18px] shadow-[0_7px_22px_rgba(6,29,49,0.04)]">
-                <span className={`grid h-11 w-11 place-items-center rounded-[14px] text-xl ${meta.tone}`}>{meta.icon}</span>
+              <article key={t.testVersionId} className={`relative overflow-hidden rounded-[18px] border border-line bg-white p-[18px] shadow-[0_7px_22px_rgba(6,29,49,0.04)] ${locked ? 'opacity-70' : ''}`}>
+                <span className={`grid h-11 w-11 place-items-center rounded-[14px] text-xl ${meta.tone}`}>{locked ? '🔒' : meta.icon}</span>
                 <h3 className="mt-3.5 text-[15px] font-black text-navy-900">{hi ? t.titleHi : t.titleEn}</h3>
-                <p className="mt-1 text-[10.5px] text-muted">{t.type.replace(/_/g, ' ')}</p>
+                <p className="mt-1 text-[10.5px] text-muted">{t.type.replace(/_/g, ' ')}{t.accessible && !t.completedAttemptId ? ` · ${L('मुफ़्त', 'free')}` : ''}</p>
                 <div className="my-3.5 grid grid-cols-3 gap-1.5">
                   <div className="rounded-[10px] bg-[#f7f9fb] px-1 py-2 text-center"><strong className="block text-[11px]">{t.questionCount}</strong><small className="text-[8px] text-muted">{L('प्रश्न', 'Questions')}</small></div>
                   <div className="rounded-[10px] bg-[#f7f9fb] px-1 py-2 text-center"><strong className="block text-[11px]">{t.durationMinutes}m</strong><small className="text-[8px] text-muted">{L('अवधि', 'Duration')}</small></div>
@@ -60,6 +61,10 @@ export default async function TestsPage({ params }: { params: { locale: string }
                     className="block w-full rounded-xl border border-line bg-white py-2.5 text-center text-[11px] font-extrabold text-navy-900 transition hover:bg-surface-soft"
                   >
                     {L('परिणाम देखें', 'View results')}
+                  </Link>
+                ) : locked ? (
+                  <Link href={`/${locale}/pricing`} className="block w-full rounded-xl border border-line bg-white py-2.5 text-center text-[11px] font-extrabold text-navy-900 transition hover:bg-surface-soft">
+                    {L('अनलॉक करें', 'Unlock')}
                   </Link>
                 ) : (
                   <Link href={`/${locale}/tests/${t.testVersionId}`} className="block w-full rounded-xl bg-orange-500 py-2.5 text-center text-[11px] font-extrabold text-white transition hover:bg-orange-600">

@@ -98,21 +98,40 @@ export class EntitlementService {
    *  scoped to this exact exam. Every existing call site benefits from this
    *  automatically; nothing else needed to change. */
   async hasCourseAccess(userId: string, courseId: string): Promise<boolean> {
-    const now = new Date();
-    const activeWhere = { status: 'ACTIVE' as const, OR: [{ endsAt: null }, { endsAt: { gt: now } }] };
-    const direct = await this.prisma.entitlement.findFirst({ where: { userId, courseId, ...activeWhere } });
+    const direct = await this.prisma.entitlement.findFirst({ where: { userId, courseId, ...this.activeWhere() } });
     if (direct) return true;
 
     const course = await this.prisma.course.findUnique({ where: { id: courseId }, select: { examId: true } });
     if (!course) return false;
+    return this.hasSubscriptionAccess(userId, course.examId);
+  }
+
+  /** Does the user have a live Plus (scoped to this exam) or Pro (all-access)
+   *  subscription? Used by the test-taking gate — a Test carries its own
+   *  `examId` directly (no Course required), so this skips hasCourseAccess's
+   *  course lookup and direct-entitlement check (there's no such thing as a
+   *  direct per-test purchase in this schema). Callers whose test IS tied to
+   *  a course (`Test.courseId` set) should also check hasCourseAccess for
+   *  that course — a direct course purchase should unlock that course's own
+   *  tests too, not just a subscription. */
+  async hasExamAccess(userId: string, examId: string): Promise<boolean> {
+    return this.hasSubscriptionAccess(userId, examId);
+  }
+
+  private async hasSubscriptionAccess(userId: string, examId: string): Promise<boolean> {
     const subscription = await this.prisma.entitlement.findFirst({
       where: {
         userId,
-        ...activeWhere,
-        product: { kind: 'SUBSCRIPTION', OR: [{ examId: null }, { examId: course.examId }] },
+        ...this.activeWhere(),
+        product: { kind: 'SUBSCRIPTION', OR: [{ examId: null }, { examId }] },
       },
     });
     return Boolean(subscription);
+  }
+
+  private activeWhere() {
+    const now = new Date();
+    return { status: 'ACTIVE' as const, OR: [{ endsAt: null }, { endsAt: { gt: now } }] };
   }
 
   async listMine(userId: string) {

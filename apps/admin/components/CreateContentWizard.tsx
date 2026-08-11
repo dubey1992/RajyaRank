@@ -239,6 +239,7 @@ export function CreateContentWizard({
   const [attemptLimit, setAttemptLimit] = useState('');
   const [resultRelease, setResultRelease] = useState<'IMMEDIATE' | 'AFTER_WINDOW' | 'MANUAL'>('IMMEDIATE');
   const [passingScore, setPassingScore] = useState('');
+  const [freeDemoTest, setFreeDemoTest] = useState(false);
   const [questions, setQuestions] = useState<QuestionItem[]>([]);
   const [selectedQuestionIds, setSelectedQuestionIds] = useState<string[]>([]);
   const [bulkRows, setBulkRows] = useState<ParsedQuestionRow[]>([]);
@@ -468,6 +469,7 @@ export function CreateContentWizard({
           questionVersionIds: selectedQuestionIds,
           newQuestions: bulkRows,
           submitForReview,
+          freeDemo: freeDemoTest,
         }),
       });
       setResults([{
@@ -677,6 +679,10 @@ export function CreateContentWizard({
               <option value="MANUAL">{L('मैन्युअल', 'Manual')}</option>
             </select>
             <Field label={L('उत्तीर्ण स्कोर % (वैकल्पिक)', 'Passing score % (optional)')} name="passing" inputMode="numeric" value={passingScore} onChange={(e) => setPassingScore(e.target.value.replace(/\D/g, ''))} />
+            <label className="flex items-center gap-2 text-sm text-ink">
+              <input type="checkbox" checked={freeDemoTest} onChange={(e) => setFreeDemoTest(e.target.checked)} />
+              {L('नि:शुल्क डेमो टेस्ट (बिना सदस्यता के प्रयास किया जा सकता है)', 'Free demo test (attemptable without a subscription)')}
+            </label>
           </div>
         ) : null}
 

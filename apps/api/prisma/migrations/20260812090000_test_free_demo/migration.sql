@@ -1,0 +1,1 @@
+ALTER TABLE "tests" ADD COLUMN "free_demo" BOOLEAN NOT NULL DEFAULT false;
