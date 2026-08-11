@@ -8,9 +8,10 @@ import { ProfileForm } from '@/components/ProfileForm';
 import { ChangePasswordForm } from '@/components/ChangePasswordForm';
 import { TrustedDevicesManager, type TrustedDeviceView } from '@/components/TrustedDevicesManager';
 import { MfaSetup } from '@/components/MfaSetup';
+import { PaymentMethodsManager } from '@/components/PaymentMethodsManager';
 import { Alert } from '@rajyarank/ui';
 import { roleLabel } from '@/lib/labels';
-import type { ProfileResponse } from '@rajyarank/contracts';
+import type { ProfileResponse, SavedPaymentMethodView } from '@rajyarank/contracts';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,6 +51,7 @@ export default async function ProfilePage({
   const trustedDevices = profile?.mfaEnabled
     ? ((await apiFetchServer<TrustedDeviceView[]>('/auth/trusted-devices', cookies().toString())) ?? [])
     : null;
+  const paymentMethods = (await apiFetchServer<SavedPaymentMethodView[]>('/payment-methods', cookies().toString())) ?? [];
 
   return (
     <Shell me={me} locale={locale} title={title}>
@@ -164,6 +166,8 @@ export default async function ProfilePage({
               )}
             </section>
           ) : null}
+
+          <PaymentMethodsManager initial={paymentMethods} locale={locale} />
 
           {profile.hasPassword ? (
             <section className="rounded-lg border border-line bg-white p-5">

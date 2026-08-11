@@ -9,7 +9,8 @@ import { ProfileForm } from '@/components/ProfileForm';
 import { StudyGoalsForm } from '@/components/StudyGoalsForm';
 import { JoinInstitutionForm } from '@/components/JoinInstitutionForm';
 import { ChangePasswordForm } from '@/components/ChangePasswordForm';
-import type { EntitlementView, ProfileResponse, StudyGoals } from '@rajyarank/contracts';
+import { PaymentMethodsManager } from '@/components/PaymentMethodsManager';
+import type { EntitlementView, ProfileResponse, StudyGoals, SavedPaymentMethodView } from '@rajyarank/contracts';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,11 +25,12 @@ export default async function AccountPage({ params }: { params: { locale: string
   const me = await getMe(cookie);
   if (!me) redirect(`/${locale}/login`);
 
-  const [entitlements, orders, profile, goals] = await Promise.all([
+  const [entitlements, orders, profile, goals, paymentMethods] = await Promise.all([
     apiFetchServer<EntitlementView[]>('/student/entitlements', cookie),
     apiFetchServer<OrderView[]>('/student/orders', cookie),
     apiFetchServer<ProfileResponse>('/auth/me/profile', cookie),
     apiFetchServer<StudyGoals>('/student/profile/goals', cookie),
+    apiFetchServer<SavedPaymentMethodView[]>('/payment-methods', cookie),
   ]);
   // For the small profile-card badge: most recent entitlement regardless of
   // whether it's still live — its own status label ("EXPIRED" etc.) already
@@ -134,6 +136,8 @@ export default async function AccountPage({ params }: { params: { locale: string
               </ul>
             )}
           </section>
+
+          <PaymentMethodsManager initial={paymentMethods ?? []} locale={locale} />
 
           <section className="rounded-[18px] border border-line bg-white p-5 shadow-[0_7px_22px_rgba(6,29,49,0.04)]">
             <h2 className="mb-3 text-base font-black tracking-tight text-navy-950">{L('ऑर्डर इतिहास', 'Order history')}</h2>
