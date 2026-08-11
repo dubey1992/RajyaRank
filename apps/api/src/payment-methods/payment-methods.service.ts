@@ -57,7 +57,10 @@ export class PaymentMethodsService {
       throw AppError.conflict(`You can save up to ${MAX_SAVED_CARDS} cards. Remove one before adding another.`);
     }
     const razorpayCustomerId = await this.ensureCustomer(actor);
-    const providerOrderId = await this.razorpay.createOrder(VERIFICATION_AMOUNT_MINOR, 'INR', `card-verify-${actor.userId}-${Date.now()}`);
+    // Razorpay caps `receipt` at 40 chars — a full uuid userId + timestamp
+    // blows past that, so use a short user prefix instead of the whole id.
+    const receipt = `pm-${actor.userId.slice(0, 8)}-${Date.now()}`;
+    const providerOrderId = await this.razorpay.createOrder(VERIFICATION_AMOUNT_MINOR, 'INR', receipt);
     return {
       razorpayKeyId: this.razorpay.keyId,
       razorpayCustomerId,
