@@ -97,6 +97,9 @@ export function BillingSelfServe({
         subscription_id: res.subscriptionId,
         name: 'RajyaRank',
         description: L('संस्थान सदस्यता', 'Institution subscription'),
+        // Lets Checkout offer this Head's saved cards instead of a blank
+        // entry form. Omitted entirely if none is saved yet.
+        ...(res.razorpayCustomerId ? { customer_id: res.razorpayCustomerId } : {}),
         handler: async (resp: { razorpay_payment_id: string; razorpay_signature: string }) => {
           try {
             await apiFetch('/academic/billing/subscribe/verify', {

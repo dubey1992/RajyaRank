@@ -282,7 +282,15 @@ export class BillingService {
     // (a real sub_* id, or a dev-fallback sub_dev_* one) — this is the id Razorpay's
     // in-page Checkout widget needs as subscription_id, not the local row id.
     if (!subscription.razorpaySubscriptionId) throw AppError.conflict('Subscription payment could not be initialized.');
-    return { subscriptionId: subscription.razorpaySubscriptionId, checkoutUrl, razorpayKeyId: this.razorpay.configured ? this.razorpay.keyId : null };
+    // Set only if this Head already saved a card — lets Checkout offer it
+    // instead of a blank card-entry form (same mechanism as student checkout).
+    const head = await this.prisma.user.findUnique({ where: { id: actor.userId }, select: { razorpayCustomerId: true } });
+    return {
+      subscriptionId: subscription.razorpaySubscriptionId,
+      checkoutUrl,
+      razorpayKeyId: this.razorpay.configured ? this.razorpay.keyId : null,
+      razorpayCustomerId: head?.razorpayCustomerId ?? null,
+    };
   }
 
   /** Confirms payment for a self-serve subscription right after Razorpay's

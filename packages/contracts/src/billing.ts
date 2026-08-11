@@ -51,6 +51,9 @@ export interface SelfServeSubscribeResult {
   subscriptionId: string;
   checkoutUrl: string | null;
   razorpayKeyId: string | null;
+  // Set only if this Head already saved a card — see CreateOrderResponse's
+  // twin field for why.
+  razorpayCustomerId?: string | null;
 }
 
 export const confirmSelfServePaymentSchema = z.object({

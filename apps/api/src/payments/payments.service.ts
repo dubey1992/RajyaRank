@@ -56,6 +56,12 @@ export class PaymentsService {
   async createOrder(principal: Principal, dto: CreateOrder): Promise<CreateOrderResponse> {
     if (principal.kind !== 'STUDENT') throw AppError.permissionDenied('Student account required.');
 
+    // Looked up once and threaded into every return below — Checkout only
+    // offers "saved cards" when it's given a customer_id, so a buyer who
+    // saved a card via Payment Methods sees it here instead of a blank form.
+    const buyer = await this.prisma.user.findUnique({ where: { id: principal.userId }, select: { razorpayCustomerId: true } });
+    const razorpayCustomerId = buyer?.razorpayCustomerId ?? null;
+
     // Idempotency: reuse an existing order for the same key — but only the
     // caller's own. idempotencyKey is globally unique in the schema, so a
     // bare lookup by key alone (with no owner check) would hand back another
@@ -78,6 +84,7 @@ export class PaymentsService {
             razorpayKeyId: this.razorpay.keyId,
             productTitle: existing.product.titleEn,
             alreadyPaid: existing.status === 'PAID' ? true : undefined,
+            razorpayCustomerId,
           };
         }
       }
@@ -186,7 +193,7 @@ export class PaymentsService {
     ]);
     await this.audit.record({ actorUserId: principal.userId, action: 'order.created', targetType: 'Order', targetId: order.id, result: 'SUCCESS', after: { amountMinor, productId: product.id } });
 
-    return { orderId: order.id, providerOrderId, amountMinor, currency: product.currency, razorpayKeyId: this.razorpay.keyId, productTitle: product.titleEn };
+    return { orderId: order.id, providerOrderId, amountMinor, currency: product.currency, razorpayKeyId: this.razorpay.keyId, productTitle: product.titleEn, razorpayCustomerId };
   }
 
   /** Backend re-verifies the HMAC — the frontend callback alone is never trusted. */

@@ -36,6 +36,10 @@ export interface CreateOrderResponse {
   currency: string;
   razorpayKeyId: string;
   productTitle: string;
+  // Set only if this user already saved a card (Profile Settings → Payment
+  // methods) — passed to Razorpay Checkout so it offers their saved cards
+  // instead of a blank card-entry form. Null for a first-time buyer.
+  razorpayCustomerId?: string | null;
   // True for a free product (or a coupon that discounted it to zero): the
   // entitlement was already granted server-side and there is nothing to pay
   // — Razorpay rejects a zero-amount order outright, so this path never

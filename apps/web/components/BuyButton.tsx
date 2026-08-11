@@ -106,6 +106,10 @@ export function BuyButton({
         currency: order.currency,
         name: 'RajyaRank',
         description: order.productTitle,
+        // Lets Checkout offer this buyer's saved cards (Profile Settings →
+        // Payment methods) instead of a blank entry form. Omitted entirely
+        // for a first-time buyer with no saved card yet.
+        ...(order.razorpayCustomerId ? { customer_id: order.razorpayCustomerId } : {}),
         handler: async (resp: { razorpay_payment_id: string; razorpay_signature: string }) => {
           try {
             await apiFetch('/payments/razorpay/verify', {
