@@ -8,6 +8,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { RazorpayService } from '../payments/razorpay.service';
 import { S3Service } from '../s3/s3.service';
+import { NotifierService } from '../notifications/notifier.service';
+import { kycVerifiedEmail, kycRejectedEmail } from '../notifications/email-templates/institution-lifecycle';
 import { encryptField, decryptField } from '../common/crypto.util';
 import { AppError } from '../common/errors/app-error';
 
@@ -35,7 +37,26 @@ export class SettlementsService {
     private readonly audit: AuditService,
     private readonly razorpay: RazorpayService,
     private readonly s3: S3Service,
+    private readonly notifier: NotifierService,
   ) {}
+
+  /** Best-effort — a notification failure must never block or roll back the
+   *  KYC decision itself. */
+  private async notifyKycOutcome(orgId: string, outcome: 'VERIFIED' | 'REJECTED', reason?: string) {
+    try {
+      const org = await this.prisma.organization.findUnique({ where: { id: orgId }, include: { head: true } });
+      if (!org?.head?.email) return;
+      const locale = org.head.locale === 'hi' ? 'hi' : 'en';
+      const settlementsUrl = `${this.env.ADMIN_PUBLIC_URL}/admin/earnings`;
+      const { subject, html } =
+        outcome === 'VERIFIED'
+          ? kycVerifiedEmail(locale, org.name, settlementsUrl)
+          : kycRejectedEmail(locale, org.name, reason ?? '', settlementsUrl);
+      await this.notifier.sendEmail({ to: org.head.email, subject, html, locale });
+    } catch (e) {
+      this.logger.warn(`KYC ${outcome} notification failed for org ${orgId}: ${(e as Error).message}`);
+    }
+  }
 
   /** Called from payments.service.ts's markPaid() right after a student's
    *  order is confirmed. Splits the sale between platform and institute and
@@ -248,6 +269,7 @@ export class SettlementsService {
       data: { kycStatus: 'VERIFIED', payoutsEnabled: true },
     });
     await this.audit.record({ actorUserId: actor.userId, action: 'settlements.kyc_verified', targetType: 'Organization', targetId: orgId, result: 'SUCCESS' });
+    await this.notifyKycOutcome(orgId, 'VERIFIED');
     return {
       id: linkedAccount.id,
       orgId: linkedAccount.orgId,
@@ -275,6 +297,7 @@ export class SettlementsService {
       data: { kycStatus: 'REJECTED', payoutsEnabled: false, kycRejectionReason: reason },
     });
     await this.audit.record({ actorUserId: actor.userId, action: 'settlements.kyc_rejected', targetType: 'Organization', targetId: orgId, result: 'SUCCESS', after: { reason } });
+    await this.notifyKycOutcome(orgId, 'REJECTED', reason);
     return {
       id: linkedAccount.id,
       orgId: linkedAccount.orgId,
@@ -330,6 +353,13 @@ export class SettlementsService {
       result: 'SUCCESS',
       after: { eventType, ...mapped },
     });
+    if (mapped.kycStatus === 'VERIFIED' || mapped.kycStatus === 'REJECTED') {
+      await this.notifyKycOutcome(
+        linkedAccount.orgId,
+        mapped.kycStatus,
+        mapped.kycStatus === 'REJECTED' ? 'Reported by Razorpay during account review.' : undefined,
+      );
+    }
   }
 
   async superSummary() {

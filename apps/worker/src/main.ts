@@ -247,6 +247,65 @@ async function sweepEntitlementExpiry() {
 }
 
 /** Same duplicated-shell convention as entitlementExpiringHtml above. */
+function subscriptionNearingExpiryHtml(locale: 'hi' | 'en', orgName: string, planNameHi: string, planNameEn: string, daysLeft: number): { subject: string; html: string } {
+  const hi = locale === 'hi';
+  const planName = hi ? planNameHi : planNameEn;
+  const heading = hi ? 'आपकी सदस्यता जल्द समाप्त होगी' : 'Your subscription renews soon';
+  const subject = hi ? `RajyaRank — सदस्यता ${daysLeft} दिनों में समाप्त` : `RajyaRank — subscription renews in ${daysLeft} day(s)`;
+  const body = hi
+    ? `${orgName} के लिए <strong>${planName}</strong> योजना ${daysLeft} दिनों में समाप्त हो रही है। निर्बाध सेवा के लिए सुनिश्चित करें कि आपका भुगतान माध्यम अद्यतित है।`
+    : `The <strong>${planName}</strong> plan for ${orgName} renews in ${daysLeft} day(s). Make sure your payment method is up to date for uninterrupted service.`;
+  const html = `<!doctype html><html lang="${locale}"><body style="margin:0;padding:0;background:#F4F6F8;font-family:Arial,Helvetica,sans-serif;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F4F6F8;padding:24px 12px;"><tr><td align="center">
+<table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#ffffff;border-radius:12px;overflow:hidden;">
+<tr><td style="background:#0B2F4F;padding:20px 28px;"><span style="font-size:20px;font-weight:900;color:#ffffff;">Rajya<span style="color:#F97316;">Rank</span></span></td></tr>
+<tr><td style="padding:32px 28px;"><h1 style="margin:0 0 16px;font-size:19px;font-weight:900;color:#0B2F4F;">${heading}</h1><p style="margin:0;font-size:14px;line-height:1.6;color:#334155;">${body}</p></td></tr>
+</table></td></tr></table></body></html>`;
+  return { subject, html };
+}
+
+/** Institutions whose subscription renews within 3 days, notified at most
+ *  once per period (Redis SETNX dedupe keyed by subscription id + period end,
+ *  so the *next* renewal still gets its own reminder rather than being
+ *  permanently suppressed by an old key). Only ACTIVE subscriptions —
+ *  TRIALING/PAST_DUE institutions already see a "complete/renew payment"
+ *  banner on every visit, so a reminder email would be redundant there. */
+async function sweepSubscriptionExpiry() {
+  const now = new Date();
+  const soon = new Date(now.getTime() + 3 * 86_400_000);
+  const expiring = await prisma.organizationSubscription.findMany({
+    where: { status: 'ACTIVE', currentPeriodEnd: { gt: now, lte: soon } },
+    include: { plan: { select: { nameHi: true, nameEn: true } }, organization: { select: { name: true, headUserId: true } } },
+  });
+  let notified = 0;
+  for (const sub of expiring) {
+    if (!sub.organization.headUserId || !sub.currentPeriodEnd) continue;
+    const claimed = await redis.set(`rr:notified:sub-expiry:${sub.id}:${sub.currentPeriodEnd.toISOString()}`, '1', 'EX', 4 * 86_400, 'NX');
+    if (!claimed) continue;
+    const head = await prisma.user.findUnique({ where: { id: sub.organization.headUserId }, select: { email: true, locale: true } });
+    if (!head?.email) continue;
+    const pref = await prisma.notificationPreference.findUnique({ where: { userId: sub.organization.headUserId } });
+    if (pref?.mutedCategories?.includes('EXPIRY') || pref?.emailEnabled === false) continue;
+    const locale: 'hi' | 'en' = head.locale === 'hi' ? 'hi' : 'en';
+    const daysLeft = Math.max(1, Math.round((sub.currentPeriodEnd.getTime() - now.getTime()) / 86_400_000));
+    const { subject, html } = subscriptionNearingExpiryHtml(locale, sub.organization.name, sub.plan.nameHi, sub.plan.nameEn, daysLeft);
+    await mailer.sendMail({ from: env.EMAIL_FROM, to: head.email, subject, html });
+    await prisma.notification.create({
+      data: {
+        userId: sub.organization.headUserId,
+        category: 'EXPIRY',
+        titleHi: 'आपकी सदस्यता जल्द समाप्त होगी',
+        titleEn: 'Your subscription renews soon',
+        bodyHi: `${sub.plan.nameHi} योजना जल्द समाप्त होगी।`,
+        bodyEn: `${sub.plan.nameEn} plan is renewing soon.`,
+      },
+    });
+    notified++;
+  }
+  if (notified) console.log(`[worker] subscription-expiry notified ${notified} institution(s)`);
+}
+
+/** Same duplicated-shell convention as entitlementExpiringHtml above. */
 function planBehindHtml(locale: 'hi' | 'en', missedCount: number): { subject: string; html: string } {
   const hi = locale === 'hi';
   const heading = hi ? 'आपकी स्टडी प्लान अपडेट हुई' : 'Your study plan was refreshed';
@@ -519,15 +578,18 @@ async function main() {
   console.log('[worker] started');
   const sweepTimer = setInterval(() => void scheduledSweeps(), 60_000);
   const expiryTimer = setInterval(() => void sweepEntitlementExpiry(), 3_600_000);
+  const subExpiryTimer = setInterval(() => void sweepSubscriptionExpiry(), 3_600_000);
   const planTimer = setInterval(() => void sweepStudyPlans(), 3_600_000);
   const riskTimer = setInterval(() => void sweepInstituteRisk(), 3_600_000);
   void sweepEntitlementExpiry();
+  void sweepSubscriptionExpiry();
   void sweepStudyPlans();
   void sweepInstituteRisk();
   const shutdown = async () => {
     running = false;
     clearInterval(sweepTimer);
     clearInterval(expiryTimer);
+    clearInterval(subExpiryTimer);
     clearInterval(planTimer);
     clearInterval(riskTimer);
     // Let an in-progress delivery (including its retry backoff) finish rather

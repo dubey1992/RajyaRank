@@ -1,14 +1,17 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
 import type { Principal } from '@rajyarank/auth';
 import type { UpsertSubscriptionPlan, SubscribeOrganization, ConfirmSelfServePayment } from '@rajyarank/contracts';
 import type { OrganizationSubscription, SubscriptionPlan } from '@prisma/client';
+import { ENV } from '../config/config.module';
+import type { ApiEnv } from '@rajyarank/config/env';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { AuthorizationService } from '../authz/authorization.service';
 import { RazorpayService } from '../payments/razorpay.service';
 import { NotifierService } from '../notifications/notifier.service';
 import { institutionInvoiceEmail } from '../notifications/email-templates/payments';
+import { subscriptionActivatedEmail, subscriptionExpiredEmail } from '../notifications/email-templates/subscriptions';
 import { renderInstitutionInvoicePdf } from '../common/pdf/pdf.util';
 import { AppError } from '../common/errors/app-error';
 
@@ -25,12 +28,31 @@ export class BillingService {
   private readonly logger = new Logger('Billing');
 
   constructor(
+    @Inject(ENV) private readonly env: ApiEnv,
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly authz: AuthorizationService,
     private readonly razorpay: RazorpayService,
     private readonly notifier: NotifierService,
   ) {}
+
+  /** Best-effort — a notification failure must never block the billing
+   *  operation it's attached to. */
+  private async notifySubscriptionOutcome(orgId: string, outcome: 'ACTIVATED' | 'EXPIRED', plan: SubscriptionPlan) {
+    try {
+      const org = await this.prisma.organization.findUnique({ where: { id: orgId }, include: { head: true } });
+      if (!org?.head?.email) return;
+      const locale = org.head.locale === 'hi' ? 'hi' : 'en';
+      const billingUrl = `${this.env.ADMIN_PUBLIC_URL}/admin/billing`;
+      const { subject, html } =
+        outcome === 'ACTIVATED'
+          ? subscriptionActivatedEmail(locale, org.name, plan.nameHi, plan.nameEn, billingUrl)
+          : subscriptionExpiredEmail(locale, org.name, plan.nameHi, plan.nameEn, billingUrl);
+      await this.notifier.sendEmail({ to: org.head.email, subject, html, locale });
+    } catch (e) {
+      this.logger.warn(`Subscription ${outcome} notification failed for org ${orgId}: ${(e as Error).message}`);
+    }
+  }
 
   // ── Plan catalog ──
   listPlans() {
@@ -355,7 +377,10 @@ export class BillingService {
     } else if (eventType === 'subscription.cancelled') {
       await this.prisma.organizationSubscription.update({ where: { id: subscription.id }, data: { status: 'CANCELED' } });
     } else if (eventType === 'subscription.pending' || eventType === 'subscription.halted') {
-      await this.prisma.organizationSubscription.update({ where: { id: subscription.id }, data: { status: 'PAST_DUE' } });
+      if (subscription.status !== 'PAST_DUE') {
+        await this.prisma.organizationSubscription.update({ where: { id: subscription.id }, data: { status: 'PAST_DUE' } });
+        await this.notifySubscriptionOutcome(subscription.orgId, 'EXPIRED', subscription.plan);
+      }
     }
   }
 
@@ -384,6 +409,7 @@ export class BillingService {
     // cached Principal's orgSubscriptionActive flag doesn't otherwise refresh
     // until its Redis TTL expires (see AuthorizationService.resolvePrincipal).
     await this.authz.invalidateOrg(subscription.orgId);
+    await this.notifySubscriptionOutcome(subscription.orgId, 'ACTIVATED', subscription.plan);
 
     await this.prisma.institutionInvoice.create({
       data: {
