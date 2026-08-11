@@ -180,12 +180,88 @@ export class RazorpayService {
     return data.id;
   }
 
+  // ── Saved payment methods (card tokenization) ──────────────────────────────
+
+  /** One Razorpay Customer per RajyaRank user, created lazily on first "add
+   *  card" and reused for every saved card after that. */
+  async createCustomer(input: { name?: string; email?: string; contact?: string }): Promise<string> {
+    if (!this.configured) {
+      this.logger.warn('Razorpay keys not set — returning a dev customer id; card saving is disabled.');
+      return `cust_dev_${Date.now()}`;
+    }
+    const data = await this.request<{ id: string }>('POST', '/customers', {
+      name: input.name || 'RajyaRank user',
+      email: input.email,
+      contact: input.contact,
+      fail_existing: 0, // Razorpay dedupes on email/contact — reuse rather than error if one already exists.
+    });
+    return data.id;
+  }
+
+  /** Fetches a payment to read the token_id a save-card checkout produced —
+   *  Checkout's own success handler only returns payment_id/signature, not
+   *  the token, so this is the one authoritative way to get it. */
+  async getPaymentTokenId(paymentId: string): Promise<string | null> {
+    if (!this.configured || paymentId.startsWith('pay_dev_')) return null;
+    const data = await this.request<{ token_id?: string }>('GET', `/payments/${paymentId}`, {});
+    return data.token_id ?? null;
+  }
+
+  /** Card display metadata for a freshly-created token — last4/network/type/
+   *  expiry, never the PAN or CVV (Razorpay's token vault never returns
+   *  those to a merchant, by design). */
+  async getTokenCard(
+    customerId: string,
+    tokenId: string,
+  ): Promise<{ last4: string; network: string; type: string; issuer: string | null; expiryMonth: number; expiryYear: number } | null> {
+    if (!this.configured || customerId.startsWith('cust_dev_')) return null;
+    const data = await this.request<{
+      card?: { last4: string; network: string; type: string; issuer?: string; expiry_month: number; expiry_year: number };
+    }>('GET', `/customers/${customerId}/tokens/${tokenId}`, {});
+    if (!data.card) return null;
+    return {
+      last4: data.card.last4,
+      network: data.card.network,
+      type: data.card.type,
+      issuer: data.card.issuer ?? null,
+      expiryMonth: data.card.expiry_month,
+      expiryYear: data.card.expiry_year,
+    };
+  }
+
+  /** Refunds the nominal ₹1 authorization used to mint a card token — the
+   *  user's saved card ends up net-charged ₹0 (the hold clears in a few
+   *  days per normal card-network refund timelines). */
+  async refundPayment(paymentId: string, amountMinor: number): Promise<void> {
+    if (!this.configured || paymentId.startsWith('pay_dev_')) {
+      this.logger.warn('Razorpay keys not set — dev refund is a no-op.');
+      return;
+    }
+    await this.request('POST', `/payments/${paymentId}/refund`, { amount: amountMinor });
+  }
+
+  /** Removes a saved card from Razorpay's token vault — the local
+   *  SavedPaymentMethod row is soft-deleted by the caller regardless of
+   *  whether this succeeds, matching the resilience pattern already used for
+   *  Route linked-account/subscription cancellation. */
+  async deleteToken(customerId: string, tokenId: string): Promise<void> {
+    if (!this.configured || customerId.startsWith('cust_dev_')) {
+      this.logger.warn('Razorpay keys not set — dev token delete is a no-op.');
+      return;
+    }
+    await this.request('DELETE', `/customers/${customerId}/tokens/${tokenId}`, {});
+  }
+
   private async request<T>(method: string, path: string, body: Record<string, unknown>): Promise<T> {
     const auth = Buffer.from(`${this.env.RAZORPAY_KEY_ID}:${this.env.RAZORPAY_KEY_SECRET}`).toString('base64');
+    // fetch (undici) throws on a GET/HEAD request carrying a body — every
+    // caller so far passed one anyway (harmless for POST/PATCH/DELETE), but
+    // the new GET-based token/payment lookups below need it actually omitted.
+    const hasBody = method !== 'GET' && Object.keys(body).length > 0;
     const res = await fetch(`https://api.razorpay.com/v1${path}`, {
       method,
       headers: { 'content-type': 'application/json', authorization: `Basic ${auth}` },
-      body: JSON.stringify(body),
+      ...(hasBody ? { body: JSON.stringify(body) } : {}),
     });
     if (!res.ok) {
       const body = await res.text().catch(() => '');

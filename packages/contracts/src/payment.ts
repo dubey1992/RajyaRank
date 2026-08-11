@@ -186,3 +186,37 @@ export interface AcademicOrderView {
   paymentId: string | null;
   createdAt: string;
 }
+
+// ── Saved payment methods (card tokenization, Profile Settings) ──
+// Same model/endpoints for both students and staff — nothing role-specific.
+
+/** Masked display only — never a PAN or CVV, those never reach our servers. */
+export interface SavedPaymentMethodView {
+  id: string;
+  cardLast4: string;
+  cardNetwork: string;
+  cardType: string;
+  cardIssuer: string | null;
+  expiryMonth: number;
+  expiryYear: number;
+  isDefault: boolean;
+  createdAt: string;
+}
+
+/** Response to "add card" step 1 — the frontend opens Razorpay Checkout
+ *  against this nominal-amount order with save:1; the actual card token only
+ *  exists after that payment is confirmed (see confirmSavePaymentMethod). */
+export interface SetupPaymentMethodResponse {
+  razorpayKeyId: string;
+  razorpayCustomerId: string;
+  providerOrderId: string;
+  amountMinor: number;
+  currency: string;
+}
+
+export const confirmPaymentMethodSchema = z.object({
+  razorpayOrderId: z.string().min(1),
+  razorpayPaymentId: z.string().min(1),
+  razorpaySignature: z.string().min(1),
+});
+export type ConfirmPaymentMethod = z.infer<typeof confirmPaymentMethodSchema>;

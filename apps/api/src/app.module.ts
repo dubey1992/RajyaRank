@@ -27,6 +27,7 @@ import { QuestionBankModule } from './question-bank/question-bank.module';
 import { TestBuilderModule } from './test-builder/test-builder.module';
 import { StudentTestsModule } from './student-tests/student-tests.module';
 import { PaymentsModule } from './payments/payments.module';
+import { PaymentMethodsModule } from './payment-methods/payment-methods.module';
 import { BillingModule } from './billing/billing.module';
 import { StudentPlansModule } from './student-plans/student-plans.module';
 import { CurrentAffairsModule } from './current-affairs/current-affairs.module';
@@ -88,6 +89,7 @@ import { CsrfGuard } from './authz/csrf.guard';
     TestBuilderModule,
     StudentTestsModule,
     PaymentsModule,
+    PaymentMethodsModule,
     BillingModule,
     StudentPlansModule,
     CurrentAffairsModule,

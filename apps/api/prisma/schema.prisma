@@ -468,6 +468,11 @@ model User {
   org       Organization? @relation("OrgMembers", fields: [orgId], references: [id])
   headOfOrg Organization? @relation("OrgHead")
 
+  // One Razorpay Customer per user, created lazily on the first "add card"
+  // — reused for every saved card and, later, for offering them at checkout.
+  razorpayCustomerId  String?              @map("razorpay_customer_id")
+  savedPaymentMethods SavedPaymentMethod[]
+
   @@unique([kind, email])
   @@unique([kind, phone])
   @@index([kind, status])
@@ -1069,6 +1074,33 @@ model Order {
 
   @@index([userId, status])
   @@map("orders")
+}
+
+/// A tokenized card, saved for faster future checkout — students and staff
+/// both use this model identically. We only ever store Razorpay's token
+/// reference plus display metadata (last 4 digits, network, expiry); the
+/// actual card number/CVV are entered directly into Razorpay's own hosted
+/// Checkout form and never reach our servers (PCI-DSS SAQ-A scope, same as
+/// the existing checkout flow — see PaymentMethodsService for the ₹1
+/// authorize-and-refund flow used to mint the token).
+model SavedPaymentMethod {
+  id              String    @id @default(uuid())
+  userId          String    @map("user_id")
+  razorpayTokenId String    @unique @map("razorpay_token_id")
+  cardLast4       String    @map("card_last4")
+  cardNetwork     String    @map("card_network") // visa | mastercard | rupay | amex | ...
+  cardType        String    @map("card_type") // credit | debit | unknown
+  cardIssuer      String?   @map("card_issuer") // bank name, when Razorpay returns one
+  expiryMonth     Int       @map("expiry_month")
+  expiryYear      Int       @map("expiry_year")
+  isDefault       Boolean   @default(false) @map("is_default")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  deletedAt       DateTime? @map("deleted_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, deletedAt])
+  @@map("saved_payment_methods")
 }
 
 // ── Marketplace settlement / institute payouts (Razorpay Route). Splits each
