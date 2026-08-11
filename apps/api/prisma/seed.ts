@@ -211,14 +211,22 @@ async function seedReference() {
     { state: 'UK', nameEn: 'PCS (Combined State/Upper Subordinate Services) Examination', nameHi: 'पीसीएस (संयुक्त राज्य/उच्च अधीनस्थ सेवा) परीक्षा' },
     { state: 'AS', nameEn: 'Combined Competitive Examination (CCE)', nameHi: 'संयुक्त प्रतियोगी परीक्षा' },
     { state: 'KL', nameEn: 'Kerala Administrative Service (KAS) Examination', nameHi: 'केरल प्रशासनिक सेवा (केएएस) परीक्षा' },
-    { state: 'GA', nameEn: 'Civil Service Examination', nameHi: 'सिविल सेवा परीक्षा' },
-    { state: 'MN', nameEn: 'Civil Service Examination', nameHi: 'सिविल सेवा परीक्षा' },
-    { state: 'ML', nameEn: 'Civil Service Examination', nameHi: 'सिविल सेवा परीक्षा' },
-    { state: 'MZ', nameEn: 'Civil Service Examination', nameHi: 'सिविल सेवा परीक्षा' },
-    { state: 'NL', nameEn: 'Civil Service Examination', nameHi: 'सिविल सेवा परीक्षा' },
-    { state: 'SK', nameEn: 'State Civil Service Examination', nameHi: 'राज्य सिविल सेवा परीक्षा' },
-    { state: 'TR', nameEn: 'Civil Service Examination', nameHi: 'सिविल सेवा परीक्षा' },
-    { state: 'AR', nameEn: 'Civil Service Examination', nameHi: 'सिविल सेवा परीक्षा' },
+    // These 8 (small/Northeast states) previously all shared the identical
+    // generic label "Civil Service Examination" with no distinguishing
+    // acronym — harmless for data integrity (codes/bodies still unique) but
+    // confusing in any flat, unfiltered exam list (e.g. ExamsManager.tsx's
+    // admin view). Prefixed with the state name for a self-disambiguating
+    // label; no acronym added since I'm not confident enough in the exact
+    // colloquial one for each of these to assert it (e.g. "MCS" would
+    // otherwise collide between Meghalaya and Manipur).
+    { state: 'GA', nameEn: 'Goa Civil Service Examination', nameHi: 'गोवा सिविल सेवा परीक्षा' },
+    { state: 'MN', nameEn: 'Manipur Civil Service Examination', nameHi: 'मणिपुर सिविल सेवा परीक्षा' },
+    { state: 'ML', nameEn: 'Meghalaya Civil Service Examination', nameHi: 'मेघालय सिविल सेवा परीक्षा' },
+    { state: 'MZ', nameEn: 'Mizoram Civil Service Examination', nameHi: 'मिज़ोरम सिविल सेवा परीक्षा' },
+    { state: 'NL', nameEn: 'Nagaland Civil Service Examination', nameHi: 'नागालैंड सिविल सेवा परीक्षा' },
+    { state: 'SK', nameEn: 'Sikkim State Civil Service Examination', nameHi: 'सिक्किम राज्य सिविल सेवा परीक्षा' },
+    { state: 'TR', nameEn: 'Tripura Civil Service Examination', nameHi: 'त्रिपुरा सिविल सेवा परीक्षा' },
+    { state: 'AR', nameEn: 'Arunachal Pradesh Civil Service Examination', nameHi: 'अरुणाचल प्रदेश सिविल सेवा परीक्षा' },
   ] as const;
   for (const p of STATE_PSC) {
     // Non-null: p.state is always one of OTHER_STATES' codes (STATE_PSC is
