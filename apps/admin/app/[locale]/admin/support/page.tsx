@@ -27,11 +27,20 @@ export default async function SupportPage({ params }: { params: { locale: string
     );
   }
 
+  // Contact Messages + Demo Requests are RajyaRank's own sales/support leads
+  // (public-site "book a demo" / "contact us" submissions, unrelated to any
+  // institute) — only SUPPORT_AGENT/SUPER_ADMIN should see them. An Academic
+  // Head also holds support.manage (for their institute's own ticket queue),
+  // but seeing every prospective institution's leads is unusable noise for
+  // that role, so those two tabs stay hidden for anyone who isn't internal
+  // RajyaRank staff.
+  const isInternalStaff = me.roleKeys.some((r) => r === 'SUPPORT_AGENT' || r === 'SUPER_ADMIN');
+
   const cookie = cookies().toString();
   const [tickets, contactMessages, demoRequests] = await Promise.all([
     apiFetchServer<TicketView[]>('/staff/support-tickets', cookie),
-    apiFetchServer<ContactMessageView[]>('/staff/contact-messages', cookie),
-    apiFetchServer<DemoRequestView[]>('/staff/demo-requests', cookie),
+    isInternalStaff ? apiFetchServer<ContactMessageView[]>('/staff/contact-messages', cookie) : Promise.resolve(null),
+    isInternalStaff ? apiFetchServer<DemoRequestView[]>('/staff/demo-requests', cookie) : Promise.resolve(null),
   ]);
 
   const sections: TabSection[] = [
@@ -55,34 +64,38 @@ export default async function SupportPage({ params }: { params: { locale: string
         </>
       ),
     },
-    {
-      key: 'contact-messages',
-      label: hi ? 'संपर्क संदेश' : 'Contact Messages',
-      content: (
-        <>
-          <p className="mb-4 max-w-2xl text-sm text-muted">
-            {hi
-              ? 'सार्वजनिक "संपर्क करें" फ़ॉर्म से आए संदेश — अज्ञात आगंतुकों, संभावित संस्थानों और मीडिया से।'
-              : 'Submissions from the public "Contact Us" form — from anonymous visitors, prospective institutions, and media.'}
-          </p>
-          <ContactMessagesManager initial={contactMessages ?? []} locale={locale} />
-        </>
-      ),
-    },
-    {
-      key: 'demo-requests',
-      label: hi ? 'डेमो अनुरोध' : 'Demo Requests',
-      content: (
-        <>
-          <p className="mb-4 max-w-2xl text-sm text-muted">
-            {hi
-              ? 'लैंडिंग पेज के "संस्थानों के लिए" सेक्शन से आए डेमो अनुरोध — कोचिंग संस्थान, स्कूल और NGO से मिली लीड।'
-              : 'Demo requests from the landing page\'s "For Institutions" section — leads from coaching institutes, schools, and NGOs.'}
-          </p>
-          <DemoRequestsManager initial={demoRequests ?? []} locale={locale} />
-        </>
-      ),
-    },
+    ...(isInternalStaff
+      ? [
+          {
+            key: 'contact-messages',
+            label: hi ? 'संपर्क संदेश' : 'Contact Messages',
+            content: (
+              <>
+                <p className="mb-4 max-w-2xl text-sm text-muted">
+                  {hi
+                    ? 'सार्वजनिक "संपर्क करें" फ़ॉर्म से आए संदेश — अज्ञात आगंतुकों, संभावित संस्थानों और मीडिया से।'
+                    : 'Submissions from the public "Contact Us" form — from anonymous visitors, prospective institutions, and media.'}
+                </p>
+                <ContactMessagesManager initial={contactMessages ?? []} locale={locale} />
+              </>
+            ),
+          },
+          {
+            key: 'demo-requests',
+            label: hi ? 'डेमो अनुरोध' : 'Demo Requests',
+            content: (
+              <>
+                <p className="mb-4 max-w-2xl text-sm text-muted">
+                  {hi
+                    ? 'लैंडिंग पेज के "संस्थानों के लिए" सेक्शन से आए डेमो अनुरोध — कोचिंग संस्थान, स्कूल और NGO से मिली लीड।'
+                    : 'Demo requests from the landing page\'s "For Institutions" section — leads from coaching institutes, schools, and NGOs.'}
+                </p>
+                <DemoRequestsManager initial={demoRequests ?? []} locale={locale} />
+              </>
+            ),
+          },
+        ]
+      : []),
   ];
 
   return (
