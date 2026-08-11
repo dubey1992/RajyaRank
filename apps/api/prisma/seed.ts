@@ -601,13 +601,106 @@ async function seedMarketingContent() {
  *  every environment (not demo-only), matching the Starter/Growth/Pro tiers
  *  from the profit-model prototype. */
 async function seedBillingPlans() {
+  // Launch pricing (2026-08-12): Starter/Growth cut from their original
+  // illustrative values to lower the barrier for a first-ever paying
+  // institute — Pro is unchanged since bigger institutes are less price-
+  // sensitive and aren't the day-one adoption blocker.
   const plans = [
-    { code: 'STARTER', nameHi: 'स्टार्टर', nameEn: 'Starter', priceMonthlyMinor: 299900, priceAnnualMinor: 299900 * 10, maxActiveStudents: 250, maxStaffSeats: 5, storageGb: 50, internalFeeBps: 300, externalFeeBps: 1800, sequence: 0 },
-    { code: 'GROWTH', nameHi: 'ग्रोथ', nameEn: 'Growth', priceMonthlyMinor: 799900, priceAnnualMinor: 799900 * 10, maxActiveStudents: 1500, maxStaffSeats: 20, storageGb: 250, internalFeeBps: 150, externalFeeBps: 1500, sequence: 1 },
+    { code: 'STARTER', nameHi: 'स्टार्टर', nameEn: 'Starter', priceMonthlyMinor: 149900, priceAnnualMinor: 149900 * 10, maxActiveStudents: 250, maxStaffSeats: 5, storageGb: 50, internalFeeBps: 300, externalFeeBps: 1800, sequence: 0 },
+    { code: 'GROWTH', nameHi: 'ग्रोथ', nameEn: 'Growth', priceMonthlyMinor: 699900, priceAnnualMinor: 699900 * 10, maxActiveStudents: 1500, maxStaffSeats: 20, storageGb: 250, internalFeeBps: 150, externalFeeBps: 1500, sequence: 1 },
     { code: 'PRO', nameHi: 'प्रो', nameEn: 'Pro', priceMonthlyMinor: 1499900, priceAnnualMinor: 1499900 * 10, maxActiveStudents: 5000, maxStaffSeats: 200, storageGb: 1000, internalFeeBps: 50, externalFeeBps: 1200, sequence: 2 },
   ];
   for (const p of plans) {
     await prisma.subscriptionPlan.upsert({ where: { code: p.code }, update: p, create: p });
+  }
+}
+
+/** Student subscription plans — real launch catalog. A plan is a `Product`
+ *  row (kind: 'SUBSCRIPTION'), not a distinct model — see
+ *  student-plans.service.ts's doc comment. `examId: null` = Pro/all-access;
+ *  `examId` set = Plus, scoped to that one exam. Free isn't a row at all —
+ *  it's just "no entitlement" (see Lesson.freePreview / Test.freeDemo for
+ *  what that tier actually unlocks).
+ *
+ *  Launch scope deliberately doesn't cover all 66 exams with a Plus variant
+ *  (that's a lot of near-duplicate rows for exams with zero live institutes
+ *  yet) — just Bihar/Jharkhand's flagship exams, matching where RajyaRank
+ *  actually has institutes today. Pro (all-access) already covers every
+ *  exam regardless. Add more Plus variants as demand data comes in, same
+ *  phased approach as the exam catalog itself. */
+async function seedStudentPlans(ref: Awaited<ReturnType<typeof seedReference>>) {
+  // Product has no natural unique key for a SUBSCRIPTION row (courseId is
+  // always null, so the model's @@unique([courseId, kind, audience]) doesn't
+  // disambiguate — Postgres allows unlimited coexisting NULLs there). This
+  // does its own find-then-update-or-create keyed on (examId, validityDays),
+  // same idempotency pattern as upsertExam in seedReference above.
+  async function upsertStudentPlan(input: {
+    examId: string | null;
+    validityDays: number;
+    titleHi: string;
+    titleEn: string;
+    priceMinor: number;
+    originalPriceMinor: number | null;
+  }) {
+    const existing = await prisma.product.findFirst({
+      where: { kind: 'SUBSCRIPTION', examId: input.examId, validityDays: input.validityDays },
+    });
+    const data = {
+      kind: 'SUBSCRIPTION' as const,
+      accessType: 'SUBSCRIPTION' as const,
+      audience: 'PUBLIC' as const,
+      courseId: null,
+      examId: input.examId,
+      titleHi: input.titleHi,
+      titleEn: input.titleEn,
+      priceMinor: input.priceMinor,
+      originalPriceMinor: input.originalPriceMinor,
+      validityDays: input.validityDays,
+      currency: 'INR',
+      active: true,
+    };
+    if (existing) return prisma.product.update({ where: { id: existing.id }, data });
+    return prisma.product.create({ data });
+  }
+
+  await upsertStudentPlan({
+    examId: null,
+    validityDays: 30,
+    titleHi: 'प्रो — सभी परीक्षाएँ (मासिक)',
+    titleEn: 'Pro — All Access (Monthly)',
+    priceMinor: 29900, // ₹299
+    originalPriceMinor: null,
+  });
+  await upsertStudentPlan({
+    examId: null,
+    validityDays: 365,
+    titleHi: 'प्रो — सभी परीक्षाएँ (वार्षिक)',
+    titleEn: 'Pro — All Access (Annual)',
+    priceMinor: 199900, // ₹1,999 (~44% off the monthly rate annualized)
+    originalPriceMinor: 29900 * 12,
+  });
+
+  const PLUS_EXAMS = [
+    { exam: ref.bpscPt, labelHi: 'बीपीएससी सीसीई', labelEn: 'BPSC CCE' },
+    { exam: ref.jsscCgl, labelHi: 'जेएसएससी सीजीएल', labelEn: 'JSSC CGL' },
+  ];
+  for (const p of PLUS_EXAMS) {
+    await upsertStudentPlan({
+      examId: p.exam.id,
+      validityDays: 30,
+      titleHi: `प्लस — ${p.labelHi} (मासिक)`,
+      titleEn: `Plus — ${p.labelEn} (Monthly)`,
+      priceMinor: 14900, // ₹149
+      originalPriceMinor: null,
+    });
+    await upsertStudentPlan({
+      examId: p.exam.id,
+      validityDays: 365,
+      titleHi: `प्लस — ${p.labelHi} (वार्षिक)`,
+      titleEn: `Plus — ${p.labelEn} (Annual)`,
+      priceMinor: 99900, // ₹999
+      originalPriceMinor: 14900 * 12,
+    });
   }
 }
 
@@ -672,6 +765,8 @@ async function main() {
   await seedMarketingContent();
   console.log('Seeding institution subscription plan catalog…');
   await seedBillingPlans();
+  console.log('Seeding student subscription plan catalog…');
+  await seedStudentPlans(ref);
   if (!isProd) {
     console.log('Seeding demo users (non-production)…');
     await seedDemoUsers(ref);
