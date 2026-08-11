@@ -74,8 +74,26 @@ async function seedReference() {
     { code: 'UK', nameEn: 'Uttarakhand', nameHi: 'उत्तराखंड' },
     { code: 'WB', nameEn: 'West Bengal', nameHi: 'पश्चिम बंगाल' },
   ] as const;
+  const otherStateRows: Record<string, Awaited<ReturnType<typeof prisma.state.upsert>>> = {};
   for (const s of OTHER_STATES) {
-    await prisma.state.upsert({ where: { code: s.code }, update: {}, create: s });
+    otherStateRows[s.code] = await prisma.state.upsert({ where: { code: s.code }, update: {}, create: s });
+  }
+
+  // ── Exam bodies + exams — real, permanent reference data (unlike the demo
+  // users/courses seeded below, this is never !isProd-gated). GET /exams and
+  // GET /admin/catalogue/exams both read straight from this table, so it's
+  // the platform's actual exam catalog, not sample data. Institutions can
+  // still add their own on top of this baseline via POST /admin/catalogue/exams. ──
+
+  // Exam.code is unique per (orgId, code), not globally — Prisma's
+  // compound-unique upsert can't target a literal null orgId, so this does
+  // its own find-then-update-or-create. Also means a later correction to a
+  // name below actually reaches the already-seeded row on the next re-run,
+  // unlike a bare create-if-missing.
+  async function upsertExam(code: string, nameEn: string, nameHi: string, examBodyId: string, stateId: string | null) {
+    const existing = await prisma.exam.findFirst({ where: { code, orgId: null } });
+    if (existing) return prisma.exam.update({ where: { id: existing.id }, data: { nameEn, nameHi, examBodyId, stateId } });
+    return prisma.exam.create({ data: { code, nameEn, nameHi, examBodyId, stateId } });
   }
 
   const bpsc = await prisma.examBody.upsert({
@@ -88,31 +106,130 @@ async function seedReference() {
     update: {},
     create: { code: 'JSSC', nameEn: 'Jharkhand Staff Selection Commission', nameHi: 'झारखंड कर्मचारी चयन आयोग' },
   });
+  const bpssc = await prisma.examBody.upsert({
+    where: { code: 'BPSSC' },
+    update: {},
+    create: { code: 'BPSSC', nameEn: 'Bihar Police Subordinate Services Commission', nameHi: 'बिहार पुलिस अधीनस्थ सेवा चयन आयोग' },
+  });
+  const bseb = await prisma.examBody.upsert({
+    where: { code: 'BSEB' },
+    update: {},
+    create: { code: 'BSEB', nameEn: 'Bihar School Examination Board', nameHi: 'बिहार विद्यालय परीक्षा समिति' },
+  });
 
-  // orgId is null (platform-seeded) for both — Prisma's compound-unique
-  // findUnique/upsert can't take a literal null for a nullable key component,
-  // so these use findFirst + create instead of upsert.
-  //
-  // Dev/demo data only — these two exams exist solely to support the demo
-  // users/courses seeded below (seedDemoUsers, seedDemoCourse,
-  // seedInstituteCourse), which are themselves skipped in production. A
-  // production institute creates its own exams; the platform must not show
-  // these as if they were real institute content.
-  let bpscPt: Awaited<ReturnType<typeof prisma.exam.findFirst>> = null;
-  let jsscCgl: Awaited<ReturnType<typeof prisma.exam.findFirst>> = null;
-  if (!isProd) {
-    bpscPt = await prisma.exam.findFirst({ where: { code: 'BPSC_PT', orgId: null } });
-    if (!bpscPt) {
-      bpscPt = await prisma.exam.create({
-        data: { code: 'BPSC_PT', nameEn: 'BPSC Prelims', nameHi: 'बीपीएससी प्रारंभिक', examBodyId: bpsc.id, stateId: bihar.id },
-      });
-    }
-    jsscCgl = await prisma.exam.findFirst({ where: { code: 'JSSC_CGL', orgId: null } });
-    if (!jsscCgl) {
-      jsscCgl = await prisma.exam.create({
-        data: { code: 'JSSC_CGL', nameEn: 'JSSC CGL', nameHi: 'जेएसएससी सीजीएल', examBodyId: jssc.id, stateId: jharkhand.id },
-      });
-    }
+  // Bihar/Jharkhand depth — replaces the old dev-only BPSC_PT/JSSC_CGL
+  // placeholders (fully removed from prod; see remove-default-exams.js) with
+  // real, permanent exams under the same and related commissions.
+  const bpscCce = await upsertExam('BPSC_CCE', 'Combined Competitive Examination (CCE)', 'संयुक्त प्रतियोगिता परीक्षा (सीसीई)', bpsc.id, bihar.id);
+  await upsertExam('BPSC_JUDICIAL', 'Judicial Services Examination', 'न्यायिक सेवा परीक्षा', bpsc.id, bihar.id);
+  await upsertExam('BPSC_TRE', 'Teacher Recruitment Examination (TRE)', 'शिक्षक भर्ती परीक्षा (टीआरई)', bpsc.id, bihar.id);
+  await upsertExam('BPSSC_SI', 'Bihar Police Sub-Inspector Examination', 'बिहार पुलिस उप-निरीक्षक परीक्षा', bpssc.id, bihar.id);
+  await upsertExam('BSEB_STET', 'Bihar STET', 'बिहार एसटीईटी', bseb.id, bihar.id);
+  const jsscCgl = await upsertExam('JSSC_CGL', 'Combined Graduate Level (CGL)', 'संयुक्त स्नातक स्तरीय (सीजीएल)', jssc.id, jharkhand.id);
+  await upsertExam('JSSC_EXCISE', 'Excise Constable Examination', 'उत्पाद सिपाही परीक्षा', jssc.id, jharkhand.id);
+  await upsertExam('JSSC_ILCCE', 'Intermediate-Level Combined Competitive Examination', 'इंटरमीडिएट स्तरीय संयुक्त प्रतियोगिता परीक्षा', jssc.id, jharkhand.id);
+
+  // Central/all-India bodies — stateId null (relevant nationwide).
+  const CENTRAL_BODIES = [
+    { code: 'UPSC', nameEn: 'Union Public Service Commission', nameHi: 'संघ लोक सेवा आयोग' },
+    { code: 'SSC', nameEn: 'Staff Selection Commission', nameHi: 'कर्मचारी चयन आयोग' },
+    { code: 'IBPS', nameEn: 'Institute of Banking Personnel Selection', nameHi: 'बैंकिंग कार्मिक चयन संस्थान' },
+    { code: 'SBI', nameEn: 'State Bank of India', nameHi: 'भारतीय स्टेट बैंक' },
+    { code: 'RBI', nameEn: 'Reserve Bank of India', nameHi: 'भारतीय रिज़र्व बैंक' },
+    { code: 'RRB', nameEn: 'Railway Recruitment Board', nameHi: 'रेलवे भर्ती बोर्ड' },
+    { code: 'ARMED_FORCES', nameEn: 'Indian Armed Forces', nameHi: 'भारतीय सशस्त्र सेना' },
+    { code: 'CBSE', nameEn: 'Central Board of Secondary Education', nameHi: 'केंद्रीय माध्यमिक शिक्षा बोर्ड' },
+    { code: 'UGC', nameEn: 'University Grants Commission', nameHi: 'विश्वविद्यालय अनुदान आयोग' },
+    { code: 'LIC', nameEn: 'Life Insurance Corporation of India', nameHi: 'भारतीय जीवन बीमा निगम' },
+  ] as const;
+  const centralBodyRows: Record<string, Awaited<ReturnType<typeof prisma.examBody.upsert>>> = {};
+  for (const b of CENTRAL_BODIES) {
+    centralBodyRows[b.code] = await prisma.examBody.upsert({ where: { code: b.code }, update: {}, create: b });
+  }
+
+  const CENTRAL_EXAMS = [
+    { code: 'UPSC_CSE', body: 'UPSC', nameEn: 'Civil Services Examination (CSE)', nameHi: 'सिविल सेवा परीक्षा' },
+    { code: 'UPSC_NDA', body: 'UPSC', nameEn: 'National Defence Academy (NDA) Examination', nameHi: 'राष्ट्रीय रक्षा अकादमी (एनडीए) परीक्षा' },
+    { code: 'UPSC_CDS', body: 'UPSC', nameEn: 'Combined Defence Services (CDS) Examination', nameHi: 'संयुक्त रक्षा सेवा (सीडीएस) परीक्षा' },
+    { code: 'UPSC_CAPF', body: 'UPSC', nameEn: 'Central Armed Police Forces (CAPF) Examination', nameHi: 'केंद्रीय सशस्त्र पुलिस बल (सीएपीएफ) परीक्षा' },
+    { code: 'UPSC_ESE', body: 'UPSC', nameEn: 'Engineering Services Examination (ESE)', nameHi: 'इंजीनियरिंग सेवा परीक्षा' },
+    { code: 'SSC_CGL', body: 'SSC', nameEn: 'Combined Graduate Level (CGL)', nameHi: 'संयुक्त स्नातक स्तरीय (सीजीएल)' },
+    { code: 'SSC_CHSL', body: 'SSC', nameEn: 'Combined Higher Secondary Level (CHSL)', nameHi: 'संयुक्त उच्चतर माध्यमिक स्तरीय (सीएचएसएल)' },
+    { code: 'SSC_MTS', body: 'SSC', nameEn: 'Multi-Tasking Staff (MTS) Examination', nameHi: 'बहु-कार्य कर्मचारी (एमटीएस) परीक्षा' },
+    { code: 'SSC_GD', body: 'SSC', nameEn: 'GD Constable Examination', nameHi: 'जीडी कांस्टेबल परीक्षा' },
+    { code: 'SSC_JE', body: 'SSC', nameEn: 'Junior Engineer (JE) Examination', nameHi: 'कनिष्ठ अभियंता (जेई) परीक्षा' },
+    { code: 'SSC_CPO', body: 'SSC', nameEn: 'Central Police Organisation (CPO) Sub-Inspector Examination', nameHi: 'केंद्रीय पुलिस संगठन (सीपीओ) उप-निरीक्षक परीक्षा' },
+    { code: 'SSC_STENO', body: 'SSC', nameEn: 'Stenographer Examination', nameHi: 'आशुलिपिक परीक्षा' },
+    { code: 'IBPS_PO', body: 'IBPS', nameEn: 'Probationary Officer (PO)', nameHi: 'प्रोबेशनरी ऑफिसर (पीओ)' },
+    { code: 'IBPS_CLERK', body: 'IBPS', nameEn: 'Clerk', nameHi: 'क्लर्क' },
+    { code: 'IBPS_RRB_PO', body: 'IBPS', nameEn: 'RRB Officer Scale I (PO)', nameHi: 'आरआरबी अधिकारी स्केल I (पीओ)' },
+    { code: 'IBPS_RRB_CLERK', body: 'IBPS', nameEn: 'RRB Office Assistant', nameHi: 'आरआरबी कार्यालय सहायक' },
+    { code: 'SBI_PO', body: 'SBI', nameEn: 'Probationary Officer (PO)', nameHi: 'प्रोबेशनरी ऑफिसर (पीओ)' },
+    { code: 'SBI_CLERK', body: 'SBI', nameEn: 'Junior Associate (Clerk)', nameHi: 'जूनियर एसोसिएट (क्लर्क)' },
+    { code: 'RBI_GRADE_B', body: 'RBI', nameEn: 'Grade B Officer', nameHi: 'ग्रेड बी अधिकारी' },
+    { code: 'RBI_ASSISTANT', body: 'RBI', nameEn: 'Assistant', nameHi: 'सहायक' },
+    { code: 'RRB_NTPC', body: 'RRB', nameEn: 'Non-Technical Popular Categories (NTPC)', nameHi: 'गैर-तकनीकी लोकप्रिय श्रेणियाँ (एनटीपीसी)' },
+    { code: 'RRB_GROUP_D', body: 'RRB', nameEn: 'Group D', nameHi: 'ग्रुप डी' },
+    { code: 'RRB_JE', body: 'RRB', nameEn: 'Junior Engineer (JE)', nameHi: 'कनिष्ठ अभियंता (जेई)' },
+    { code: 'RRB_ALP', body: 'RRB', nameEn: 'Assistant Loco Pilot (ALP)', nameHi: 'सहायक लोको पायलट (एएलपी)' },
+    { code: 'AGNIVEER_ARMY', body: 'ARMED_FORCES', nameEn: 'Agniveer (Indian Army)', nameHi: 'अग्निवीर (भारतीय सेना)' },
+    { code: 'AGNIVEER_NAVY', body: 'ARMED_FORCES', nameEn: 'Agniveer (Indian Navy)', nameHi: 'अग्निवीर (भारतीय नौसेना)' },
+    { code: 'AGNIVEER_AIRFORCE', body: 'ARMED_FORCES', nameEn: 'Agniveer Vayu (Indian Air Force)', nameHi: 'अग्निवीर वायु (भारतीय वायु सेना)' },
+    { code: 'AFCAT', body: 'ARMED_FORCES', nameEn: 'Air Force Common Admission Test (AFCAT)', nameHi: 'वायु सेना सामान्य प्रवेश परीक्षा (एएफसीएटी)' },
+    { code: 'CTET', body: 'CBSE', nameEn: 'Central Teacher Eligibility Test (CTET)', nameHi: 'केंद्रीय शिक्षक पात्रता परीक्षा (सीटीईटी)' },
+    { code: 'UGC_NET', body: 'UGC', nameEn: 'National Eligibility Test (NET)', nameHi: 'राष्ट्रीय पात्रता परीक्षा (नेट)' },
+    { code: 'LIC_AAO', body: 'LIC', nameEn: 'Assistant Administrative Officer (AAO)', nameHi: 'सहायक प्रशासनिक अधिकारी (एएओ)' },
+    { code: 'LIC_ADO', body: 'LIC', nameEn: 'Apprentice Development Officer (ADO)', nameHi: 'प्रशिक्षु विकास अधिकारी (एडीओ)' },
+  ] as const;
+  for (const e of CENTRAL_EXAMS) {
+    // Non-null: e.body is always one of the codes just upserted into
+    // centralBodyRows above (CENTRAL_EXAMS is hand-authored against
+    // CENTRAL_BODIES), TS just can't see that invariant through the Record index.
+    await upsertExam(e.code, e.nameEn, e.nameHi, centralBodyRows[e.body]!.id, null);
+  }
+
+  // Remaining 26 states' Public Service Commissions — one body + one
+  // flagship combined-civil-service exam each. Body code is `${state}_PSC`
+  // deliberately (not a colloquial acronym) to stay collision-free — e.g.
+  // Karnataka's and Kerala's PSCs are both informally "KPSC" in everyday use.
+  const STATE_PSC = [
+    { state: 'UP', nameEn: 'PCS (Combined State/Upper Subordinate Services) Examination', nameHi: 'पीसीएस (संयुक्त राज्य/उच्च अधीनस्थ सेवा) परीक्षा' },
+    { state: 'MP', nameEn: 'State Service Examination (SSE)', nameHi: 'राज्य सेवा परीक्षा' },
+    { state: 'RJ', nameEn: 'Rajasthan Administrative Service (RAS) Combined Competitive Examination', nameHi: 'राजस्थान प्रशासनिक सेवा (आरएएस) संयुक्त प्रतियोगी परीक्षा' },
+    { state: 'WB', nameEn: 'West Bengal Civil Service (WBCS) Examination', nameHi: 'पश्चिम बंगाल सिविल सेवा (डब्ल्यूबीसीएस) परीक्षा' },
+    { state: 'MH', nameEn: 'Maharashtra Rajyaseva (State Service) Examination', nameHi: 'महाराष्ट्र राज्यसेवा परीक्षा' },
+    { state: 'TN', nameEn: 'Combined Civil Services Examination (Group I)', nameHi: 'संयुक्त सिविल सेवा परीक्षा (समूह I)' },
+    { state: 'KA', nameEn: 'Karnataka Administrative Service (KAS) Examination', nameHi: 'कर्नाटक प्रशासनिक सेवा (केएएस) परीक्षा' },
+    { state: 'AP', nameEn: 'Group I Services Examination', nameHi: 'समूह I सेवा परीक्षा' },
+    { state: 'TS', nameEn: 'Group I Services Examination', nameHi: 'समूह I सेवा परीक्षा' },
+    { state: 'GJ', nameEn: 'State Service (Class 1/2) Examination', nameHi: 'राज्य सेवा (वर्ग 1/2) परीक्षा' },
+    { state: 'HR', nameEn: 'Haryana Civil Service (HCS) Examination', nameHi: 'हरियाणा सिविल सेवा (एचसीएस) परीक्षा' },
+    { state: 'HP', nameEn: 'Himachal Pradesh Administrative Service (HAS) Examination', nameHi: 'हिमाचल प्रदेश प्रशासनिक सेवा (एचएएस) परीक्षा' },
+    { state: 'CG', nameEn: 'State Service Examination (SSE)', nameHi: 'राज्य सेवा परीक्षा' },
+    { state: 'OD', nameEn: 'Odisha Civil Service (OCS) Examination', nameHi: 'ओडिशा सिविल सेवा (ओसीएस) परीक्षा' },
+    { state: 'PB', nameEn: 'Punjab Civil Service (PCS) Examination', nameHi: 'पंजाब सिविल सेवा (पीसीएस) परीक्षा' },
+    { state: 'UK', nameEn: 'PCS (Combined State/Upper Subordinate Services) Examination', nameHi: 'पीसीएस (संयुक्त राज्य/उच्च अधीनस्थ सेवा) परीक्षा' },
+    { state: 'AS', nameEn: 'Combined Competitive Examination (CCE)', nameHi: 'संयुक्त प्रतियोगी परीक्षा' },
+    { state: 'KL', nameEn: 'Kerala Administrative Service (KAS) Examination', nameHi: 'केरल प्रशासनिक सेवा (केएएस) परीक्षा' },
+    { state: 'GA', nameEn: 'Civil Service Examination', nameHi: 'सिविल सेवा परीक्षा' },
+    { state: 'MN', nameEn: 'Civil Service Examination', nameHi: 'सिविल सेवा परीक्षा' },
+    { state: 'ML', nameEn: 'Civil Service Examination', nameHi: 'सिविल सेवा परीक्षा' },
+    { state: 'MZ', nameEn: 'Civil Service Examination', nameHi: 'सिविल सेवा परीक्षा' },
+    { state: 'NL', nameEn: 'Civil Service Examination', nameHi: 'सिविल सेवा परीक्षा' },
+    { state: 'SK', nameEn: 'State Civil Service Examination', nameHi: 'राज्य सिविल सेवा परीक्षा' },
+    { state: 'TR', nameEn: 'Civil Service Examination', nameHi: 'सिविल सेवा परीक्षा' },
+    { state: 'AR', nameEn: 'Civil Service Examination', nameHi: 'सिविल सेवा परीक्षा' },
+  ] as const;
+  for (const p of STATE_PSC) {
+    // Non-null: p.state is always one of OTHER_STATES' codes (STATE_PSC is
+    // hand-authored against it), TS just can't see that through the Record index.
+    const stateRow = otherStateRows[p.state]!;
+    const body = await prisma.examBody.upsert({
+      where: { code: `${p.state}_PSC` },
+      update: {},
+      create: { code: `${p.state}_PSC`, nameEn: `${stateRow.nameEn} Public Service Commission`, nameHi: `${stateRow.nameHi} लोक सेवा आयोग` },
+    });
+    await upsertExam(`${p.state}_PSC_CCE`, p.nameEn, p.nameHi, body.id, stateRow.id);
   }
 
   // Permissions
@@ -163,7 +280,10 @@ async function seedReference() {
     }
   }
 
-  return { bihar, jharkhand, bpscPt, jsscCgl };
+  // bpscPt/jsscCgl names kept for the dev-only demo seeding below (which
+  // references ref.bpscPt!.id etc.) — they now point at the real, always-
+  // seeded BPSC_CCE/JSSC_CGL exams above rather than separate placeholders.
+  return { bihar, jharkhand, bpscPt: bpscCce, jsscCgl };
 }
 
 async function seedDemoUsers(ref: Awaited<ReturnType<typeof seedReference>>) {
