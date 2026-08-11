@@ -4,6 +4,7 @@ import type { ApiEnv } from '@rajyarank/config/env';
 import type { ContactMessageView, SubmitContact } from '@rajyarank/contracts';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotifierService } from '../notifications/notifier.service';
+import { contactMessageNotifyEmail } from '../notifications/email-templates/internal-notifications';
 import { ENV } from '../config/config.module';
 import { AppError } from '../common/errors/app-error';
 
@@ -57,12 +58,15 @@ export class ContactService {
     });
 
     if (this.env.CONTACT_NOTIFY_EMAIL) {
-      await this.notifier.sendEmail({
-        to: this.env.CONTACT_NOTIFY_EMAIL,
-        subject: `New contact message: ${dto.category} — ${dto.name}`,
-        html: `<p><strong>${dto.name}</strong> (${dto.email}${dto.phone ? `, ${dto.phone}` : ''}) — ${dto.category}</p><p>${dto.message.replace(/\n/g, '<br/>')}</p>`,
-        locale: 'en',
+      const { subject, html } = contactMessageNotifyEmail({
+        name: dto.name.trim(),
+        email: dto.email.trim(),
+        phone: dto.phone?.trim() || null,
+        category: dto.category,
+        message: dto.message.trim(),
+        adminUrl: `${this.env.ADMIN_PUBLIC_URL}/en/admin/support`,
       });
+      await this.notifier.sendEmail({ to: this.env.CONTACT_NOTIFY_EMAIL, subject, html, locale: 'en' });
     } else {
       this.logger.warn('CONTACT_NOTIFY_EMAIL not set — contact message persisted but no email sent.');
     }

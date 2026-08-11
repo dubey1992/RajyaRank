@@ -4,6 +4,7 @@ import type { ApiEnv } from '@rajyarank/config/env';
 import type { DemoRequestView, SubmitDemoRequest } from '@rajyarank/contracts';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotifierService } from '../notifications/notifier.service';
+import { demoRequestNotifyEmail } from '../notifications/email-templates/internal-notifications';
 import { ENV } from '../config/config.module';
 import { AppError } from '../common/errors/app-error';
 
@@ -66,12 +67,18 @@ export class DemoRequestsService {
     });
 
     if (this.env.DEMO_NOTIFY_EMAIL) {
-      await this.notifier.sendEmail({
-        to: this.env.DEMO_NOTIFY_EMAIL,
-        subject: `New demo request: ${dto.institutionName}`,
-        html: `<p><strong>${dto.contactName}</strong> (${dto.email}, ${dto.phone}) — ${dto.institutionName}${dto.role ? `, ${dto.role}` : ''}${dto.city ? `, ${dto.city}` : ''}</p><p>${dto.studentCount ? `Approx. students: ${dto.studentCount}<br/>` : ''}${(dto.message ?? '').replace(/\n/g, '<br/>')}</p>`,
-        locale: 'en',
+      const { subject, html } = demoRequestNotifyEmail({
+        institutionName: dto.institutionName.trim(),
+        contactName: dto.contactName.trim(),
+        email: dto.email.trim(),
+        phone: dto.phone.trim(),
+        role: dto.role?.trim() || null,
+        city: dto.city?.trim() || null,
+        studentCount: dto.studentCount ?? null,
+        message: dto.message?.trim() || null,
+        adminUrl: `${this.env.ADMIN_PUBLIC_URL}/en/admin/support`,
       });
+      await this.notifier.sendEmail({ to: this.env.DEMO_NOTIFY_EMAIL, subject, html, locale: 'en' });
     } else {
       this.logger.warn('DEMO_NOTIFY_EMAIL not set — demo request persisted but no email sent.');
     }
