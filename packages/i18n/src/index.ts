@@ -3,7 +3,7 @@ import hi from './messages/hi.json' with { type: 'json' };
 
 export const LOCALES = ['hi', 'en'] as const;
 export type Locale = (typeof LOCALES)[number];
-export const DEFAULT_LOCALE: Locale = 'hi';
+export const DEFAULT_LOCALE: Locale = 'en';
 
 export const messages: Record<Locale, Record<string, unknown>> = { en, hi };
 

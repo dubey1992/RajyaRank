@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 const LOCALES = ['hi', 'en'];
-const DEFAULT = 'hi';
+const DEFAULT = 'en';
 
 const IS_DEV = process.env.NODE_ENV !== 'production';
 

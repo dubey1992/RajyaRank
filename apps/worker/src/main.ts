@@ -227,7 +227,7 @@ async function sweepEntitlementExpiry() {
     if (!claimed) continue;
     const pref = await prisma.notificationPreference.findUnique({ where: { userId: e.user.id } });
     if (pref?.mutedCategories?.includes('EXPIRY') || pref?.emailEnabled === false) continue;
-    const locale: 'hi' | 'en' = e.user.locale === 'en' ? 'en' : 'hi';
+    const locale: 'hi' | 'en' = e.user.locale === 'hi' ? 'hi' : 'en';
     const daysLeft = Math.max(1, Math.round((e.endsAt.getTime() - now.getTime()) / 86_400_000));
     const { subject, html } = entitlementExpiringHtml(locale, e.product.titleHi, e.product.titleEn, daysLeft);
     await mailer.sendMail({ from: env.EMAIL_FROM, to: e.user.email, subject, html });
@@ -354,7 +354,7 @@ async function sweepStudyPlans() {
     if (!student?.email) continue;
     const pref = await prisma.notificationPreference.findUnique({ where: { userId: plan.studentId } });
     if (pref?.mutedCategories?.includes('DAILY_PLAN') || pref?.emailEnabled === false) continue;
-    const locale: 'hi' | 'en' = student.locale === 'en' ? 'en' : 'hi';
+    const locale: 'hi' | 'en' = student.locale === 'hi' ? 'hi' : 'en';
     const { subject, html } = planBehindHtml(locale, missedCount);
     await mailer.sendMail({ from: env.EMAIL_FROM, to: student.email, subject, html });
     await prisma.notification.create({
@@ -492,7 +492,7 @@ async function sweepInstituteRisk() {
       if (!head?.email) continue;
       const pref = await prisma.notificationPreference.findUnique({ where: { userId: org.headUserId } });
       if (pref?.mutedCategories?.includes('AT_RISK_ALERT') || pref?.emailEnabled === false) continue;
-      const locale: 'hi' | 'en' = head.locale === 'en' ? 'en' : 'hi';
+      const locale: 'hi' | 'en' = head.locale === 'hi' ? 'hi' : 'en';
       const { subject, html } = atRiskAlertHtml(locale, student.displayName ?? 'Student');
       await mailer.sendMail({ from: env.EMAIL_FROM, to: head.email, subject, html });
       await prisma.notification.create({

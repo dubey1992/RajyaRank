@@ -54,7 +54,7 @@ export class NotificationService {
 
     const user = await this.prisma.user.findUnique({ where: { id: input.userId } });
     if (!user) return;
-    const locale: 'hi' | 'en' = user.locale === 'en' ? 'en' : 'hi';
+    const locale: 'hi' | 'en' = user.locale === 'hi' ? 'hi' : 'en';
 
     if (input.email && user.email && (essential || pref?.emailEnabled !== false) && (essential || !muted)) {
       const built = typeof input.email === 'function' ? input.email(locale) : input.email;

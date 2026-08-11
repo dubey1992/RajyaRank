@@ -530,7 +530,7 @@ export class AuthService {
       userId: user.id,
       kind: user.kind,
       displayName: user.displayName,
-      locale: (user.locale === 'en' ? 'en' : 'hi'),
+      locale: (user.locale === 'hi' ? 'hi' : 'en'),
       roleKeys: principalRoleKeys,
       permissionCodes,
       assurance,

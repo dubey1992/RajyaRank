@@ -431,7 +431,7 @@ model User {
   emailVerified Boolean       @default(false) @map("email_verified")
   passwordHash  String?       @map("password_hash")
   displayName   String?       @map("display_name")
-  locale        String        @default("hi")
+  locale        String        @default("en")
   mfaEnabled    Boolean       @default(false) @map("mfa_enabled")
   failedLogins  Int           @default(0) @map("failed_logins")
   lockedUntil   DateTime?     @map("locked_until")

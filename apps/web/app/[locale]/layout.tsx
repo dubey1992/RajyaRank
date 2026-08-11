@@ -22,7 +22,7 @@ export function generateMetadata({ params }: { params: { locale: string } }): Me
     icons: { icon: '/icon.svg' },
     alternates: {
       canonical: `/${locale}`,
-      languages: { 'hi-IN': '/hi', 'en-IN': '/en', 'x-default': '/hi' },
+      languages: { 'hi-IN': '/hi', 'en-IN': '/en', 'x-default': '/en' },
     },
     openGraph: {
       type: 'website',

@@ -25,7 +25,7 @@ const nextConfig = {
   experimental: { outputFileTracingRoot: path.join(__dirname, '../../') },
   transpilePackages: ['@rajyarank/ui', '@rajyarank/i18n', '@rajyarank/contracts'],
   async rewrites() {
-    return [{ source: '/', destination: '/hi' }];
+    return [{ source: '/', destination: '/en' }];
   },
   async headers() {
     return [{ source: '/:path*', headers: securityHeaders }];

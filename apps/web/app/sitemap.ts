@@ -18,7 +18,7 @@ interface BlogRef { slug: string; updatedAt: string }
 
 function entry(path: string, priority: number, lastModified?: string): MetadataRoute.Sitemap[number] {
   return {
-    url: `${SITE}/hi${path}`,
+    url: `${SITE}/en${path}`,
     ...(lastModified ? { lastModified: new Date(lastModified) } : {}),
     changeFrequency: 'weekly',
     priority,
