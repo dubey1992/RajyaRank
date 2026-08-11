@@ -135,7 +135,7 @@ export default async function ProfilePage({
                     ) : null}
                   </div>
                   <p className="mb-3 text-xs font-extrabold uppercase text-muted">{L('योजना लाभ', 'Plan benefits')}</p>
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                     <div className="rounded-md border border-line bg-surface-soft p-3">
                       <div className="text-xs font-extrabold uppercase text-muted">{L('सक्रिय छात्र सीमा', 'Active student limit')}</div>
                       <div className="mt-1 text-lg font-black text-navy-950">{plan.maxActiveStudents.toLocaleString('en-IN')}</div>
@@ -143,10 +143,6 @@ export default async function ProfilePage({
                     <div className="rounded-md border border-line bg-surface-soft p-3">
                       <div className="text-xs font-extrabold uppercase text-muted">{L('स्टाफ़ सीटें', 'Staff seats')}</div>
                       <div className="mt-1 text-lg font-black text-navy-950">{plan.maxStaffSeats.toLocaleString('en-IN')}</div>
-                    </div>
-                    <div className="rounded-md border border-line bg-surface-soft p-3">
-                      <div className="text-xs font-extrabold uppercase text-muted">{L('स्टोरेज', 'Storage')}</div>
-                      <div className="mt-1 text-lg font-black text-navy-950">{plan.storageGb} GB</div>
                     </div>
                     <div className="rounded-md border border-line bg-surface-soft p-3">
                       <div className="text-xs font-extrabold uppercase text-muted">{L('आंतरिक बिक्री शुल्क', 'Internal-sale fee')}</div>

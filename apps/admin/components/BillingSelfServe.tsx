@@ -213,7 +213,6 @@ export function BillingSelfServe({
               <ul className="mb-4 grid gap-1 text-xs text-muted">
                 <li>{L('सक्रिय छात्र', 'Active students')}: {p.maxActiveStudents.toLocaleString('en-IN')}</li>
                 <li>{L('स्टाफ़ सीटें', 'Staff seats')}: {p.maxStaffSeats}</li>
-                <li>{L('स्टोरेज', 'Storage')}: {p.storageGb} GB</li>
               </ul>
               <div className="grid gap-2">
                 <Button

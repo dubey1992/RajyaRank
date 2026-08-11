@@ -152,7 +152,7 @@ export async function renderInstitutionInvoicePdf(input: {
   const calloutY = doc.y;
   doc.roundedRect(LEFT, calloutY, RIGHT - LEFT, 32, 4).fillAndStroke('#f4f6f8', '#e5eaef');
   doc.font('Helvetica').fontSize(9).fillColor('#374151').text(
-    `Plan includes:  up to ${input.maxActiveStudents.toLocaleString('en-IN')} active students  ·  ${input.maxStaffSeats} staff seats  ·  ${input.storageGb} GB storage`,
+    `Plan includes:  up to ${input.maxActiveStudents.toLocaleString('en-IN')} active students  ·  ${input.maxStaffSeats} staff seats`,
     LEFT + 12,
     calloutY + 11,
     { width: RIGHT - LEFT - 24 },
