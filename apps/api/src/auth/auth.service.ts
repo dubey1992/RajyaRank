@@ -52,14 +52,25 @@ export class AuthService {
     return { expiresInSeconds: this.env.OTP_TTL };
   }
 
-  /** First-touch institute referral attribution — resolves a ?ref= code
-   *  (an Organization.accessCode) to an org id, or null if it's missing,
-   *  expired, or matches nothing. Never throws: a bad/stale referral code
-   *  must never block signup. */
+  /** First-touch institute referral — resolves a ?ref= code (an
+   *  Organization.accessCode) to an org id, or null if it's missing,
+   *  suspended, or matches nothing. Never throws: a bad/stale referral code
+   *  must never block signup. The resolved org is used for BOTH attribution
+   *  (referredByOrgId, for the Head's dashboard) and membership (orgId,
+   *  same effect as the student typing this same code into "Join
+   *  institution" themselves) — the student already proved intent by
+   *  signing up through the link, so this skips the separate manual step. */
   private async resolveReferralOrgId(code?: string | null): Promise<string | null> {
     if (!code) return null;
-    const org = await this.prisma.organization.findUnique({ where: { accessCode: code }, select: { id: true } });
+    const org = await this.prisma.organization.findFirst({ where: { accessCode: code, status: 'ACTIVE' }, select: { id: true } });
     return org?.id ?? null;
+  }
+
+  /** Mirrors the membership-event side of StudentService.joinInstitution so
+   *  referral-driven auto-join shows up in the same per-student history. */
+  private async recordReferralJoin(userId: string, orgId: string | null): Promise<void> {
+    if (!orgId) return;
+    await this.prisma.orgMembershipEvent.create({ data: { userId, orgId, action: 'JOINED', method: 'ACCESS_CODE' } });
   }
 
   async studentOtpVerify(
@@ -85,11 +96,13 @@ export class AuthService {
             phoneVerified: true,
             displayName: null,
             referredByOrgId,
+            orgId: referredByOrgId,
             identities: { create: { provider: 'PHONE', providerUid: phone } },
             studentProfile: { create: {} },
             roles: { create: { roleId: studentRole.id } },
           },
         });
+        await this.recordReferralJoin(user.id, referredByOrgId);
       } catch (err) {
         // Two near-simultaneous first-time verifies for the same new phone can
         // both pass the findFirst check above; the loser hits the @@unique
@@ -154,10 +167,12 @@ export class AuthService {
         passwordHash,
         displayName: null,
         referredByOrgId,
+        orgId: referredByOrgId,
         studentProfile: { create: {} },
         roles: { create: { roleId: studentRole.id } },
       },
     });
+    await this.recordReferralJoin(user.id, referredByOrgId);
 
     await this.issue(res, user.id, 'STUDENT', 'AAL1', ip, userAgent);
     await this.prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
@@ -727,11 +742,13 @@ export class AuthService {
           emailVerified: !!info.email_verified,
           displayName: info.name ?? null,
           referredByOrgId,
+          orgId: referredByOrgId,
           identities: { create: { provider: 'GOOGLE', providerUid: info.sub } },
           studentProfile: { create: {} },
           roles: { create: { roleId: studentRole.id } },
         },
       });
+      await this.recordReferralJoin(user.id, referredByOrgId);
     } else if (!identity) {
       await this.prisma.userIdentity.create({ data: { userId: user.id, provider: 'GOOGLE', providerUid: info.sub } });
     }
