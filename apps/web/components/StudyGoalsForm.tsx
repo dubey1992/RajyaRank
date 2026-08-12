@@ -6,7 +6,7 @@ import { serverFieldErrors } from '@/lib/form';
 import type { StudyGoals } from '@rajyarank/contracts';
 
 interface Exam { id: string; nameHi: string; nameEn: string; stateId: string | null }
-interface State { id: string; nameHi: string; nameEn: string }
+interface State { id: string; code: string; nameHi: string; nameEn: string }
 
 const QUALS = ['10TH', '12TH', 'GRADUATE', 'POSTGRADUATE', 'TECHNICAL'] as const;
 
@@ -32,7 +32,11 @@ export function StudyGoalsForm({ initial, locale }: { initial: StudyGoals; local
     void apiFetch<Exam[]>('/exams').then(setExams).catch(() => undefined);
   }, []);
 
-  const examsForState = exams.filter((e) => !stateId || e.stateId === stateId);
+  // "All India" isn't a real state — it means "show the national exams"
+  // (Exam.stateId null), matched by code since the row's id is only known
+  // once /states resolves, not something the frontend can hardcode.
+  const allIndiaId = states.find((s) => s.code === 'ALL_INDIA')?.id;
+  const examsForState = exams.filter((e) => !stateId || (stateId === allIndiaId ? e.stateId === null : e.stateId === stateId));
 
   async function submit() {
     setBusy(true);

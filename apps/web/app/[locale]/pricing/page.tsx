@@ -75,7 +75,11 @@ export default async function PricingPage({ params }: { params: { locale: string
                       : hi ? 'आजीवन मान्य' : 'Valid for life'}
                   </p>
                 ) : (
-                  <BuyButton productId={p.id} locale={locale} loggedIn={loggedIn} next={`/${locale}/pricing`} showCoupon />
+                  // Coupons aren't a supported concept for SUBSCRIPTION-kind
+                  // products (Coupon is scoped to a course) — showing the
+                  // "Have a coupon code?" field here would offer something
+                  // that can't actually apply to a plan purchase.
+                  <BuyButton productId={p.id} locale={locale} loggedIn={loggedIn} next={`/${locale}/pricing`} showCoupon={p.kind !== 'SUBSCRIPTION'} />
                 )}
               </div>
             </article>

@@ -31,6 +31,17 @@ function encryptSecret(plain: string): string {
 }
 
 async function seedReference() {
+  // Not a real state — the "I'm preparing for a national exam, not a
+  // state-specific one" option in the State dropdown (Set Goal / onboarding).
+  // Exams.stateId is nullable specifically for national-level exams (SSC,
+  // Railways, Banking, UPSC, etc — currently ~32 of 67 seeded exams); the
+  // frontend matches on this row's code, not its id, to filter to those.
+  await prisma.state.upsert({
+    where: { code: 'ALL_INDIA' },
+    update: {},
+    create: { code: 'ALL_INDIA', nameEn: 'All India', nameHi: 'अखिल भारत' },
+  });
+
   const bihar = await prisma.state.upsert({
     where: { code: 'BR' },
     update: {},

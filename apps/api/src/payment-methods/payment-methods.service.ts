@@ -36,7 +36,11 @@ export class PaymentMethodsService {
     return rows.map(toView);
   }
 
-  private async ensureCustomer(actor: Principal): Promise<string> {
+  /** One Razorpay Customer per RajyaRank user, created lazily on whichever
+   *  comes first — an explicit "Add card", or simply the first real
+   *  Checkout, since a customer_id is what lets Checkout offer a "save this
+   *  card" option and lets us read the resulting token back afterward. */
+  async ensureCustomer(actor: Principal): Promise<string> {
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: actor.userId } });
     if (user.razorpayCustomerId) return user.razorpayCustomerId;
     const customerId = await this.razorpay.createCustomer({
@@ -46,6 +50,58 @@ export class PaymentMethodsService {
     });
     await this.prisma.user.update({ where: { id: user.id }, data: { razorpayCustomerId: customerId } });
     return customerId;
+  }
+
+  /** Best-effort: called from a REAL purchase's verify/webhook flow (not the
+   *  dedicated ₹1 "Add card" flow above) when the buyer checked Razorpay
+   *  Checkout's own "save this card" option mid-payment. Never throws — the
+   *  purchase itself has already succeeded by the time this runs, so a
+   *  failure here must only mean the card doesn't show up under Payment
+   *  Methods yet, never a broken purchase. Idempotent against the same
+   *  token (verify() and the payment.captured webhook can both reach this
+   *  for one purchase). */
+  async trySaveFromPayment(userId: string, razorpayCustomerId: string | null, paymentId: string): Promise<void> {
+    if (!razorpayCustomerId) return;
+    try {
+      const tokenId = await this.razorpay.getPaymentTokenId(paymentId);
+      if (!tokenId) return; // buyer didn't check "save card", or this payment produced no token
+
+      const existing = await this.prisma.savedPaymentMethod.findUnique({ where: { razorpayTokenId: tokenId } });
+      if (existing) return;
+
+      const activeCount = await this.prisma.savedPaymentMethod.count({ where: { userId, deletedAt: null } });
+      if (activeCount >= MAX_SAVED_CARDS) {
+        this.logger.warn(`Skipped auto-saving card from payment ${paymentId} — user ${userId} already has ${MAX_SAVED_CARDS} saved cards.`);
+        return;
+      }
+
+      const card = await this.razorpay.getTokenCard(razorpayCustomerId, tokenId);
+      if (!card) return;
+
+      const row = await this.prisma.savedPaymentMethod.create({
+        data: {
+          userId,
+          razorpayTokenId: tokenId,
+          cardLast4: card.last4,
+          cardNetwork: card.network,
+          cardType: card.type,
+          cardIssuer: card.issuer,
+          expiryMonth: card.expiryMonth,
+          expiryYear: card.expiryYear,
+          isDefault: activeCount === 0,
+        },
+      });
+      await this.audit.record({
+        actorUserId: userId,
+        action: 'payment_method.added',
+        targetType: 'SavedPaymentMethod',
+        targetId: row.id,
+        result: 'SUCCESS',
+        after: { cardLast4: card.last4, cardNetwork: card.network, source: 'checkout_save_card' },
+      });
+    } catch (e) {
+      this.logger.warn(`Card auto-save from payment ${paymentId} failed (purchase itself is unaffected): ${(e as Error).message}`);
+    }
   }
 
   /** Step 1 of "add card": opens a nominal-amount Checkout order against the

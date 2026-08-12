@@ -5,6 +5,7 @@ import type { CreateOrder, CreateOrderResponse, VerifyPayment } from '@rajyarank
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { RazorpayService } from './razorpay.service';
+import { PaymentMethodsService } from '../payment-methods/payment-methods.service';
 import { EntitlementService } from './entitlement.service';
 import { NotificationService } from '../notifications/notification.service';
 import { paymentReceiptEmail, refundApprovedEmail, refundProcessedEmail, refundRejectedEmail, refundRequestReceivedEmail } from '../notifications/email-templates/payments';
@@ -30,6 +31,7 @@ export class PaymentsService {
     private readonly notifications: NotificationService,
     private readonly billing: BillingService,
     private readonly settlements: SettlementsService,
+    private readonly paymentMethods: PaymentMethodsService,
   ) {}
 
   /** Public, unauthenticated listing — PUBLIC-audience only. Institute prices
@@ -56,11 +58,13 @@ export class PaymentsService {
   async createOrder(principal: Principal, dto: CreateOrder): Promise<CreateOrderResponse> {
     if (principal.kind !== 'STUDENT') throw AppError.permissionDenied('Student account required.');
 
-    // Looked up once and threaded into every return below — Checkout only
-    // offers "saved cards" when it's given a customer_id, so a buyer who
-    // saved a card via Payment Methods sees it here instead of a blank form.
-    const buyer = await this.prisma.user.findUnique({ where: { id: principal.userId }, select: { razorpayCustomerId: true } });
-    const razorpayCustomerId = buyer?.razorpayCustomerId ?? null;
+    // Ensured (not just looked up) and threaded into every return below —
+    // Checkout only offers "your saved cards" AND only lets the buyer check
+    // "save this card" when it's given a customer_id. Without this, a
+    // first-time buyer's card silently couldn't be saved even if they
+    // checked that box during Checkout — there was no customer for the
+    // resulting token to be saved against.
+    const razorpayCustomerId = await this.paymentMethods.ensureCustomer(principal);
 
     // Idempotency: reuse an existing order for the same key — but only the
     // caller's own. idempotencyKey is globally unique in the schema, so a
@@ -126,6 +130,16 @@ export class PaymentsService {
       where: { userId: principal.userId, productId: product.id, status: 'ACTIVE', OR: [{ endsAt: null }, { endsAt: { gt: new Date() } }] },
     });
     if (existingEntitlement) throw AppError.conflict('You already have an active plan for this product.');
+
+    // Coupons are a course-purchase concept only (Coupon.courseId scopes
+    // them there) — nothing stops a sitewide, non-course-scoped coupon
+    // (courseId null) from matching a SUBSCRIPTION product's checkout too,
+    // so this has to be rejected explicitly rather than relying on
+    // applyCoupon's courseId check below to catch it. The pricing UI
+    // already hides the coupon field for plans; this is the real boundary.
+    if (dto.couponCode && product.kind === 'SUBSCRIPTION') {
+      throw AppError.couponInvalid('Coupons are not available for subscription plans.');
+    }
 
     // Coupon validation + redemption-slot reservation happen atomically with
     // order creation, inside one transaction holding a row lock on the
@@ -586,6 +600,16 @@ export class PaymentsService {
       email: (locale) => paymentReceiptEmail(locale, order.product.titleHi, order.product.titleEn, order.amountMinor, order.currency),
     });
     await this.audit.record({ actorUserId: order.userId, action: 'payment.paid', targetType: 'Order', targetId: orderId, result: 'SUCCESS' });
+
+    if (providerPaymentId) {
+      // Picks up Checkout's own "save this card" checkbox — createOrder()
+      // always ensures a customer_id up front, so this can actually read
+      // the resulting token back. Best-effort: the purchase above is already
+      // final regardless of whether this succeeds.
+      const buyer = await this.prisma.user.findUnique({ where: { id: order.userId }, select: { razorpayCustomerId: true } });
+      await this.paymentMethods.trySaveFromPayment(order.userId, buyer?.razorpayCustomerId ?? null, providerPaymentId);
+    }
+
     // Marketplace split/payout to the owning institute, if any — never lets a
     // settlement problem affect the payment/entitlement already granted above.
     await this.settlements.createTransferForOrder(orderId, providerPaymentId);

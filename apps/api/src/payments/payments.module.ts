@@ -8,9 +8,10 @@ import { AcademicPaymentsController } from './academic-payments.controller';
 import { RazorpayModule } from './razorpay.module';
 import { BillingModule } from '../billing/billing.module';
 import { SettlementsModule } from '../settlements/settlements.module';
+import { PaymentMethodsModule } from '../payment-methods/payment-methods.module';
 
 @Module({
-  imports: [RazorpayModule, BillingModule, SettlementsModule],
+  imports: [RazorpayModule, BillingModule, SettlementsModule, PaymentMethodsModule],
   controllers: [PaymentsController, WebhookController, AdminPaymentsController, AcademicPaymentsController],
   providers: [EntitlementService, PaymentsService],
   exports: [EntitlementService],

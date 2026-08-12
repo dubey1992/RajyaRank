@@ -131,8 +131,12 @@ export interface ProfileResponse {
   title: string | null;
   /** The institution the user belongs to, when enrolled/assigned to one.
    *  accessCode is the same non-secret redemption code the institute hands
-   *  out to prospective students — safe to show back to an existing member. */
-  institution: { id: string; name: string; accessCode: string | null; plan: ProfileInstitutionPlan | null } | null;
+   *  out to prospective students — safe to show back to an existing member.
+   *  headPhone is the Academic Head's own contact number (Student Help &
+   *  Support's "Call support" card) — null if the org has no Head assigned
+   *  yet, never populated for a STAFF profile (a Head doesn't need their
+   *  own number surfaced back to themselves). */
+  institution: { id: string; name: string; accessCode: string | null; headPhone: string | null; plan: ProfileInstitutionPlan | null } | null;
   /** Whether this account has a password set (email+password login/signup, or staff). */
   hasPassword: boolean;
   /** Whether TOTP MFA is enabled — STAFF only, always false for students. */

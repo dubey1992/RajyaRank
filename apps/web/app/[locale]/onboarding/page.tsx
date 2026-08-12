@@ -8,7 +8,7 @@ import { resolveLocale } from '@/lib/i18n';
 import { makeT } from '@/lib/t';
 import { serverFieldErrors, validate } from '@/lib/form';
 
-interface State { id: string; nameHi: string; nameEn: string }
+interface State { id: string; code: string; nameHi: string; nameEn: string }
 interface Exam { id: string; nameHi: string; nameEn: string; stateId: string | null }
 
 const QUALS = ['10TH', '12TH', 'GRADUATE', 'POSTGRADUATE', 'TECHNICAL'] as const;
@@ -45,7 +45,11 @@ export default function OnboardingPage() {
     }).catch(() => undefined);
   }, []);
 
-  const examsForState = exams.filter((e) => !stateId || e.stateId === stateId);
+  // "All India" isn't a real state — it means "show the national exams"
+  // (Exam.stateId null), matched by code since the row's id is only known
+  // once /states resolves, not something the frontend can hardcode.
+  const allIndiaId = states.find((s) => s.code === 'ALL_INDIA')?.id;
+  const examsForState = exams.filter((e) => !stateId || (stateId === allIndiaId ? e.stateId === null : e.stateId === stateId));
 
   function goToDashboard() {
     // A plain router.push() here would replay the stale pre-onboarding

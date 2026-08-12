@@ -591,6 +591,10 @@ export class AuthService {
             // it out of student profiles; this join runs either way since it's
             // cheap (at most one subscription per org).
             subscription: { include: { plan: true } },
+            // Student Help & Support's "Call support" card — the Head's own
+            // number, not a generic platform line. Only surfaced to students
+            // below (a STAFF profile is the Head, no need to show it to themselves).
+            head: { select: { phone: true } },
           },
         },
       },
@@ -608,6 +612,7 @@ export class AuthService {
             id: u.org.id,
             name: u.org.name,
             accessCode: u.org.accessCode,
+            headPhone: u.kind === 'STUDENT' ? (u.org.head?.phone ?? null) : null,
             plan: sub
               ? {
                   code: sub.plan.code,
