@@ -5,6 +5,7 @@ import { apiFetchServer } from '@/lib/api';
 import { can } from '@/lib/permissions';
 import { Shell } from '@/components/Shell';
 import { AccessDenied } from '@/components/AccessDenied';
+import { ReferralLinkInput } from './ReferralLinkInput';
 
 export const dynamic = 'force-dynamic';
 
@@ -67,12 +68,7 @@ export default async function ReferralsPage({ params }: { params: { locale: stri
             <label className="mb-1.5 block text-xs font-extrabold uppercase text-muted">
               {L('आपका रेफ़रल लिंक', 'Your referral link')}
             </label>
-            <input
-              readOnly
-              value={link ?? ''}
-              onFocus={(e) => e.currentTarget.select()}
-              className="w-full rounded-md border border-line bg-surface-soft px-3 py-2 text-sm text-ink"
-            />
+            <ReferralLinkInput value={link ?? ''} />
             <a
               href={`https://wa.me/?text=${encodeURIComponent(shareText)}`}
               target="_blank"

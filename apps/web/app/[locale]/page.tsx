@@ -538,7 +538,6 @@ export default async function LandingPage({ params }: { params: { locale: string
               <li><Link className="transition hover:text-white" href={`/${locale}/privacy`}>{L('गोपनीयता', 'Privacy')}</Link></li>
               <li><Link className="transition hover:text-white" href={`/${locale}/terms`}>{L('शर्तें', 'Terms')}</Link></li>
               <li><a className="transition hover:text-white" href="mailto:support@rajyarank.com">support@rajyarank.com</a></li>
-              <li><a className="transition hover:text-white" href="tel:+918676913831">+91-8676913831</a></li>
             </ul>
           </div>
         </div>
