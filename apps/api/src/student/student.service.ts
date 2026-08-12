@@ -529,13 +529,24 @@ export class StudentService {
       throw AppError.entitlementRequired();
     }
 
-    const asset = await this.prisma.lessonAsset.findFirst({
-      where: {
-        lessonVersionId: lesson.currentVersionId ?? '',
-        role: lesson.lessonType === 'PDF' ? 'PDF_NOTES' : 'PRIMARY_VIDEO',
-      },
-      include: { asset: true },
-    });
+    // Which role to look for is NOT decided by lesson.lessonType — that field
+    // is set once at creation and is immutable, so it can drift from what's
+    // actually attached (e.g. an admin creates a lesson as VIDEO, the first
+    // attach attempt fails, they switch the wizard's type to PDF and retry —
+    // the lesson keeps its original, permanent lessonType while a PDF ends up
+    // attached under PDF_NOTES). Looking for whichever primary-content role
+    // actually has something attached makes this resilient to that drift
+    // instead of silently failing to find media that's really there.
+    // PRIMARY_VIDEO takes priority for MIXED lessons that carry both.
+    const asset =
+      (await this.prisma.lessonAsset.findFirst({
+        where: { lessonVersionId: lesson.currentVersionId ?? '', role: 'PRIMARY_VIDEO' },
+        include: { asset: true },
+      })) ??
+      (await this.prisma.lessonAsset.findFirst({
+        where: { lessonVersionId: lesson.currentVersionId ?? '', role: 'PDF_NOTES' },
+        include: { asset: true },
+      }));
     if (!asset || asset.asset.status !== 'READY' || (!asset.asset.storageKey && !asset.asset.embedUrl)) {
       throw AppError.assetNotReady('Lesson media is not available yet.');
     }

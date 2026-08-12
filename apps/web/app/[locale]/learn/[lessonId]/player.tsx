@@ -12,6 +12,7 @@ import type { PlaybackTokenResponse } from '@rajyarank/contracts';
  */
 export function LessonPlayer({
   lessonId,
+  lessonType,
   accessible,
   locale,
   title,
@@ -68,6 +69,13 @@ export function LessonPlayer({
 
   const toolBtn = 'inline-flex min-h-[40px] items-center gap-2 rounded-xl border border-line bg-white px-3.5 text-[11px] font-extrabold text-navy-900 transition hover:-translate-y-0.5';
 
+  // The pre-click shell has no media loaded yet, so it can't switch on
+  // media.kind (only known after playback-token resolves) — it has to guess
+  // from the lesson's own type instead. Without this, a PDF lesson showed
+  // the exact same dark 16:9 "▶ Click to play" video shell as a real video
+  // lesson, which reads as "this is a video" even when nothing ever loads.
+  const isDocumentType = lessonType === 'PDF';
+
   if (!accessible && !media) {
     return (
       <div className="rounded-[20px] border border-line bg-surface-soft p-10 text-center">
@@ -84,13 +92,17 @@ export function LessonPlayer({
       <div>
         {error ? <div className="mb-3"><Alert tone="error">{error}</Alert></div> : null}
 
-        {/* Video shell */}
-        <div className="relative grid aspect-video place-items-center overflow-hidden rounded-[20px] bg-[#06121d] text-white">
+        {/* Media shell */}
+        <div className={`relative grid aspect-video place-items-center overflow-hidden rounded-[20px] text-white ${!media && isDocumentType ? 'bg-navy-900' : 'bg-[#06121d]'}`}>
           {!media ? (
             <button type="button" onClick={() => void load()} disabled={busy} className="text-center">
-              <span className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-white/95 text-2xl text-orange-500">▶</span>
+              <span className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-white/95 text-2xl text-orange-500">
+                {isDocumentType ? '📄' : '▶'}
+              </span>
               <h2 className="mt-3.5 text-[17px] font-black">{title}</h2>
-              <p className="mt-1 text-[10px] text-[#a9c0d0]">{busy ? L('लोड हो रहा है…', 'Loading…') : L('चलाने के लिए दबाएँ', 'Click play to start')}</p>
+              <p className="mt-1 text-[10px] text-[#a9c0d0]">
+                {busy ? L('लोड हो रहा है…', 'Loading…') : isDocumentType ? L('पीडीएफ़ देखने के लिए दबाएँ', 'Click to view PDF') : L('चलाने के लिए दबाएँ', 'Click play to start')}
+              </p>
             </button>
           ) : media.kind === 'VIDEO' ? (
             <video

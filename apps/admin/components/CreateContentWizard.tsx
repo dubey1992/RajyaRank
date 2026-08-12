@@ -544,9 +544,28 @@ export function CreateContentWizard({
         {step === 'type' ? (
           <div className="grid gap-3">
             <label className="block text-sm font-extrabold text-ink" htmlFor="ltype">{L('कंटेंट प्रकार', 'Content type')}</label>
-            <select id="ltype" value={lessonType} onChange={(e) => { setLessonType(e.target.value as LessonType); setStepIndex(0); }} className="w-full rounded-md border border-line px-3 py-2">
+            <select
+              id="ltype"
+              value={lessonType}
+              disabled={!!createdLesson}
+              onChange={(e) => { setLessonType(e.target.value as LessonType); setStepIndex(0); }}
+              className="w-full rounded-md border border-line px-3 py-2 disabled:bg-surface-soft disabled:text-muted"
+            >
               {availableTypes.map((t) => <option key={t} value={t}>{TYPE_LABELS[t]}</option>)}
             </select>
+            {createdLesson ? (
+              // The lesson row's type is set once at creation and can never
+              // change afterward — switching this dropdown post-creation
+              // wouldn't actually update it server-side, it would just attach
+              // new media under a role that no longer matches, silently
+              // breaking playback. Locked once a retry is in progress.
+              <p className="text-xs font-bold text-orange-600">
+                {L(
+                  'यह पाठ पहले ही बन चुका है — प्रकार अब नहीं बदला जा सकता। सही माध्यम प्रकार चुनकर पुनः प्रयास करें, या रद्द करके नया कंटेंट शुरू करें।',
+                  'This lesson has already been created — its type can no longer change. Re-select the correct media below, or cancel and start fresh.',
+                )}
+              </p>
+            ) : null}
             <label className="flex items-center gap-2 text-sm text-ink">
               <input type="checkbox" checked={freePreview} onChange={(e) => setFreePreview(e.target.checked)} disabled={lessonType === 'QUIZ'} />
               {L('नि:शुल्क प्रीव्यू (लॉगिन के बिना उपलब्ध)', 'Free preview (available without login)')}
