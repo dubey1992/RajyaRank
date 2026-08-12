@@ -25,8 +25,8 @@ export default async function RatingsPage({ params }: { params: { locale: string
     <Shell me={me} locale={locale} title={title}>
       <p className="mb-4 max-w-2xl text-sm text-muted">
         {hi
-          ? 'रिपोर्ट की गई या छिपाई गई छात्र रेटिंग्स — स्वीकृत करें ताकि वे फिर से सार्वजनिक हों, या छिपाएँ।'
-          : 'Reported or hidden student ratings — approve to make them public again, or hide them.'}
+          ? '"ध्यान देने योग्य" में केवल रिपोर्ट की गई या छिपाई गई रेटिंग्स दिखती हैं। हर सामान्य समीक्षा देखने के लिए "सभी रेटिंग्स" पर जाएँ।'
+          : '"Needs attention" only shows reported or hidden ratings. Switch to "All ratings" to see every normal review too.'}
       </p>
       <RatingsModerationManager locale={locale} />
     </Shell>

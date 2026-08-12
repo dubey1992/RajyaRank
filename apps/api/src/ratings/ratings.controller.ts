@@ -34,6 +34,12 @@ export class RatingsController {
   }
 
   // Staff (support.manage)
+  @Get('admin/ratings/all')
+  @RequirePermission('support.manage')
+  all(@CurrentPrincipal() p: Principal) {
+    return this.ratings.allForOrg(p);
+  }
+
   @Get('admin/ratings/queue')
   @RequirePermission('support.manage')
   queue(@CurrentPrincipal() p: Principal) {

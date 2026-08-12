@@ -84,6 +84,28 @@ export class RatingsService {
     return { reported: true };
   }
 
+  /** Staff (support.manage): every VISIBLE, un-reported rating — the
+   *  moderation queue below only ever surfaces reported/hidden ones, so a
+   *  perfectly normal 5-star review has nowhere else to show up for a Super
+   *  Admin or an institute's own Academic Head. Same org-scoping as queue(). */
+  async allForOrg(p: Principal): Promise<CourseRatingQueueItem[]> {
+    const orgScoped = !p.isSuperAdmin && !!p.orgId;
+    const rows = await this.prisma.courseRating.findMany({
+      where: { status: 'VISIBLE', ...(orgScoped ? { course: { orgId: p.orgId } } : {}) },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+      include: { user: { select: { displayName: true } }, course: { select: { id: true, titleHi: true, titleEn: true } } },
+    });
+    return rows.map((r) => ({
+      ...toView(r),
+      courseId: r.course.id,
+      courseTitleHi: r.course.titleHi,
+      courseTitleEn: r.course.titleEn,
+      status: r.status,
+      reportCount: r.reportCount,
+    }));
+  }
+
   /** Staff (support.manage): moderation queue — reported + hidden ratings,
    *  org-scoped via the rated course's institution, same pattern as the
    *  doubts/support staff queues. */
