@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import type { Principal } from '@rajyarank/auth';
-import type { CreateOrder, CreateOrderResponse, VerifyPayment } from '@rajyarank/contracts';
+import type { CreateOrder, CreateOrderResponse, PreviewCoupon, PreviewCouponResponse, VerifyPayment } from '@rajyarank/contracts';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { RazorpayService } from './razorpay.service';
@@ -613,6 +613,36 @@ export class PaymentsService {
     // Marketplace split/payout to the owning institute, if any — never lets a
     // settlement problem affect the payment/entitlement already granted above.
     await this.settlements.createTransferForOrder(orderId, providerPaymentId);
+  }
+
+  /** Read-only "Apply" button check, before an order exists — mirrors
+   *  applyCoupon's validation (active/date window/course scope/redemption
+   *  limits) but never locks the coupon row or reserves a redemption slot;
+   *  only createOrder's transactional applyCoupon does that. So a coupon
+   *  that looks valid here can still fail at checkout if it gets fully
+   *  redeemed in between — same preview-vs-purchase tradeoff the
+   *  institute-code verify step already accepts. */
+  async previewCoupon(principal: Principal, dto: PreviewCoupon): Promise<PreviewCouponResponse> {
+    if (principal.kind !== 'STUDENT') throw AppError.permissionDenied('Student account required.');
+    const product = await this.prisma.product.findFirst({ where: { id: dto.productId, active: true } });
+    if (!product) throw AppError.notFound('Product not available.');
+    if (product.kind === 'SUBSCRIPTION') throw AppError.couponInvalid('Coupons are not available for subscription plans.');
+
+    const code = dto.couponCode.trim();
+    const coupon = await this.prisma.coupon.findUnique({ where: { code } });
+    if (!coupon) throw AppError.couponInvalid();
+    const now = new Date();
+    if (!coupon.active) throw AppError.couponInvalid();
+    if (coupon.validFrom && coupon.validFrom > now) throw AppError.couponInvalid('Coupon not yet active.');
+    if (coupon.validTo && coupon.validTo < now) throw AppError.couponInvalid('Coupon expired.');
+    if (coupon.courseId && product.courseId && coupon.courseId !== product.courseId) throw AppError.couponInvalid('Coupon not valid for this course.');
+    if (coupon.maxRedemptions && coupon.redeemedCount >= coupon.maxRedemptions) throw AppError.couponInvalid('Coupon fully redeemed.');
+    const usedByUser = await this.prisma.order.count({ where: { userId: principal.userId, couponId: coupon.id, status: 'PAID' } });
+    if (usedByUser >= coupon.perUserLimit) throw AppError.couponInvalid('Coupon usage limit reached.');
+
+    const discount = coupon.type === 'PERCENT' ? Math.round((product.priceMinor * coupon.value) / 100) : coupon.value;
+    const finalPriceMinor = Math.max(0, product.priceMinor - discount);
+    return { valid: true, originalPriceMinor: product.priceMinor, discountMinor: product.priceMinor - finalPriceMinor, finalPriceMinor };
   }
 
   private async applyCoupon(tx: Prisma.TransactionClient, userId: string, priceMinor: number, code: string | undefined, courseId: string | null) {

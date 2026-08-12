@@ -28,6 +28,22 @@ export const createOrderSchema = z.object({
 });
 export type CreateOrder = z.infer<typeof createOrderSchema>;
 
+export const previewCouponSchema = z.object({
+  productId: z.string().min(1).max(80),
+  couponCode: z.string().min(2).max(40),
+});
+export type PreviewCoupon = z.infer<typeof previewCouponSchema>;
+
+/** "Apply" button preview, before an order is created — createOrder still
+ *  re-validates (and actually reserves the redemption) at purchase time, so
+ *  this is a UX layer only, not a security boundary. */
+export interface PreviewCouponResponse {
+  valid: true;
+  originalPriceMinor: number;
+  discountMinor: number;
+  finalPriceMinor: number;
+}
+
 export interface CreateOrderResponse {
   orderId: string;
   // Null when no payment gateway order was created — see alreadyPaid below.

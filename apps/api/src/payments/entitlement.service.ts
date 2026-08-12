@@ -134,6 +134,36 @@ export class EntitlementService {
     return { status: 'ACTIVE' as const, OR: [{ endsAt: null }, { endsAt: { gt: now } }] };
   }
 
+  /** All exam ids a user currently has real content access to — direct
+   *  course entitlements' exams, plus subscription-covered exams. `allAccess`
+   *  is true under a Pro (all-exam) subscription, in which case `examIds`
+   *  should be ignored since everything is in scope. Bulk counterpart to
+   *  hasCourseAccess/hasExamAccess, used by StudyPlanService so a student's
+   *  plan is built from what they actually bought, not only their separate
+   *  "Set Goal" target exam. */
+  async accessibleExamIds(userId: string): Promise<{ allAccess: boolean; examIds: string[] }> {
+    const entitlements = await this.prisma.entitlement.findMany({
+      where: { userId, ...this.activeWhere() },
+      select: { courseId: true, product: { select: { kind: true, examId: true } } },
+    });
+    let allAccess = false;
+    const examIds = new Set<string>();
+    const courseIds: string[] = [];
+    for (const e of entitlements) {
+      if (e.product.kind === 'SUBSCRIPTION') {
+        if (e.product.examId === null) allAccess = true;
+        else examIds.add(e.product.examId);
+      } else if (e.courseId) {
+        courseIds.push(e.courseId);
+      }
+    }
+    if (courseIds.length) {
+      const courses = await this.prisma.course.findMany({ where: { id: { in: courseIds } }, select: { examId: true } });
+      for (const c of courses) examIds.add(c.examId);
+    }
+    return { allAccess, examIds: [...examIds] };
+  }
+
   async listMine(userId: string) {
     const ents = await this.prisma.entitlement.findMany({ where: { userId }, orderBy: { createdAt: 'desc' }, include: { product: true } });
     return ents.map((e) => ({

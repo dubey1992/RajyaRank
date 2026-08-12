@@ -3,6 +3,7 @@ import type { Principal } from '@rajyarank/auth';
 import type { MistakeType, PlanItemView, StudyPlanDay, WeakTopic } from '@rajyarank/contracts';
 import { PrismaService } from '../prisma/prisma.service';
 import { AppError } from '../common/errors/app-error';
+import { EntitlementService } from '../payments/entitlement.service';
 
 const DEFAULT_HORIZON_DAYS = 14;
 const DEFAULT_LESSON_MINUTES = 20;
@@ -30,7 +31,10 @@ function addDays(d: Date, n: number): Date {
  */
 @Injectable()
 export class StudyPlanService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly entitlements: EntitlementService,
+  ) {}
 
   private studentId(p: Principal): string {
     if (p.kind !== 'STUDENT') throw AppError.permissionDenied('Student account required.');
@@ -317,7 +321,13 @@ export class StudyPlanService {
    *  (roughly 20% of the daily budget) rather than appending drills at the
    *  end — computed once at generation time, not re-scored per day, to avoid
    *  thrashing. The remainder rolls to the next day; horizon caps at the
-   *  target date when it's sooner. */
+   *  target date when it's sooner.
+   *
+   *  Lesson eligibility is scoped by exam, but "Set Goal"'s targetExamId is
+   *  NOT the only source of that scope: a student can purchase a course (or
+   *  subscription) for an exam without ever setting/matching that as their
+   *  goal, and their plan must still include what they paid for — otherwise
+   *  regenerate() "succeeds" but silently returns an empty plan. */
   async generate(studentId: string, opts?: { horizonDays?: number }): Promise<{ id: string }> {
     const profile = await this.prisma.studentProfile.findUnique({ where: { userId: studentId } });
     const dailyMinutesGoal = profile?.dailyStudyMinutes ?? 120;
@@ -335,10 +345,18 @@ export class StudyPlanService {
       data: { studentId, targetExamId, dailyMinutesGoal, targetDate, status: 'ACTIVE' },
     });
 
+    const { allAccess, examIds: entitledExamIds } = await this.entitlements.accessibleExamIds(studentId);
+    const examIds = new Set(entitledExamIds);
+    if (targetExamId) examIds.add(targetExamId);
+
     const [lessons, weakTopics, topMistake] = await Promise.all([
-      targetExamId
+      allAccess || examIds.size
         ? this.prisma.lesson.findMany({
-            where: { deletedAt: null, currentVersion: { status: 'PUBLISHED' }, topic: { chapter: { subject: { course: { examId: targetExamId } } } } },
+            where: {
+              deletedAt: null,
+              currentVersion: { status: 'PUBLISHED' },
+              ...(allAccess ? {} : { topic: { chapter: { subject: { course: { examId: { in: [...examIds] } } } } } }),
+            },
             orderBy: { sequence: 'asc' },
             include: { currentVersion: { select: { estimatedMinutes: true } } },
             take: 300,

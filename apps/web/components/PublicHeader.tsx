@@ -44,14 +44,19 @@ export function PublicHeader({
 
   return (
     <header className="sticky top-0 z-50 border-b border-line/90 bg-white/95 backdrop-blur-xl">
-      <div className="mx-auto flex min-h-[72px] max-w-6xl items-center justify-between gap-4 px-4">
+      <div className="mx-auto flex min-h-[72px] max-w-7xl items-center justify-between gap-4 px-4">
         <Link href={`/${locale}`} aria-label="RajyaRank" className="flex-none">
           <Logo size={38} />
         </Link>
 
-        <nav className="hidden items-center gap-5 text-sm font-bold text-navy-900 lg:flex" aria-label="Primary">
+        {/* whitespace-nowrap keeps a two-word label ("Study content", "Current
+           Affairs") on one line — without it, flex-shrink squeezes those items
+           down to their narrowest wrap point while single-word items (which
+           have nowhere to wrap) stay full width, so the row looks uneven and
+           some labels break mid-phrase. */}
+        <nav className="hidden items-center gap-4 text-sm font-bold text-navy-900 xl:flex" aria-label="Primary">
           {navItems.map((item) => (
-            <Link key={item.href} href={item.href} className="transition hover:text-orange-600">
+            <Link key={item.href} href={item.href} className="whitespace-nowrap transition hover:text-orange-600">
               {item.label}
             </Link>
           ))}
@@ -90,9 +95,9 @@ export function PublicHeader({
             </>
           )}
 
-          {/* Mobile menu — nav collapses under lg, so this is the only way to
+          {/* Mobile menu — nav collapses under xl, so this is the only way to
              reach Exams/Courses/Current Affairs/etc. on phones/tablets. */}
-          <details className="relative lg:hidden">
+          <details className="relative xl:hidden">
             <summary
               aria-label={L('मेनू खोलें', 'Open menu')}
               className="flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-lg border border-line text-navy-900 [&::-webkit-details-marker]:hidden"

@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, Post, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import type { Principal } from '@rajyarank/auth';
-import { createOrderSchema, verifyPaymentSchema, type CreateOrder, type VerifyPayment } from '@rajyarank/contracts';
+import { createOrderSchema, previewCouponSchema, verifyPaymentSchema, type CreateOrder, type PreviewCoupon, type VerifyPayment } from '@rajyarank/contracts';
 import { Public } from '../common/decorators/public.decorator';
 import { CurrentPrincipal } from '../common/decorators/current-principal.decorator';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
@@ -28,6 +28,14 @@ export class PaymentsController {
     @Body(new ZodValidationPipe(createOrderSchema)) body: CreateOrder,
   ) {
     return this.payments.createOrder(p, body);
+  }
+
+  @Post('orders/coupons/preview')
+  previewCoupon(
+    @CurrentPrincipal() p: Principal,
+    @Body(new ZodValidationPipe(previewCouponSchema)) body: PreviewCoupon,
+  ) {
+    return this.payments.previewCoupon(p, body);
   }
 
   @Post('payments/razorpay/verify')

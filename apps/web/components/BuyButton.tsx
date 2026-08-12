@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Alert, Button } from '@rajyarank/ui';
 import { apiFetch, type ApiError } from '@/lib/api';
-import type { CreateOrderResponse } from '@rajyarank/contracts';
+import type { CreateOrderResponse, PreviewCouponResponse } from '@rajyarank/contracts';
 
 // Razorpay's checkout.js attaches a global constructor.
 declare global {
@@ -41,11 +41,10 @@ export function BuyButton({
   /** Path to return to after login (e.g. this same pricing page) so the
    *  student doesn't lose their place mid-purchase. */
   next?: string;
-  /** Reveals a "Have a coupon code?" field above the button. Coupons are
-   *  validated server-side at order-creation time (payments.service.ts's
-   *  applyCoupon) — there's no separate preview/verify step like the
-   *  institute-code flow, so an invalid code just surfaces createOrder's
-   *  error message instead of blocking the click. */
+  /** Reveals a "Have a coupon code?" field above the button, with an Apply
+   *  button that previews the discount up front (orders/coupons/preview).
+   *  createOrder still re-validates and actually reserves the redemption at
+   *  purchase time — this preview is a UX layer, not the security boundary. */
   showCoupon?: boolean;
 }) {
   const hi = locale === 'hi';
@@ -54,6 +53,33 @@ export function BuyButton({
   const [msg, setMsg] = useState<string | null>(null);
   const [couponOpen, setCouponOpen] = useState(false);
   const [couponCode, setCouponCode] = useState('');
+  const [applying, setApplying] = useState(false);
+  const [applyError, setApplyError] = useState<string | null>(null);
+  const [applied, setApplied] = useState<PreviewCouponResponse | null>(null);
+
+  async function applyCoupon() {
+    const code = couponCode.trim();
+    if (!code) return;
+    setApplying(true);
+    setApplyError(null);
+    try {
+      const res = await apiFetch<PreviewCouponResponse>('/orders/coupons/preview', {
+        method: 'POST',
+        body: JSON.stringify({ productId, couponCode: code }),
+      });
+      setApplied(res);
+    } catch (e) {
+      setApplied(null);
+      setApplyError((e as ApiError).message);
+    } finally {
+      setApplying(false);
+    }
+  }
+
+  function editCoupon() {
+    setApplied(null);
+    setApplyError(null);
+  }
 
   if (!loggedIn) {
     return (
@@ -148,13 +174,37 @@ export function BuyButton({
     <div>
       {showCoupon ? (
         couponOpen ? (
-          <div className="mb-2 flex gap-1.5">
-            <input
-              value={couponCode}
-              onChange={(e) => setCouponCode(e.target.value)}
-              placeholder={hi ? 'कूपन कोड' : 'Coupon code'}
-              className="w-full rounded-md border border-line px-2.5 py-1.5 text-xs outline-none focus:border-orange-500"
-            />
+          <div className="mb-2">
+            {applied ? (
+              <div className="flex items-center justify-between gap-2 rounded-md border border-success bg-surface-soft px-2.5 py-1.5 text-xs">
+                <span className="font-extrabold text-success">
+                  {hi
+                    ? `कूपन लागू — ₹${(applied.discountMinor / 100).toLocaleString('en-IN')} की छूट`
+                    : `Coupon applied — ₹${(applied.discountMinor / 100).toLocaleString('en-IN')} off`}
+                </span>
+                <button type="button" onClick={editCoupon} className="font-extrabold text-muted hover:underline">
+                  {hi ? 'बदलें' : 'Change'}
+                </button>
+              </div>
+            ) : (
+              <div className="flex gap-1.5">
+                <input
+                  value={couponCode}
+                  onChange={(e) => setCouponCode(e.target.value)}
+                  placeholder={hi ? 'कूपन कोड' : 'Coupon code'}
+                  className="w-full rounded-md border border-line px-2.5 py-1.5 text-xs outline-none focus:border-orange-500"
+                />
+                <button
+                  type="button"
+                  disabled={applying || !couponCode.trim()}
+                  onClick={() => void applyCoupon()}
+                  className="shrink-0 rounded-md border border-line bg-surface-soft px-3 py-1.5 text-xs font-extrabold text-navy-900 hover:bg-line disabled:opacity-50"
+                >
+                  {applying ? (hi ? 'लागू हो रहा है…' : 'Applying…') : hi ? 'लागू करें' : 'Apply'}
+                </button>
+              </div>
+            )}
+            {applyError ? <p className="mt-1 text-xs font-bold text-danger">{applyError}</p> : null}
           </div>
         ) : (
           <button

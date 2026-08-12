@@ -152,9 +152,16 @@ function AssetRowEditor({
       )}
       {!freePreview && row.kind === 'VIDEO' ? <p className="text-xs text-muted">{L('एम्बेड यूआरएल केवल नि:शुल्क प्रीव्यू पाठों के लिए उपलब्ध है।', 'Embed URL is only available for free-preview lessons.')}</p> : null}
       {showRoleSelect ? (
+        // Options are filtered to what row.kind can actually be — offering
+        // "Primary video" for a PDF row (or vice versa) let an admin attach
+        // media under a role the file isn't, which is exactly what made the
+        // student player show the wrong content type.
         <select value={row.role} onChange={(e) => onChange({ ...row, role: e.target.value as AssetRow['role'] })} className="w-full rounded-md border border-line px-2 py-1.5 text-sm">
-          <option value="PRIMARY_VIDEO">{L('मुख्य वीडियो', 'Primary video')}</option>
-          <option value="PDF_NOTES">{L('पीडीएफ़ नोट्स', 'PDF notes')}</option>
+          {row.kind === 'VIDEO' ? (
+            <option value="PRIMARY_VIDEO">{L('मुख्य वीडियो', 'Primary video')}</option>
+          ) : (
+            <option value="PDF_NOTES">{L('पीडीएफ़ नोट्स', 'PDF notes')}</option>
+          )}
           <option value="ATTACHMENT">{L('अतिरिक्त संसाधन', 'Attachment')}</option>
         </select>
       ) : null}

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { ContentStatus, Prisma } from '@prisma/client';
+import type { AssetType, ContentStatus, LessonAssetRole, Prisma } from '@prisma/client';
 import { scopeCovered, type Principal } from '@rajyarank/auth';
 import type { AttachAsset, EditVersion } from '@rajyarank/contracts';
 import { PrismaService } from '../prisma/prisma.service';
@@ -12,6 +12,17 @@ import { newLessonEmail } from '../notifications/email-templates/engagement';
 import { AppError } from '../common/errors/app-error';
 
 type ReviewAction = Prisma.ReviewCommentCreateManyInput['action'];
+
+/** Which real MediaAsset.assetType each LessonAssetRole may be attached
+ *  under — ATTACHMENT is deliberately permissive (any file kind can be a
+ *  supplementary download); the others are strict because the student
+ *  player picks its renderer off of exactly this pairing. */
+const ROLE_ASSET_TYPE_COMPAT: Record<LessonAssetRole, AssetType[]> = {
+  PRIMARY_VIDEO: ['VIDEO'],
+  PDF_NOTES: ['DOCUMENT'],
+  ATTACHMENT: ['VIDEO', 'AUDIO', 'IMAGE', 'DOCUMENT'],
+  THUMBNAIL: ['IMAGE'],
+};
 
 interface VersionScope {
   stateId: string;
@@ -205,6 +216,13 @@ export class ContentWorkflowService {
     if (asset.status !== 'READY') throw AppError.assetNotReady();
     if (asset.embedUrl && !scope.freePreview) {
       throw AppError.conflict('Embed URLs are only allowed for free-preview lessons. Paid lessons must use an uploaded file.');
+    }
+    // A role must match what was actually uploaded — the student player
+    // trusts the asset's own assetType to decide video-vs-PDF rendering, so a
+    // mismatched role here (e.g. a PDF attached as PRIMARY_VIDEO) would make
+    // the wrong player show up for students.
+    if (!asset.embedUrl && !ROLE_ASSET_TYPE_COMPAT[dto.role].includes(asset.assetType)) {
+      throw AppError.conflict(`This asset is a ${asset.assetType.toLowerCase()} file and cannot be attached with role ${dto.role}.`);
     }
     return this.prisma.lessonAsset.upsert({
       where: { lessonVersionId_assetId_role: { lessonVersionId: versionId, assetId: dto.assetId, role: dto.role } },

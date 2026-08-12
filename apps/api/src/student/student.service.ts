@@ -543,7 +543,12 @@ export class StudentService {
     return {
       url,
       expiresInSeconds: asset.asset.embedUrl ? 0 : 300,
-      kind: asset.asset.embedUrl ? 'EMBED' : lesson.lessonType === 'PDF' ? 'DOCUMENT' : 'VIDEO',
+      // Derived from the asset's own verified assetType, not lesson.lessonType
+      // (an editorial label set once at lesson creation and never revalidated
+      // against what was actually attached) — this is what actually decides
+      // video-vs-PDF rendering on the student player, so it must reflect the
+      // real file.
+      kind: asset.asset.embedUrl ? 'EMBED' : asset.asset.assetType === 'DOCUMENT' ? 'DOCUMENT' : 'VIDEO',
       watermark: user.phone ? maskId(user.phone) : user.email ? maskId(user.email) : null,
     };
   }
