@@ -2,7 +2,8 @@ import { apiFetchServer } from '@/lib/api';
 import { resolveLocale } from '@/lib/i18n';
 import type { BlogPostSummary } from '@rajyarank/contracts';
 
-const SITE = process.env.WEB_PUBLIC_URL ?? 'http://localhost:3000';
+// NEXT_PUBLIC_ deliberately, not WEB_PUBLIC_URL — see the comment in robots.ts.
+const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
 
 function escapeXml(s: string) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');

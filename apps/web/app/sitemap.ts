@@ -1,7 +1,8 @@
 import type { MetadataRoute } from 'next';
 import { apiFetchServer } from '@/lib/api';
 
-const SITE = process.env.WEB_PUBLIC_URL ?? 'http://localhost:3000';
+// NEXT_PUBLIC_ deliberately, not WEB_PUBLIC_URL — see the comment in robots.ts.
+const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
 
 /** Static, always-indexable routes. */
 const STATIC_PATHS: { path: string; priority: number }[] = [

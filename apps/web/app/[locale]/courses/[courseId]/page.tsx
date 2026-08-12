@@ -20,7 +20,8 @@ export const dynamic = 'force-dynamic';
 
 type Outline = CourseOutlineView;
 
-const SITE = process.env.WEB_PUBLIC_URL ?? 'http://localhost:3000';
+// NEXT_PUBLIC_ deliberately, not WEB_PUBLIC_URL — see the comment in robots.ts.
+const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
 
 export async function generateMetadata({
   params,

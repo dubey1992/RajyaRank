@@ -8,7 +8,8 @@ import { GoogleAnalytics } from '@/components/GoogleAnalytics';
 import '@rajyarank/ui/styles.css';
 import './globals.css';
 
-const SITE = process.env.WEB_PUBLIC_URL ?? 'http://localhost:3000';
+// NEXT_PUBLIC_ deliberately, not WEB_PUBLIC_URL — see the comment in robots.ts.
+const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
 
 // Self-hosted at build time (no runtime request to fonts.googleapis.com, no
 // layout shift) — previously the site only ever *referenced* 'Inter' and

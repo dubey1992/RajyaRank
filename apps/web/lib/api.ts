@@ -55,7 +55,16 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   return (body as { data: T }).data;
 }
 
-const OWN_PUBLIC_URL = process.env.WEB_PUBLIC_URL ?? 'http://localhost:3000';
+// NEXT_PUBLIC_ deliberately, not WEB_PUBLIC_URL — must be build-time inlined,
+// not read from the SSR runtime's process.env (Amplify's WEB_COMPUTE platform
+// doesn't reliably propagate app-level env vars into the SSR compute layer
+// for monorepo builds). This one matters beyond SEO: the Origin header set
+// below is what makes AccessGuard's STUDENT-preferred cookie logic trigger
+// for SSR requests (see the "shared cookie precedence" fix) — reading the
+// localhost fallback here means that Origin never matches the API's
+// configured WEB_PUBLIC_URL, silently reverting every server-rendered page
+// to the STAFF-first fallback for any browser holding both cookie kinds.
+const OWN_PUBLIC_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
 
 /** Server-side fetch that forwards the incoming cookie header. A real browser
  *  request always carries an `Origin` header, which the API uses to prefer
