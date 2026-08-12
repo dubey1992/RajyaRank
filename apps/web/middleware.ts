@@ -25,7 +25,16 @@ function buildCsp(nonce: string): string {
     "style-src 'self' 'unsafe-inline'",
     scriptSrc,
     `connect-src 'self' ${api} https://api.razorpay.com https://*.google-analytics.com https://*.analytics.google.com`,
-    'frame-src https://api.razorpay.com https://checkout.razorpay.com',
+    // Lesson playback renders VIDEO-embed and PDF-notes assets in an <iframe>
+    // (LessonPlayer.tsx) — those need their own frame-src entries or the
+    // browser silently blocks the frame with no visible error beyond the
+    // console, which read exactly like a broken embed URL even once the URL
+    // itself was fixed. YouTube embeds are the only supported external embed
+    // provider (createEmbedAsset normalizes to youtube.com/embed); PDF notes
+    // load from a short-lived presigned S3 URL, always on this AWS account's
+    // region — safe to allow broadly since every URL is individually signed
+    // and expiring, not a standing grant to arbitrary bucket content.
+    `frame-src https://api.razorpay.com https://checkout.razorpay.com https://www.youtube.com https://www.youtube-nocookie.com https://*.s3.ap-south-1.amazonaws.com${IS_DEV ? ' http://localhost:9000' : ''}`,
     "media-src 'self' blob: https:",
     "object-src 'none'",
     "base-uri 'self'",

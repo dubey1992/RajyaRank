@@ -32,7 +32,18 @@ interface VersionScope {
   ownerUserId: string;
   status: ContentStatus;
   freePreview: boolean;
+  lessonType: string;
 }
+
+/** Which LessonAssetRole each lessonType requires at least one READY asset
+ *  under before it may be submitted for review. TEXT and QUIZ carry no
+ *  media through this workflow (QUIZ is created atomically elsewhere) so
+ *  they're intentionally absent — everything else must have real, playable
+ *  content behind it before it can advance past DRAFT. */
+const REQUIRED_ROLE_BY_LESSON_TYPE: Partial<Record<string, LessonAssetRole>> = {
+  VIDEO: 'PRIMARY_VIDEO',
+  PDF: 'PDF_NOTES',
+};
 
 /**
  * The content lifecycle state machine (PRD §8). Each transition:
@@ -114,7 +125,36 @@ export class ContentWorkflowService {
       ownerUserId: v.createdBy,
       status: v.status,
       freePreview: v.lesson.freePreview,
+      lessonType: v.lesson.lessonType,
     };
+  }
+
+  /**
+   * Nothing upstream of this ever hard-required an asset to actually be
+   * attached — the admin wizard's own client-side gate is the only thing
+   * that normally stops a media-less VIDEO/PDF/MIXED lesson from being
+   * submitted, and a client-side gate can be skipped (a stale retry, a
+   * cancelled file picker leaving the row silently "empty", a direct API
+   * call). That gap let real production lessons reach PUBLISHED with zero
+   * playable content — students saw "media not available" forever. Submit
+   * is the last moment before this leaves the author's hands, so it's the
+   * right place for the server itself to refuse the state instead of
+   * trusting the client.
+   */
+  private async assertMediaAttached(versionId: string, lessonType: string) {
+    if (lessonType === 'MIXED') {
+      const count = await this.prisma.lessonAsset.count({ where: { lessonVersionId: versionId } });
+      if (count === 0) {
+        throw AppError.conflict('Add at least one video/PDF asset before submitting this lesson.');
+      }
+      return;
+    }
+    const requiredRole = REQUIRED_ROLE_BY_LESSON_TYPE[lessonType];
+    if (!requiredRole) return;
+    const asset = await this.prisma.lessonAsset.findFirst({ where: { lessonVersionId: versionId, role: requiredRole } });
+    if (!asset) {
+      throw AppError.conflict(`This ${lessonType} lesson has no media attached yet — add the required file or embed URL before submitting.`);
+    }
   }
 
   private authorize(
@@ -235,6 +275,7 @@ export class ContentWorkflowService {
     const scope = await this.loadScope(versionId);
     this.authorize(principal, 'content.submit_review', scope);
     this.assertFrom(scope.status, ['DRAFT', 'CORRECTION_REQUIRED']);
+    await this.assertMediaAttached(versionId, scope.lessonType);
     const resubmit = scope.status === 'CORRECTION_REQUIRED';
     const updated = await this.transition(
       versionId,
@@ -379,6 +420,11 @@ export class ContentWorkflowService {
     const scope = await this.loadScope(versionId);
     this.authorize(principal, 'content.publish', scope, 'AAL2');
     this.assertFrom(scope.status, ['APPROVED', 'READY_TO_PUBLISH', 'SCHEDULED']);
+    // Second gate, not just belt-and-suspenders: a version that entered the
+    // pipeline via submit() before this check existed could already be
+    // sitting in APPROVED/SCHEDULED with zero media attached — this is the
+    // last stop before students see it, so it must not slip through.
+    await this.assertMediaAttached(versionId, scope.lessonType);
     const version = await this.prisma.lessonVersion.findUniqueOrThrow({ where: { id: versionId } });
 
     const result = await this.prisma.$transaction(async (tx) => {

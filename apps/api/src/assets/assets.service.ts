@@ -7,6 +7,41 @@ import { AuditService } from '../audit/audit.service';
 import { AssetScanService } from './asset-scan.service';
 import { AppError } from '../common/errors/app-error';
 
+/**
+ * A shared "video URL" (youtu.be, youtube.com/watch, /shorts/, with whatever
+ * tracking/playlist query params a browser's share button tacks on) is not
+ * the same thing as an embeddable URL — YouTube sends X-Frame-Options/CSP on
+ * every host except the /embed/ path, so putting the raw link straight into
+ * an <iframe src> (which is exactly what the student player does) always
+ * fails to load regardless of whether the video itself is fine. Staff paste
+ * whatever's in their address bar or share sheet, so normalize the common
+ * shapes into the canonical embed form instead of asking them to know the
+ * difference. Anything that isn't a recognized YouTube URL passes through
+ * unchanged — other providers' share links may already be embed-ready.
+ */
+export function toEmbeddableUrl(raw: string): string {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return raw;
+  }
+  const host = url.hostname.replace(/^www\.|^m\./, '');
+  let videoId: string | null = null;
+  if (host === 'youtu.be') {
+    videoId = url.pathname.slice(1).split('/')[0] || null;
+  } else if (host === 'youtube.com') {
+    if (url.pathname === '/watch') {
+      videoId = url.searchParams.get('v');
+    } else if (url.pathname.startsWith('/shorts/')) {
+      videoId = url.pathname.split('/')[2] || null;
+    } else if (url.pathname.startsWith('/embed/')) {
+      return raw; // already the right shape
+    }
+  }
+  return videoId ? `https://www.youtube.com/embed/${videoId}` : raw;
+}
+
 @Injectable()
 export class AssetsService {
   constructor(
@@ -90,12 +125,13 @@ export class AssetsService {
    * (content-workflow.service.ts attachAsset), not here.
    */
   async createEmbedAsset(principal: Principal, dto: CreateEmbedAsset) {
+    const embedUrl = toEmbeddableUrl(dto.embedUrl);
     const asset = await this.prisma.mediaAsset.create({
       data: {
         ownerUserId: principal.userId,
         assetType: dto.assetType,
         provider: 'embed',
-        embedUrl: dto.embedUrl,
+        embedUrl,
         status: 'READY',
         mimeType: 'text/uri-list',
       },
@@ -106,7 +142,7 @@ export class AssetsService {
       targetType: 'MediaAsset',
       targetId: asset.id,
       result: 'SUCCESS',
-      after: { embedUrl: dto.embedUrl },
+      after: { embedUrl },
     });
     return { id: asset.id, status: asset.status };
   }

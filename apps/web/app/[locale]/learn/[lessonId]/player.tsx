@@ -119,8 +119,14 @@ export function LessonPlayer({
               title={title}
               src={media.url}
               className="h-full w-full bg-black"
-              sandbox="allow-scripts allow-same-origin allow-presentation"
-              referrerPolicy="no-referrer"
+              sandbox="allow-scripts allow-same-origin allow-presentation allow-popups"
+              // YouTube's player validates the referring page as part of loading —
+              // "no-referrer" strips that entirely and the player fails closed with
+              // "Error 153: Video player configuration error" (reproduced locally;
+              // YouTube's own oEmbed-generated embed snippet ships this exact
+              // policy, not no-referrer). allow-popups is needed for the player's
+              // "Watch on YouTube" fallback link some restricted videos show.
+              referrerPolicy="strict-origin-when-cross-origin"
               allow="autoplay; encrypted-media; picture-in-picture"
             />
           ) : (
