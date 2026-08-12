@@ -41,7 +41,7 @@ export default async function MyCoursesPage({ params }: { params: { locale: stri
           <h1 className="text-[26px] font-black tracking-tight text-navy-950 md:text-[34px]">{L('मेरे कोर्स', 'My Courses')}</h1>
           <p className="mt-1 text-sm text-muted">{L('अपने नामांकित कोर्स जारी रखें और प्रगति देखें।', 'Continue your enrolled courses and monitor progress.')}</p>
         </div>
-        <Link href={`/${locale}/exams`} className="inline-flex min-h-[42px] items-center gap-2 self-start rounded-xl bg-orange-500 px-4 text-xs font-extrabold text-white shadow-[0_9px_20px_rgba(245,116,23,0.2)] transition hover:-translate-y-0.5 hover:bg-orange-600">
+        <Link href={`/${locale}/courses`} className="inline-flex min-h-[42px] items-center gap-2 self-start rounded-xl bg-orange-500 px-4 text-xs font-extrabold text-white shadow-[0_9px_20px_rgba(245,116,23,0.2)] transition hover:-translate-y-0.5 hover:bg-orange-600">
           🧭 {L('कोर्स खोजें', 'Explore courses')}
         </Link>
       </div>
@@ -51,7 +51,7 @@ export default async function MyCoursesPage({ params }: { params: { locale: stri
           <div className="mx-auto grid h-16 w-16 place-items-center rounded-[20px] bg-surface-soft text-2xl">📚</div>
           <h3 className="mt-3.5 text-[15px] font-black text-navy-900">{L('अभी कोई नामांकित कोर्स नहीं', 'No enrolled courses yet')}</h3>
           <p className="mx-auto mt-1 max-w-sm text-[10.5px] text-muted">{L('कोर्स खोजें और नामांकन करें — वे यहाँ प्रगति के साथ दिखेंगे।', 'Explore and enrol in a course — it will appear here with your progress.')}</p>
-          <Link href={`/${locale}/exams`} className="mt-4 inline-flex rounded-xl bg-orange-500 px-5 py-2.5 text-xs font-extrabold text-white">{L('कोर्स खोजें', 'Explore courses')} →</Link>
+          <Link href={`/${locale}/courses`} className="mt-4 inline-flex rounded-xl bg-orange-500 px-5 py-2.5 text-xs font-extrabold text-white">{L('कोर्स खोजें', 'Explore courses')} →</Link>
         </div>
       ) : (
         <div className="grid gap-[18px] sm:grid-cols-2 lg:grid-cols-3">

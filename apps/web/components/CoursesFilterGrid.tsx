@@ -108,13 +108,13 @@ export function CoursesFilterGrid({
           placeholder={hi ? 'कोर्स, परीक्षा या राज्य खोजें' : 'Search course, exam, or state'}
           className="min-w-[200px] flex-1 rounded-md border border-line px-3 py-2 text-sm outline-none focus:border-orange-500"
         />
-        <select value={stateId} onChange={(e) => setStateId(e.target.value)} className="rounded-md border border-line px-3 py-2 text-sm">
-          <option value="">{hi ? 'सभी राज्य' : 'All states'}</option>
-          {states.map((s) => <option key={s.id} value={s.id}>{hi ? s.nameHi : s.nameEn}</option>)}
-        </select>
         <select value={examId} onChange={(e) => setExamId(e.target.value)} className="rounded-md border border-line px-3 py-2 text-sm">
           <option value="">{hi ? 'सभी परीक्षाएँ' : 'All exams'}</option>
           {exams.map((e) => <option key={e.id} value={e.id}>{hi ? e.nameHi : e.nameEn}</option>)}
+        </select>
+        <select value={stateId} onChange={(e) => setStateId(e.target.value)} className="rounded-md border border-line px-3 py-2 text-sm">
+          <option value="">{hi ? 'सभी राज्य' : 'All states'}</option>
+          {states.map((s) => <option key={s.id} value={s.id}>{hi ? s.nameHi : s.nameEn}</option>)}
         </select>
         <select value={audience} onChange={(e) => setAudience(e.target.value as 'ALL' | 'PUBLIC' | 'INSTITUTE')} className="rounded-md border border-line px-3 py-2 text-sm">
           <option value="ALL">{hi ? 'सभी एक्सेस प्रकार' : 'All access types'}</option>

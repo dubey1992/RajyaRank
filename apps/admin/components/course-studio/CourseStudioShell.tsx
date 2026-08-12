@@ -350,7 +350,29 @@ export function CourseStudioShell({
                 </select>
               </>
             ) : (
-              <p className="text-xs text-muted">{L('राज्य व परीक्षा बनने के बाद नहीं बदले जा सकते।', 'State and exam cannot be changed after creation.')}</p>
+              <>
+                <div className="mb-2 grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <span className="mb-1 block text-sm font-extrabold text-ink">{L('राज्य', 'State')}</span>
+                    <p className="rounded-md border border-line bg-surface-soft px-3 py-3 text-sm text-ink">
+                      {(() => {
+                        const s = states.find((s) => s.id === stateId);
+                        return s ? (hi ? s.nameHi : s.nameEn) : '—';
+                      })()}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="mb-1 block text-sm font-extrabold text-ink">{L('परीक्षा', 'Exam')}</span>
+                    <p className="rounded-md border border-line bg-surface-soft px-3 py-3 text-sm text-ink">
+                      {(() => {
+                        const x = exams.find((x) => x.id === examId);
+                        return x ? (hi ? x.nameHi : x.nameEn) : '—';
+                      })()}
+                    </p>
+                  </div>
+                </div>
+                <p className="text-xs text-muted">{L('राज्य व परीक्षा बनने के बाद नहीं बदले जा सकते।', 'State and exam cannot be changed after creation.')}</p>
+              </>
             )}
             <Field label={L('शीर्षक (हिन्दी)', 'Title (Hindi)')} name="titleHi" value={titleHi} onChange={(e) => setTitleHi(e.target.value)} />
             <Field label={L('शीर्षक (English)', 'Title (English)')} name="titleEn" value={titleEn} onChange={(e) => setTitleEn(e.target.value)} />
