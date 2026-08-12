@@ -6,6 +6,14 @@ import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 import { loadApiEnv } from '@rajyarank/config/env';
 
+// Given "https://rajyarank.com" (or "https://www.rajyarank.com"), returns
+// both the bare and www-prefixed origins so CORS accepts either host.
+function withWwwVariants(url: string): string[] {
+  const u = new URL(url);
+  const bareHost = u.host.replace(/^www\./, '');
+  return [`${u.protocol}//${bareHost}`, `${u.protocol}//www.${bareHost}`];
+}
+
 async function bootstrap() {
   const env = loadApiEnv();
   // rawBody: true exposes req.rawBody for HMAC verification of the Razorpay webhook.
@@ -16,8 +24,13 @@ async function bootstrap() {
   app.use(cookieParser());
   app.setGlobalPrefix('api/v1', { exclude: ['healthz', 'readyz'] });
   // CORS allow-list is driven entirely by per-environment public URLs.
+  // Amplify serves the web app on both the bare apex and the www subdomain
+  // with no redirect between them (both resolve live, independently), so
+  // WEB_PUBLIC_URL alone only ever allowlists one — the other origin's
+  // fetches get silently CORS-blocked by the browser (reproduced: student
+  // login fails end-to-end on whichever host isn't WEB_PUBLIC_URL).
   app.enableCors({
-    origin: [env.WEB_PUBLIC_URL, env.ADMIN_PUBLIC_URL],
+    origin: [...withWwwVariants(env.WEB_PUBLIC_URL), env.ADMIN_PUBLIC_URL],
     credentials: true,
   });
   app.enableShutdownHooks();
