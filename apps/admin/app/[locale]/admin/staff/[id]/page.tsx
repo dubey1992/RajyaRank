@@ -17,7 +17,7 @@ export default async function StaffAssignmentsPage({ params }: { params: { local
   const me = await getMeOrRedirect(locale);
   const title = hi ? 'स्टाफ़ असाइनमेंट' : 'Staff Assignments';
 
-  if (!can(me, 'user.manage')) {
+  if (!can(me, 'assignment.manage')) {
     return (
       <Shell me={me} locale={locale} title={title}>
         <AccessDenied locale={locale} permission="assignment.manage" />
