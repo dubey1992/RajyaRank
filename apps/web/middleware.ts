@@ -12,15 +12,19 @@ const IS_DEV = process.env.NODE_ENV !== 'production';
 function buildCsp(nonce: string): string {
   const api = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
   const scriptSrc = IS_DEV
-    ? "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://checkout.razorpay.com"
-    : `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://checkout.razorpay.com`;
+    ? "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://checkout.razorpay.com https://www.googletagmanager.com"
+    : `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://checkout.razorpay.com https://www.googletagmanager.com`;
   return [
     "default-src 'self'",
-    "img-src 'self' data: blob:",
+    // https: (not just 'self'/data:/blob:) because blog cover images are a
+    // free-text URL an editor can point at any host (BlogManager.tsx) — same
+    // reasoning as media-src below. Also covers GA4's rare image-pixel
+    // fallback beacon when sendBeacon/fetch aren't available.
+    "img-src 'self' data: blob: https:",
     "font-src 'self' data:",
     "style-src 'self' 'unsafe-inline'",
     scriptSrc,
-    `connect-src 'self' ${api} https://api.razorpay.com`,
+    `connect-src 'self' ${api} https://api.razorpay.com https://*.google-analytics.com https://*.analytics.google.com`,
     'frame-src https://api.razorpay.com https://checkout.razorpay.com',
     "media-src 'self' blob: https:",
     "object-src 'none'",

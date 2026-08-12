@@ -64,6 +64,25 @@ export default async function LandingPage({ params }: { params: { locale: string
     { icon: '🔔', h: L('परीक्षा अलर्ट', 'Exam alerts'), p: L('आधिकारिक सूचना, एडमिट कार्ड, आंसर की और ज़रूरी तिथि रिमाइंडर।', 'Official notices, admit cards, answer keys and important-date reminders.') },
     { icon: '📶', h: L('कम नेटवर्क फ़्रेंडली', 'Low-network friendly'), p: L('हल्के पेज, टेस्ट ऑटो-सेव और चुनिंदा कंटेंट ऑफ़लाइन-रेडी।', 'Lightweight pages, test auto-save and selected content offline-ready.') },
   ];
+
+  // Computed once and reused below in the rendered FAQ section too, so the
+  // JSON-LD can't silently drift from what's actually visible on the page
+  // (Google's structured-data guidelines require an exact match) — the
+  // full-list version lives on /faq's own page.
+  const faqPreview = (faqRows ?? []).slice(0, 5);
+  const faqJsonLd =
+    faqPreview.length > 0
+      ? {
+          '@context': 'https://schema.org',
+          '@type': 'FAQPage',
+          mainEntity: faqPreview.map((f) => ({
+            '@type': 'Question',
+            name: hi ? f.questionHi : f.questionEn,
+            acceptedAnswer: { '@type': 'Answer', text: hi ? f.answerHi : f.answerEn },
+          })),
+        }
+      : null;
+
   return (
     <main id="main" className="bg-[#fffdfb]">
       {/* Announcement */}
@@ -73,6 +92,7 @@ export default async function LandingPage({ params }: { params: { locale: string
 
       {/* Header */}
       <PublicHeader locale={locale} showInstitutesLink={!!(institutes && institutes.length)} me={me} />
+      {faqJsonLd ? <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} /> : null}
 
       {/* Hero */}
       <section
@@ -436,7 +456,7 @@ export default async function LandingPage({ params }: { params: { locale: string
       ) : null}
 
       {/* FAQ (native accessible accordion) */}
-      {faqRows && faqRows.length ? (
+      {faqPreview.length > 0 ? (
         <section id="faq" className="border-y border-line bg-surface-soft">
           <div className="mx-auto max-w-3xl px-4 py-16 md:py-20">
             <div className="mb-9 text-center">
@@ -444,7 +464,7 @@ export default async function LandingPage({ params }: { params: { locale: string
               <h2 className="mt-3 text-3xl font-black tracking-tight text-navy-950 md:text-[40px]">{t('nav.faq')}</h2>
             </div>
             <div className="grid gap-3">
-              {faqRows.slice(0, 5).map((f) => (
+              {faqPreview.map((f) => (
                 <details key={f.id} className="group rounded-md border border-line bg-white">
                   <summary className="flex cursor-pointer items-center justify-between gap-3 px-5 py-4 font-extrabold text-navy-900 [&::-webkit-details-marker]:hidden">
                     <span>{hi ? f.questionHi : f.questionEn}</span>
@@ -454,7 +474,7 @@ export default async function LandingPage({ params }: { params: { locale: string
                 </details>
               ))}
             </div>
-            {faqRows.length > 5 ? (
+            {(faqRows?.length ?? 0) > 5 ? (
               <div className="mt-6 text-center">
                 <a
                   href={`/${locale}/faq`}

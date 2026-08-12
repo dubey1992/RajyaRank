@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import Image from 'next/image';
 import { notFound } from 'next/navigation';
 import { cookies } from 'next/headers';
 import { resolveLocale } from '@/lib/i18n';
@@ -100,7 +101,14 @@ export default async function BlogPostPage({ params }: { params: { locale: strin
         </div>
 
         {post.coverImageUrl ? (
-          <img src={post.coverImageUrl} alt="" className="mt-6 w-full rounded-lg border border-line object-cover" style={{ aspectRatio: '16/9' }} />
+          <div className="relative mt-6 w-full overflow-hidden rounded-lg border border-line" style={{ aspectRatio: '16/9' }}>
+            {/* coverImageUrl is a free-text URL an editor can point at any host
+               (see BlogManager.tsx) — remotePatterns can't allowlist an
+               unbounded set of domains, so this stays unoptimized; the real
+               win here is the explicit aspect-ratio box (no layout shift) and
+               priority preload, not automatic resizing/format conversion. */}
+            <Image src={post.coverImageUrl} alt="" fill unoptimized priority sizes="(max-width: 768px) 100vw, 768px" className="object-cover" />
+          </div>
         ) : null}
 
         <div className="mt-8">

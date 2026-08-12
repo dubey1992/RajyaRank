@@ -37,9 +37,26 @@ export default async function FaqPage({ params }: { params: { locale: string } }
   ]);
   const faqs = faqRows ?? [];
 
+  // Must mirror what's actually visible on this page (Google's structured-data
+  // guidelines require an exact match) — this page renders every faq, unlike
+  // the homepage's 5-item preview, which carries its own separate FAQPage block.
+  const jsonLd =
+    faqs.length > 0
+      ? {
+          '@context': 'https://schema.org',
+          '@type': 'FAQPage',
+          mainEntity: faqs.map((f) => ({
+            '@type': 'Question',
+            name: hi ? f.questionHi : f.questionEn,
+            acceptedAnswer: { '@type': 'Answer', text: hi ? f.answerHi : f.answerEn },
+          })),
+        }
+      : null;
+
   return (
     <>
       <PublicHeader locale={locale} me={me} />
+      {jsonLd ? <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} /> : null}
       <main id="main" className="mx-auto max-w-3xl px-4 py-10 md:py-14">
         <div className="mb-9 text-center">
           <span className="inline-flex items-center gap-2 rounded-full border border-teal-500/40 bg-teal-100 px-3 py-1.5 text-[13px] font-extrabold text-teal-600">

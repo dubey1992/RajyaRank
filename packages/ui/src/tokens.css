@@ -26,8 +26,8 @@
   --rr-radius-md: 14px;
   --rr-radius-lg: 22px;
 
-  --rr-font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --rr-font-deva: 'Noto Sans Devanagari', var(--rr-font-sans);
+  --rr-font-sans: var(--font-inter, 'Inter'), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --rr-font-deva: var(--font-noto-deva, 'Noto Sans Devanagari'), var(--rr-font-sans);
 
   --rr-focus: 3px solid rgba(249, 115, 22, 0.45);
 }
