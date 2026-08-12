@@ -24,6 +24,13 @@ import { institutionJoinedEmail } from '../notifications/email-templates/engagem
 import { StudyPlanService } from './study-plan.service';
 import { AppError } from '../common/errors/app-error';
 
+// Minimum share of a lesson's staff-estimated length a student must have
+// accumulated (via videoPositionSeconds — real watch time for VIDEO, engaged
+// heartbeat time for PDF/EMBED) before a self-reported completion counts.
+const MIN_COMPLETION_ENGAGEMENT_RATIO = 0.6;
+// Applied instead of the ratio when a lesson has no estimatedMinutes set.
+const MIN_COMPLETION_ENGAGEMENT_SECONDS_FLOOR = 45;
+
 /**
  * Student learning experience. Access to protected content is gated by
  * ENTITLEMENTS (Phase 6): free-preview published lessons are open; every other
@@ -566,7 +573,7 @@ export class StudentService {
 
   async updateProgress(p: Principal, lessonId: string, dto: ProgressUpdate) {
     const userId = this.studentId(p);
-    await this.loadPublishedLesson(lessonId);
+    const lesson = await this.loadPublishedLesson(lessonId);
     // Completion is sticky: a lesson stays COMPLETED once reached, even if a
     // later call (a periodic time-tracking heartbeat that only carries
     // videoPositionSeconds, or a replayed <video> onPlay) doesn't itself
@@ -577,7 +584,19 @@ export class StudentService {
     const existing = await this.prisma.lessonProgress.findUnique({
       where: { studentId_lessonId: { studentId: userId, lessonId } },
     });
-    const completed = dto.status === 'COMPLETED' || dto.percentComplete === 100 || existing?.status === 'COMPLETED';
+    const alreadyCompleted = existing?.status === 'COMPLETED';
+    const requestsCompletion = !alreadyCompleted && (dto.status === 'COMPLETED' || dto.percentComplete === 100);
+    // `status`/`percentComplete` are entirely client-asserted — the "Mark
+    // completed" button always sends COMPLETED/100 the instant it's clicked,
+    // regardless of how much (if any) of the lesson was actually engaged
+    // with. Course Progress on the dashboard is a raw count of COMPLETED
+    // rows with no other check, so without this gate a student could inflate
+    // it to 100% by clicking through every lesson with zero real study time.
+    if (requestsCompletion) {
+      const engagedSeconds = Math.max(existing?.videoPositionSeconds ?? 0, dto.videoPositionSeconds ?? 0);
+      this.assertEngagementForCompletion(lesson.currentVersion?.estimatedMinutes ?? null, engagedSeconds);
+    }
+    const completed = requestsCompletion || alreadyCompleted;
     return this.prisma.lessonProgress.upsert({
       where: { studentId_lessonId: { studentId: userId, lessonId } },
       update: {
@@ -679,6 +698,18 @@ export class StudentService {
       bodyHi: n.bodyHi,
       bodyEn: n.bodyEn,
     }));
+  }
+
+  /** Require engagedSeconds to cover most of the lesson's staff-estimated
+   *  length before a completion claim is honored; when no estimate exists,
+   *  fall back to a flat floor so a 0-second click still can't complete. */
+  private assertEngagementForCompletion(estimatedMinutes: number | null, engagedSeconds: number) {
+    const requiredSeconds = estimatedMinutes
+      ? Math.round(estimatedMinutes * 60 * MIN_COMPLETION_ENGAGEMENT_RATIO)
+      : MIN_COMPLETION_ENGAGEMENT_SECONDS_FLOOR;
+    if (engagedSeconds < requiredSeconds) {
+      throw AppError.lessonEngagementInsufficient();
+    }
   }
 
   private async loadPublishedLesson(lessonId: string) {

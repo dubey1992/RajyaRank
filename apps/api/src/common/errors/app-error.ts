@@ -76,4 +76,7 @@ export class AppError extends HttpException {
   static conflict(message = 'Conflict.') {
     return new AppError('CONFLICT', HttpStatus.CONFLICT, message);
   }
+  static lessonEngagementInsufficient(message = 'Spend a bit more time on this lesson before marking it complete.') {
+    return new AppError('LESSON_ENGAGEMENT_INSUFFICIENT', HttpStatus.CONFLICT, message);
+  }
 }

@@ -42,6 +42,7 @@ export function LessonPlayer({
   const [percent, setPercent] = useState(initialProgress);
   const [bookmarked, setBookmarked] = useState(initialBookmarked);
   const [done, setDone] = useState(initialProgress >= 100);
+  const [completionError, setCompletionError] = useState<string | null>(null);
   const doneRef = useRef(done);
   doneRef.current = done;
   const videoElRef = useRef<HTMLVideoElement | null>(null);
@@ -73,6 +74,30 @@ export function LessonPlayer({
       method: 'PATCH',
       body: JSON.stringify({ status, percentComplete: p, videoPositionSeconds }),
     }).catch(() => undefined);
+  }
+
+  /** Unlike mark(), this does NOT optimistically flip the UI to "Completed" —
+   *  the server can reject a completion claim (LESSON_ENGAGEMENT_INSUFFICIENT)
+   *  when too little of the lesson was actually engaged with, and showing a
+   *  false "✓ Completed" state that reverts on the next page load would be
+   *  more confusing than just waiting for confirmation. */
+  async function completeLesson(videoPositionSeconds: number | undefined) {
+    setCompletionError(null);
+    try {
+      await apiFetch(`/student/lessons/${lessonId}/progress`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'COMPLETED', percentComplete: 100, videoPositionSeconds }),
+      });
+      setPercent(100);
+      setDone(true);
+    } catch (e) {
+      const err = e as ApiError;
+      setCompletionError(
+        err.code === 'LESSON_ENGAGEMENT_INSUFFICIENT'
+          ? L('इसे पूर्ण चिह्नित करने से पहले थोड़ी और पढ़ाई करें।', 'Spend a bit more time on this lesson before marking it complete.')
+          : err.message,
+      );
+    }
   }
 
   // Continuous time tracking — without this, Total Study Time and Course
@@ -158,7 +183,7 @@ export function LessonPlayer({
               className="h-full w-full bg-black"
               src={media.url}
               onPlay={() => void mark('IN_PROGRESS', Math.max(percent, 5))}
-              onEnded={() => void mark('COMPLETED', 100, videoElRef.current ? Math.round(videoElRef.current.currentTime) : undefined)}
+              onEnded={() => void completeLesson(videoElRef.current ? Math.round(videoElRef.current.currentTime) : undefined)}
             >
               <track kind="captions" />
             </video>
@@ -201,20 +226,20 @@ export function LessonPlayer({
             <Link href={`/${locale}/doubts`} className={toolBtn}>❓ {L('डाउट पूछें', 'Ask doubt')}</Link>
             <button
               type="button"
-              onClick={() => void mark(
-                'COMPLETED',
-                100,
+              onClick={() => void completeLesson(
                 media?.kind === 'VIDEO' && videoElRef.current
                   ? Math.round(videoElRef.current.currentTime)
                   : media
                     ? initialVideoPositionSeconds + engagedSecondsRef.current
                     : undefined,
               )}
-              className="inline-flex min-h-[40px] items-center gap-2 rounded-xl bg-teal-600 px-3.5 text-[11px] font-extrabold text-white transition hover:-translate-y-0.5"
+              disabled={done}
+              className="inline-flex min-h-[40px] items-center gap-2 rounded-xl bg-teal-600 px-3.5 text-[11px] font-extrabold text-white transition hover:-translate-y-0.5 disabled:cursor-default disabled:opacity-80"
             >
               ✓ {done ? L('पूर्ण', 'Completed') : L('पूर्ण चिह्नित करें', 'Mark completed')}
             </button>
           </div>
+          {completionError ? <div className="mt-3"><Alert tone="info">{completionError}</Alert></div> : null}
         </div>
       </div>
 
