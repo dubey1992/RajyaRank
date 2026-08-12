@@ -52,18 +52,30 @@ export class AuthService {
     return { expiresInSeconds: this.env.OTP_TTL };
   }
 
+  /** First-touch institute referral attribution — resolves a ?ref= code
+   *  (an Organization.accessCode) to an org id, or null if it's missing,
+   *  expired, or matches nothing. Never throws: a bad/stale referral code
+   *  must never block signup. */
+  private async resolveReferralOrgId(code?: string | null): Promise<string | null> {
+    if (!code) return null;
+    const org = await this.prisma.organization.findUnique({ where: { accessCode: code }, select: { id: true } });
+    return org?.id ?? null;
+  }
+
   async studentOtpVerify(
     phone: string,
     code: string,
     res: Response,
     ip?: string,
     userAgent?: string,
+    referralCode?: string,
   ): Promise<{ homeRoute: string }> {
     await this.otp.verify(phone, 'STUDENT_LOGIN', code);
 
     let user = await this.prisma.user.findFirst({ where: { kind: 'STUDENT', phone } });
     if (!user) {
       const studentRole = await this.prisma.role.findUniqueOrThrow({ where: { key: 'STUDENT' } });
+      const referredByOrgId = await this.resolveReferralOrgId(referralCode);
       try {
         user = await this.prisma.user.create({
           data: {
@@ -72,6 +84,7 @@ export class AuthService {
             phone,
             phoneVerified: true,
             displayName: null,
+            referredByOrgId,
             identities: { create: { provider: 'PHONE', providerUid: phone } },
             studentProfile: { create: {} },
             roles: { create: { roleId: studentRole.id } },
@@ -119,6 +132,7 @@ export class AuthService {
     res: Response,
     ip?: string,
     userAgent?: string,
+    referralCode?: string,
   ): Promise<{ homeRoute: string }> {
     const normalized = email.toLowerCase();
     await this.otp.verify(normalized, 'EMAIL_VERIFY', code);
@@ -130,6 +144,7 @@ export class AuthService {
 
     const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
     const studentRole = await this.prisma.role.findUniqueOrThrow({ where: { key: 'STUDENT' } });
+    const referredByOrgId = await this.resolveReferralOrgId(referralCode);
     const user = await this.prisma.user.create({
       data: {
         kind: 'STUDENT',
@@ -138,6 +153,7 @@ export class AuthService {
         emailVerified: true,
         passwordHash,
         displayName: null,
+        referredByOrgId,
         studentProfile: { create: {} },
         roles: { create: { roleId: studentRole.id } },
       },
@@ -670,7 +686,7 @@ export class AuthService {
   }
 
   /** Exchange the auth code, upsert the student, issue a session. Returns the home route. */
-  async googleCallback(code: string, res: Response, ip?: string, userAgent?: string): Promise<string> {
+  async googleCallback(code: string, res: Response, ip?: string, userAgent?: string, referralCode?: string): Promise<string> {
     const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
@@ -702,6 +718,7 @@ export class AuthService {
 
     if (!user) {
       const studentRole = await this.prisma.role.findUniqueOrThrow({ where: { key: 'STUDENT' } });
+      const referredByOrgId = await this.resolveReferralOrgId(referralCode);
       user = await this.prisma.user.create({
         data: {
           kind: 'STUDENT',
@@ -709,6 +726,7 @@ export class AuthService {
           email,
           emailVerified: !!info.email_verified,
           displayName: info.name ?? null,
+          referredByOrgId,
           identities: { create: { provider: 'GOOGLE', providerUid: info.sub } },
           studentProfile: { create: {} },
           roles: { create: { roleId: studentRole.id } },

@@ -6,6 +6,7 @@ import { PASSWORD_RULES, studentSignupVerifySchema } from '@rajyarank/contracts'
 import { apiFetch, type ApiError } from '@/lib/api';
 import { resolveLocale } from '@/lib/i18n';
 import { serverFieldErrors, validate } from '@/lib/form';
+import { getReferralCode } from '@/lib/referral';
 
 type Step = 'email' | 'verify';
 
@@ -45,7 +46,7 @@ export default function SignupPage() {
   }
 
   async function submitVerify() {
-    const payload = { email: email.trim(), code: code.trim(), password };
+    const payload = { email: email.trim(), code: code.trim(), password, referralCode: getReferralCode() };
     const errs = validate(studentSignupVerifySchema, payload);
     setErrors(errs);
     if (Object.keys(errs).length) return;

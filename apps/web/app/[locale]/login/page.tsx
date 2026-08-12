@@ -7,6 +7,7 @@ import { apiFetch, API_BASE, type ApiError } from '@/lib/api';
 import { resolveLocale } from '@/lib/i18n';
 import { makeT } from '@/lib/t';
 import { serverFieldErrors, validate } from '@/lib/form';
+import { getReferralCode } from '@/lib/referral';
 import { LanguageSwitch } from '@/components/LanguageSwitch';
 import { studentLoginSchema, type StaffLoginResult } from '@rajyarank/contracts';
 
@@ -161,7 +162,7 @@ export default function StudentLoginPage() {
     try {
       const res = await apiFetch<{ homeRoute: string }>('/auth/student/otp/verify', {
         method: 'POST',
-        body: JSON.stringify({ phone, code }),
+        body: JSON.stringify({ phone, code, referralCode: getReferralCode() }),
       });
       goAfterLogin(res.homeRoute);
     } catch (e) {
@@ -403,7 +404,7 @@ export default function StudentLoginPage() {
                         <span className="h-px flex-1 bg-line" />
                       </div>
                       <a
-                        href={`${API_BASE}/api/v1/auth/student/google/start`}
+                        href={`${API_BASE}/api/v1/auth/student/google/start${getReferralCode() ? `?ref=${encodeURIComponent(getReferralCode()!)}` : ''}`}
                         className="flex w-full items-center justify-center gap-2 rounded-xl border border-line bg-white px-4 py-3 text-sm font-extrabold text-navy-900 transition hover:bg-surface-soft"
                       >
                         {L('Google से जारी रखें', 'Continue with Google')}

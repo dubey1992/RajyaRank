@@ -37,6 +37,15 @@ const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 const ACCESS_COOKIE = 'rr_at';
 const REFRESH_COOKIE = 'rr_rt';
 
+// Institute referral attribution (?ref=<their accessCode> on any page).
+// First-touch: only set if this browser has no referral cookie yet, so the
+// first institute link a visitor clicks keeps credit even if they later
+// land on a different institute's link. 30-day attribution window, matching
+// typical exam-prep consideration windows (not a hard requirement, just a
+// reasonable default — easy to tune later).
+const REF_COOKIE = 'rr_ref';
+const REF_COOKIE_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
+
 // Site-wide maintenance mode — set MAINTENANCE_MODE=true (a plain env var,
 // redeploy to flip; there is no DB-backed/admin-toggle version of this) to
 // redirect all traffic to /[locale]/maintenance. Checked before the
@@ -119,6 +128,12 @@ export async function middleware(req: NextRequest) {
   const res = NextResponse.next({ request: { headers: requestHeaders } });
   res.headers.set('content-security-policy', csp);
   for (const c of setCookies) res.headers.append('set-cookie', c);
+
+  const ref = req.nextUrl.searchParams.get('ref');
+  if (ref && ref.length <= 40 && !req.cookies.get(REF_COOKIE)) {
+    res.cookies.set(REF_COOKIE, ref, { maxAge: REF_COOKIE_MAX_AGE_SECONDS, path: '/', sameSite: 'lax' });
+  }
+
   return res;
 }
 

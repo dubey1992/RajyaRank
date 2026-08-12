@@ -28,7 +28,11 @@ export default async function CourseStudioPage({ params }: { params: { locale: s
         locale={locale}
         isInstitute={!!me.orgId}
         courseId={params.id}
-        webPublicUrl={process.env.WEB_PUBLIC_URL ?? 'http://localhost:3000'}
+        // NEXT_PUBLIC_ deliberately, not WEB_PUBLIC_URL — same fix as
+        // apps/web/app/robots.ts: Amplify's WEB_COMPUTE platform doesn't
+        // reliably propagate app-level env vars into the SSR runtime for
+        // monorepo builds, so this must be build-time inlined instead.
+        webPublicUrl={process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'}
       />
     </Shell>
   );

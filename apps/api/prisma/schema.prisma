@@ -468,6 +468,14 @@ model User {
   org       Organization? @relation("OrgMembers", fields: [orgId], references: [id])
   headOfOrg Organization? @relation("OrgHead")
 
+  // Which institute's ?ref= link (their accessCode) this signup is
+  // first-touch attributed to — set once at signup, never overwritten.
+  // Deliberately separate from orgId/org above: a referred student doesn't
+  // necessarily ever become an org member (or redeem institute pricing),
+  // this is purely "who gets credit for bringing this signup in."
+  referredByOrgId String?       @map("referred_by_org_id")
+  referredByOrg   Organization? @relation("OrgReferrals", fields: [referredByOrgId], references: [id])
+
   // One Razorpay Customer per user, created lazily on the first "add card"
   // — reused for every saved card and, later, for offering them at checkout.
   razorpayCustomerId  String?              @map("razorpay_customer_id")
@@ -479,6 +487,7 @@ model User {
   @@index([email])
   @@index([phone])
   @@index([orgId])
+  @@index([referredByOrgId])
   @@map("users")
 }
 
@@ -1985,6 +1994,7 @@ model Organization {
 
   members          User[]                    @relation("OrgMembers")
   head             User?                     @relation("OrgHead", fields: [headUserId], references: [id])
+  referredSignups  User[]                    @relation("OrgReferrals")
   courses          Course[]
   exams            Exam[]
   subscription     OrganizationSubscription?

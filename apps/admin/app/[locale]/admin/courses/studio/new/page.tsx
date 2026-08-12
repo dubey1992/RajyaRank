@@ -39,7 +39,9 @@ export default async function NewCourseStudioPage({ params }: { params: { locale
         isInstitute={!!me.orgId}
         states={states ?? []}
         exams={exams ?? []}
-        webPublicUrl={process.env.WEB_PUBLIC_URL ?? 'http://localhost:3000'}
+        // NEXT_PUBLIC_ deliberately, not WEB_PUBLIC_URL — see the comment in
+        // studio/[id]/page.tsx.
+        webPublicUrl={process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'}
       />
     </Shell>
   );

@@ -75,11 +75,11 @@ export class AuthController {
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('student/otp/verify')
   async studentOtpVerify(
-    @Body(new ZodValidationPipe(studentOtpVerifySchema)) body: { phone: string; code: string },
+    @Body(new ZodValidationPipe(studentOtpVerifySchema)) body: { phone: string; code: string; referralCode?: string },
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    return this.auth.studentOtpVerify(body.phone, body.code, res, req.ip, req.header('user-agent') ?? undefined);
+    return this.auth.studentOtpVerify(body.phone, body.code, res, req.ip, req.header('user-agent') ?? undefined, body.referralCode);
   }
 
   // ── Student email + password ──
@@ -98,11 +98,11 @@ export class AuthController {
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('student/signup/verify')
   async studentSignupVerify(
-    @Body(new ZodValidationPipe(studentSignupVerifySchema)) body: { email: string; code: string; password: string },
+    @Body(new ZodValidationPipe(studentSignupVerifySchema)) body: { email: string; code: string; password: string; referralCode?: string },
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    return this.auth.studentSignupVerify(body.email, body.code, body.password, res, req.ip, req.header('user-agent') ?? undefined);
+    return this.auth.studentSignupVerify(body.email, body.code, body.password, res, req.ip, req.header('user-agent') ?? undefined, body.referralCode);
   }
 
   @Public()
@@ -141,7 +141,7 @@ export class AuthController {
   // ── Student Google sign-in ──
   @Public()
   @Get('student/google/start')
-  googleStart(@Res() res: Response) {
+  googleStart(@Query('ref') ref: string | undefined, @Res() res: Response) {
     if (!this.auth.googleConfigured()) {
       return res.redirect(`${this.env.WEB_PUBLIC_URL}/hi/login?error=google_unavailable`);
     }
@@ -153,6 +153,21 @@ export class AuthController {
       maxAge: 600_000,
       path: '/',
     });
+    // The web app's own rr_ref cookie (set by middleware.ts) is scoped to its
+    // own domain and never reaches api.* on this cross-origin navigation —
+    // carried here as a query param instead (see login/page.tsx's Google
+    // link) and round-tripped through the same short-lived cookie mechanism
+    // rr_oauth_state already uses, so it survives the redirect to Google
+    // and back.
+    if (ref && ref.length <= 40) {
+      res.cookie('rr_oauth_ref', ref, {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: this.env.COOKIE_SECURE,
+        maxAge: 600_000,
+        path: '/',
+      });
+    }
     return res.redirect(this.auth.googleAuthUrl(state));
   }
 
@@ -165,13 +180,16 @@ export class AuthController {
     @Res() res: Response,
   ) {
     const webBase = this.env.WEB_PUBLIC_URL;
-    const cookieState = (req.cookies as Record<string, string> | undefined)?.['rr_oauth_state'];
+    const cookies = req.cookies as Record<string, string> | undefined;
+    const cookieState = cookies?.['rr_oauth_state'];
     if (!code || !state || !cookieState || state !== cookieState) {
       return res.redirect(`${webBase}/hi/login?error=google_failed`);
     }
     res.clearCookie('rr_oauth_state', { path: '/' });
+    const referralCode = cookies?.['rr_oauth_ref'];
+    if (referralCode) res.clearCookie('rr_oauth_ref', { path: '/' });
     try {
-      const home = await this.auth.googleCallback(code, res, req.ip, req.header('user-agent') ?? undefined);
+      const home = await this.auth.googleCallback(code, res, req.ip, req.header('user-agent') ?? undefined, referralCode);
       return res.redirect(`${webBase}/hi${home}`);
     } catch {
       return res.redirect(`${webBase}/hi/login?error=google_failed`);

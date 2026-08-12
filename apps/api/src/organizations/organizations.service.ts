@@ -167,6 +167,28 @@ export class OrganizationsService {
     return { id: orgId, accessCode: code };
   }
 
+  /** Self-serve referral stats for the calling Head's own institution —
+   *  how many signups their ?ref=<accessCode> link actually attributed, and
+   *  how many of those converted to a real paid entitlement. "Converted"
+   *  means an ACTIVE entitlement with accessType PAID specifically (not
+   *  TRIAL/SCHOLARSHIP/COUPON/ADMIN_GRANTED, and not REFUNDED/REVOKED/
+   *  EXPIRED) — the clearest signal that a referral led to standing revenue. */
+  async getReferralStats(actor: Principal) {
+    if (!actor.orgId) throw AppError.conflict('You are not linked to an institution.');
+    const org = await this.prisma.organization.findUnique({ where: { id: actor.orgId }, select: { accessCode: true } });
+    const [totalReferredSignups, convertedSignups] = await Promise.all([
+      this.prisma.user.count({ where: { referredByOrgId: actor.orgId, deletedAt: null } }),
+      this.prisma.user.count({
+        where: {
+          referredByOrgId: actor.orgId,
+          deletedAt: null,
+          entitlements: { some: { accessType: 'PAID', status: 'ACTIVE' } },
+        },
+      }),
+    ]);
+    return { accessCode: org?.accessCode ?? null, totalReferredSignups, convertedSignups };
+  }
+
   /** Delete an institution: detach members/courses, drop pending invites, remove the org. */
   async remove(actor: Principal, orgId: string) {
     const org = await this.prisma.organization.findUnique({ where: { id: orgId } });

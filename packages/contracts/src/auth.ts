@@ -8,6 +8,11 @@ export type StudentOtpRequest = z.infer<typeof studentOtpRequestSchema>;
 export const studentOtpVerifySchema = z.object({
   phone: phoneSchema,
   code: z.string().regex(/^\d{6}$/, 'Enter the 6-digit code'),
+  // First-touch institute referral attribution — an Organization.accessCode,
+  // only ever applied when this verify call actually creates a new account
+  // (a returning student's login is unaffected). Silently ignored if it
+  // doesn't match any institute.
+  referralCode: z.string().max(40).optional(),
 });
 export type StudentOtpVerify = z.infer<typeof studentOtpVerifySchema>;
 
@@ -19,6 +24,8 @@ export const studentSignupVerifySchema = z.object({
   email: emailSchema,
   code: z.string().min(4).max(10),
   password: passwordSchema,
+  // Same first-touch institute referral attribution as studentOtpVerifySchema.
+  referralCode: z.string().max(40).optional(),
 });
 export type StudentSignupVerify = z.infer<typeof studentSignupVerifySchema>;
 
