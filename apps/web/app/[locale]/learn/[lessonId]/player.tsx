@@ -103,7 +103,9 @@ export function LessonPlayer({
       }
     }, HEARTBEAT_SECONDS * 1000);
     return () => window.clearInterval(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- percent is read for a one-off max(), not a dependency the interval should restart on
+    // `percent` is intentionally not a dependency — it's read for a one-off
+    // max() inside the interval closure, not something the timer should
+    // restart over; only a real media change should tear down and re-arm it.
   }, [media]);
 
   async function toggleBookmark() {
