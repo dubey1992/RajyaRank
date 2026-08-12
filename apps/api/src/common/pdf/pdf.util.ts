@@ -14,22 +14,20 @@ function collect(doc: PDFKit.PDFDocument): Promise<Buffer> {
   });
 }
 
-function header(doc: PDFKit.PDFDocument, title: string, number: string, dateLabel: string) {
-  doc.fontSize(20).font('Helvetica-Bold').text('RajyaRank', { continued: true }).fontSize(10).font('Helvetica').text('  Government Exam Learning Platform');
-  doc.moveDown(0.5);
-  doc.fontSize(16).font('Helvetica-Bold').text(title);
-  doc.fontSize(10).font('Helvetica').text(`${number}  ·  ${dateLabel}`);
-  doc.moveDown(1);
-  doc.moveTo(doc.x, doc.y).lineTo(545, doc.y).strokeColor('#dbe5ed').stroke();
-  doc.moveDown(1);
-}
-
+// Label width stops at 340 (leaving a gutter before the amount column at
+// x=400) so a long line-item description — a real course title, not a short
+// fixed label — wraps instead of running under the amount. Row height then
+// follows the taller of the two wrapped columns, not a fixed moveDown, so a
+// two-line label doesn't visually collide with whatever row comes next.
 function lineRow(doc: PDFKit.PDFDocument, label: string, value: string, bold = false) {
   doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(11);
   const y = doc.y;
-  doc.text(label, 50, y);
-  doc.text(value, 400, y, { width: 145, align: 'right' });
-  doc.moveDown(0.6);
+  const labelWidth = 340;
+  const valueWidth = 145;
+  doc.text(label, 50, y, { width: labelWidth });
+  doc.text(value, 400, y, { width: valueWidth, align: 'right' });
+  const rowHeight = Math.max(doc.heightOfString(label, { width: labelWidth }), doc.heightOfString(value, { width: valueWidth }));
+  doc.y = y + rowHeight + 7;
 }
 
 function formatDate(d: Date): string {
@@ -83,7 +81,7 @@ export async function renderInstitutionInvoicePdf(input: {
   // ── Brand header ──
   doc.font('Helvetica-Bold').fontSize(22).fillColor('#0b2f4f').text('RajyaRank', LEFT, doc.y);
   doc.font('Helvetica').fontSize(10).fillColor('#65798c').text('Government Exam Learning Platform', LEFT, doc.y + 1);
-  doc.fontSize(9).fillColor('#65798c').text('Institution subscription billing  ·  institutions@rajyarank.com', LEFT);
+  doc.fontSize(9).fillColor('#65798c').text('Institution subscription billing  ·  support@rajyarank.com', LEFT);
   doc.moveDown(1.1);
 
   // ── Title + status badge ──
@@ -108,7 +106,7 @@ export async function renderInstitutionInvoicePdf(input: {
   const colWidth = 220;
   doc.font('Helvetica-Bold').fontSize(9).fillColor('#65798c').text('BILLED FROM', LEFT, colY, { characterSpacing: 0.3 });
   doc.font('Helvetica-Bold').fontSize(11).fillColor('#0b2f4f').text('RajyaRank', LEFT, colY + 14);
-  doc.font('Helvetica').fontSize(10).fillColor('#374151').text('institutions@rajyarank.com', LEFT, colY + 30, { width: colWidth });
+  doc.font('Helvetica').fontSize(10).fillColor('#374151').text('support@rajyarank.com', LEFT, colY + 30, { width: colWidth });
 
   const rightColX = LEFT + 275;
   doc.font('Helvetica-Bold').fontSize(9).fillColor('#65798c').text('BILLED TO', rightColX, colY, { characterSpacing: 0.3 });
@@ -184,7 +182,7 @@ export async function renderInstitutionInvoicePdf(input: {
   doc.moveTo(LEFT, doc.y).lineTo(RIGHT, doc.y).strokeColor('#dbe5ed').stroke();
   doc.moveDown(0.8);
   doc.fontSize(8).fillColor('#65798c').text(
-    `System-generated invoice for platform subscription billing. Questions? Write to institutions@rajyarank.com. Generated ${formatDate(new Date())}.`,
+    `System-generated invoice for platform subscription billing. Questions? Write to support@rajyarank.com. Generated ${formatDate(new Date())}.`,
     LEFT,
     doc.y,
     { width: RIGHT - LEFT },
@@ -193,36 +191,99 @@ export async function renderInstitutionInvoicePdf(input: {
 }
 
 /** Student course-purchase receipt — issued by the platform (public sales) or
- *  on behalf of the owning institute (institute-audience sales). */
+ *  on behalf of the owning institute (institute-audience sales). Mirrors the
+ *  institution invoice's layout (brand header, status badge, two-column
+ *  billing block, line-item table) rather than the old plain text dump, so a
+ *  student gets the same document quality a paying customer expects. */
 export async function renderOrderReceiptPdf(input: {
   receiptNumber: string;
   sellerName: string;
   studentName: string;
+  studentEmail: string | null;
+  studentPhone: string | null;
   productTitle: string;
   amountMinor: number;
   paidAt: Date;
   providerPaymentId: string | null;
 }): Promise<Buffer> {
   const doc = new PDFDocument({ size: 'A4', margin: 50 });
-  header(doc, 'Payment Receipt', input.receiptNumber, `Paid ${input.paidAt.toISOString().slice(0, 10)}`);
+  const LEFT = 50;
+  const RIGHT = 545;
 
-  doc.font('Helvetica-Bold').fontSize(11).text('Seller');
-  doc.font('Helvetica').fontSize(11).text(input.sellerName);
-  doc.moveDown(0.8);
-  doc.font('Helvetica-Bold').fontSize(11).text('Student');
-  doc.font('Helvetica').fontSize(11).text(input.studentName);
+  // ── Brand header ──
+  doc.font('Helvetica-Bold').fontSize(22).fillColor('#0b2f4f').text('RajyaRank', LEFT, doc.y);
+  doc.font('Helvetica').fontSize(10).fillColor('#65798c').text('Government Exam Learning Platform', LEFT, doc.y + 1);
+  doc.fontSize(9).fillColor('#65798c').text('Course purchase receipt  ·  support@rajyarank.com', LEFT);
+  doc.moveDown(1.1);
+
+  // ── Title + PAID badge ──
+  const titleY = doc.y;
+  doc.font('Helvetica-Bold').fontSize(18).fillColor('#0b2f4f').text('Payment Receipt', LEFT, titleY);
+  doc.font('Helvetica').fontSize(10).fillColor('#374151');
+  doc.text(`Receipt number: ${input.receiptNumber}`, LEFT, titleY + 26);
+  doc.text(`Paid: ${formatDate(input.paidAt)}`, LEFT, titleY + 41);
+
+  const badgeWidth = 90;
+  doc.roundedRect(RIGHT - badgeWidth, titleY, badgeWidth, 24, 4).fill(INVOICE_STATUS_COLOR.PAID);
+  doc.font('Helvetica-Bold').fontSize(10).fillColor('#ffffff').text('PAID', RIGHT - badgeWidth, titleY + 7, { width: badgeWidth, align: 'center' });
+
+  doc.y = titleY + 62;
+  doc.moveTo(LEFT, doc.y).lineTo(RIGHT, doc.y).strokeColor('#dbe5ed').stroke();
   doc.moveDown(1);
 
-  lineRow(doc, input.productTitle, rupees(input.amountMinor));
-  doc.moveTo(50, doc.y).lineTo(545, doc.y).strokeColor('#dbe5ed').stroke();
-  doc.moveDown(0.4);
-  lineRow(doc, 'Total paid', rupees(input.amountMinor), true);
-  if (input.providerPaymentId) {
-    doc.moveDown(0.4);
-    doc.fontSize(9).fillColor('#65798c').text(`Payment reference: ${input.providerPaymentId}`);
+  // ── Sold by / Billed to (two columns) ──
+  // Same reflow-by-heightOfString approach as the institution invoice's
+  // billing block — a long seller/student line must push the row below it
+  // down rather than being clipped or overlapping at a fixed offset.
+  const colY = doc.y;
+  const colWidth = 220;
+  doc.font('Helvetica-Bold').fontSize(9).fillColor('#65798c').text('SOLD BY', LEFT, colY, { characterSpacing: 0.3 });
+  doc.font('Helvetica-Bold').fontSize(11).fillColor('#0b2f4f').text(input.sellerName, LEFT, colY + 14, { width: colWidth });
+  const soldByY = colY + 14 + doc.heightOfString(input.sellerName, { width: colWidth }) + 4;
+  doc.font('Helvetica').fontSize(10).fillColor('#374151').text('support@rajyarank.com', LEFT, soldByY, { width: colWidth });
+
+  const rightColX = LEFT + 275;
+  doc.font('Helvetica-Bold').fontSize(9).fillColor('#65798c').text('BILLED TO', rightColX, colY, { characterSpacing: 0.3 });
+  doc.font('Helvetica-Bold').fontSize(11).fillColor('#0b2f4f').text(input.studentName, rightColX, colY + 14, { width: colWidth });
+  let billToY = colY + 14 + doc.heightOfString(input.studentName, { width: colWidth }) + 4;
+  doc.font('Helvetica').fontSize(10).fillColor('#374151');
+  for (const line of [input.studentEmail, input.studentPhone]) {
+    if (!line) continue;
+    doc.text(line, rightColX, billToY, { width: colWidth });
+    billToY += doc.heightOfString(line, { width: colWidth }) + 2;
   }
 
-  doc.moveDown(2);
-  doc.fontSize(8).fillColor('#65798c').text('This is a system-generated receipt for a course purchase on RajyaRank.');
+  doc.y = Math.max(soldByY + 14, billToY) + 8;
+  doc.moveTo(LEFT, doc.y).lineTo(RIGHT, doc.y).strokeColor('#dbe5ed').stroke();
+  doc.moveDown(1);
+
+  // ── Line item table ──
+  const tableTop = doc.y;
+  doc.font('Helvetica-Bold').fontSize(9).fillColor('#65798c');
+  doc.text('DESCRIPTION', LEFT, tableTop, { characterSpacing: 0.3 });
+  doc.text('AMOUNT', 400, tableTop, { width: 145, align: 'right', characterSpacing: 0.3 });
+  doc.moveTo(LEFT, tableTop + 16).lineTo(RIGHT, tableTop + 16).strokeColor('#dbe5ed').stroke();
+  doc.y = tableTop + 24;
+
+  lineRow(doc, input.productTitle, rupees(input.amountMinor));
+  doc.moveTo(LEFT, doc.y).lineTo(RIGHT, doc.y).strokeColor('#dbe5ed').stroke();
+  doc.moveDown(0.4);
+  lineRow(doc, 'Total paid', rupees(input.amountMinor), true);
+  doc.moveDown(1);
+
+  if (input.providerPaymentId) {
+    doc.font('Helvetica').fontSize(9).fillColor('#65798c').text(`Payment reference: ${input.providerPaymentId}`, LEFT);
+    doc.moveDown(0.3);
+  }
+
+  doc.moveDown(1.2);
+  doc.moveTo(LEFT, doc.y).lineTo(RIGHT, doc.y).strokeColor('#dbe5ed').stroke();
+  doc.moveDown(0.8);
+  doc.fontSize(8).fillColor('#65798c').text(
+    `System-generated receipt for a course purchase on RajyaRank. Questions? Write to support@rajyarank.com. Generated ${formatDate(new Date())}.`,
+    LEFT,
+    doc.y,
+    { width: RIGHT - LEFT },
+  );
   return collect(doc);
 }

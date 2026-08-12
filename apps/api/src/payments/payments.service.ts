@@ -352,6 +352,8 @@ export class PaymentsService {
       receiptNumber: `RCPT-${order.id.slice(0, 8).toUpperCase()}`,
       sellerName: order.product.audience === 'INSTITUTE' ? 'RajyaRank (on behalf of the owning institute)' : 'RajyaRank',
       studentName: order.user.displayName ?? order.user.email ?? order.user.phone ?? 'Student',
+      studentEmail: order.user.email,
+      studentPhone: order.user.phone,
       productTitle: order.product.titleEn,
       amountMinor: order.amountMinor,
       paidAt: payment?.paidAt ?? order.updatedAt,
