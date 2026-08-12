@@ -58,7 +58,15 @@ export default function StudentLoginPage() {
 
   // Marketing-page CTAs deep-link straight into the right tab (?tab=staff);
   // anything else (or absent) falls back to the student tab.
-  const [tab, setTab] = useState<Tab>(searchParams.get('tab') === 'staff' ? 'staff' : 'student');
+  const tabParam = searchParams.get('tab');
+  const [tab, setTab] = useState<Tab>(tabParam === 'staff' ? 'staff' : 'student');
+  // The initializer above only runs once at mount — if the query string
+  // changes while this page stays mounted (e.g. browser back/forward between
+  // ?tab=staff and ?tab=student without a full reload), re-sync so the shown
+  // tab always matches the URL, not just whatever it was on first render.
+  useEffect(() => {
+    switchTab(tabParam === 'staff' ? 'staff' : 'student');
+  }, [tabParam]);
   const [step, setStep] = useState<Step>('phone');
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');

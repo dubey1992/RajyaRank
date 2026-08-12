@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { cookies } from 'next/headers';
 import { resolveLocale } from '@/lib/i18n';
 import { apiFetchServer } from '@/lib/api';
@@ -69,8 +70,10 @@ export default async function CurrentAffairsPage({ params }: { params: { locale:
               ) : null}
               <span className="text-muted">{new Date(c.dateFor).toLocaleDateString(hi ? 'hi-IN' : 'en-IN')}</span>
             </div>
-            <h2 className="text-lg font-black text-navy-900">{hi ? c.titleHi : c.titleEn}</h2>
-            {(hi ? c.bodyHi : c.bodyEn) ? <p className="mt-1 text-sm text-ink">{hi ? c.bodyHi : c.bodyEn}</p> : null}
+            <Link href={`/${locale}/current-affairs/${c.id}`} className="block">
+              <h2 className="text-lg font-black text-navy-900 hover:text-orange-600">{hi ? c.titleHi : c.titleEn}</h2>
+              {(hi ? c.bodyHi : c.bodyEn) ? <p className="mt-1 text-sm text-ink">{hi ? c.bodyHi : c.bodyEn}</p> : null}
+            </Link>
           </li>
         ))}
       </ul>

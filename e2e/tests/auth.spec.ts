@@ -11,7 +11,7 @@ const ADMIN = process.env.ADMIN_URL ?? 'http://localhost:3001';
 test.describe('student', () => {
   test('landing page is bilingual and links to login', async ({ page }) => {
     await page.goto('/hi');
-    await expect(page.getByRole('link', { name: /लॉगिन|Login/ })).toBeVisible();
+    await expect(page.getByRole('link', { name: /छात्र लॉगिन|Student Login/ })).toBeVisible();
     await page.goto('/en');
     await expect(page).toHaveURL(/\/en/);
   });

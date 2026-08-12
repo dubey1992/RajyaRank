@@ -70,6 +70,47 @@ export class CatalogueController {
     }));
   }
 
+  /** All published current-affair ids, for sitemap generation — deliberately
+   *  unbounded (unlike currentAffairs()'s take:40 feed cap) so older items
+   *  don't silently age out of the sitemap while their detail pages stay
+   *  live. Must stay registered before current-affairs/:id below, or Nest
+   *  would match "sitemap-ids" as an :id value instead. */
+  @Public()
+  @Get('current-affairs/sitemap-ids')
+  async currentAffairSitemapIds() {
+    const rows = await this.prisma.currentAffair.findMany({
+      where: { status: 'PUBLISHED' },
+      orderBy: { dateFor: 'desc' },
+      select: { id: true, publishedAt: true },
+    });
+    return rows.map((r) => ({ id: r.id, publishedAt: r.publishedAt?.toISOString() ?? null }));
+  }
+
+  /** Single published current affair, for its own SEO-indexable detail page.
+   *  Returns null (not a 404) on any non-published/missing id — same
+   *  convention as courses/:id/outline — so the page can call notFound(). */
+  @Public()
+  @Get('current-affairs/:id')
+  async currentAffair(@Param('id') id: string) {
+    const row = await this.prisma.currentAffair.findFirst({
+      where: { id, status: 'PUBLISHED' },
+      select: {
+        id: true, dateFor: true, titleHi: true, titleEn: true, bodyHi: true, bodyEn: true, category: true, scope: true,
+        source: true, publishedAt: true, createdAt: true, updatedAt: true, createdBy: true,
+      },
+    });
+    if (!row) return null;
+    const orgNameByCreator = await this.orgNamesByCreator([row.createdBy]);
+    const { publishedAt, createdAt, updatedAt, createdBy, ...c } = row;
+    return {
+      ...c,
+      publishedAt: publishedAt?.toISOString() ?? null,
+      createdAt: createdAt.toISOString(),
+      updatedAt: updatedAt.toISOString(),
+      orgName: (createdBy && orgNameByCreator.get(createdBy)) ?? null,
+    };
+  }
+
   /** CurrentAffair.createdBy has no Prisma relation to User (plain scalar
    *  FK, no schema change needed for this feature) — resolve institute
    *  attribution with a small side query instead of a relational include. */

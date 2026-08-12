@@ -83,12 +83,10 @@ export function PublicHeader({
               >
                 {L('स्टाफ़ लॉगिन', 'Staff Login')}
               </Link>
-              <Link
-                href={`/${locale}/signup`}
-                className="hidden rounded-xl bg-orange-500 px-4 py-2 text-sm font-extrabold text-white shadow-[0_8px_18px_rgba(249,115,22,0.22)] transition hover:bg-orange-600 sm:inline-flex"
-              >
-                {L('मुफ़्त शुरू करें', 'Start Free')}
-              </Link>
+              {/* "Start Free" (signup) is intentionally not in the header — with
+                 Student + Staff Login it made the CTA cluster too crowded, and
+                 the student login tab already has a "Create an account" link.
+                 The /signup route itself still works for anyone who reaches it directly. */}
             </>
           )}
 
@@ -124,9 +122,6 @@ export function PublicHeader({
                     </Link>
                     <Link href={`/${locale}/login?tab=staff`} className="rounded-lg border-[1.5px] border-orange-500/50 px-3 py-2 text-center text-sm font-extrabold text-orange-600">
                       {L('स्टाफ़ लॉगिन', 'Staff Login')}
-                    </Link>
-                    <Link href={`/${locale}/signup`} className="rounded-lg bg-orange-500 px-3 py-2 text-center text-sm font-extrabold text-white">
-                      {L('मुफ़्त शुरू करें', 'Start Free')}
                     </Link>
                   </>
                 )}
