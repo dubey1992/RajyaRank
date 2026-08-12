@@ -56,7 +56,9 @@ export default function StudentLoginPage() {
     else router.push(`/${locale}${homeRoute}`);
   }
 
-  const [tab, setTab] = useState<Tab>('student');
+  // Marketing-page CTAs deep-link straight into the right tab (?tab=staff);
+  // anything else (or absent) falls back to the student tab.
+  const [tab, setTab] = useState<Tab>(searchParams.get('tab') === 'staff' ? 'staff' : 'student');
   const [step, setStep] = useState<Step>('phone');
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');

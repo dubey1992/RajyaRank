@@ -72,10 +72,16 @@ export function PublicHeader({
           ) : (
             <>
               <Link
-                href={`/${locale}/login`}
+                href={`/${locale}/login?tab=student`}
                 className="hidden rounded-xl border-[1.5px] border-orange-500/50 bg-white px-4 py-2 text-sm font-extrabold text-orange-600 transition hover:border-orange-500 sm:inline-flex"
               >
-                {L('लॉगिन', 'Login')}
+                {L('छात्र लॉगिन', 'Student Login')}
+              </Link>
+              <Link
+                href={`/${locale}/login?tab=staff`}
+                className="hidden rounded-xl border-[1.5px] border-orange-500/50 bg-white px-4 py-2 text-sm font-extrabold text-orange-600 transition hover:border-orange-500 sm:inline-flex"
+              >
+                {L('स्टाफ़ लॉगिन', 'Staff Login')}
               </Link>
               <Link
                 href={`/${locale}/signup`}
@@ -113,8 +119,11 @@ export function PublicHeader({
                   </Link>
                 ) : (
                   <>
-                    <Link href={`/${locale}/login`} className="rounded-lg border-[1.5px] border-orange-500/50 px-3 py-2 text-center text-sm font-extrabold text-orange-600">
-                      {L('लॉगिन', 'Login')}
+                    <Link href={`/${locale}/login?tab=student`} className="rounded-lg border-[1.5px] border-orange-500/50 px-3 py-2 text-center text-sm font-extrabold text-orange-600">
+                      {L('छात्र लॉगिन', 'Student Login')}
+                    </Link>
+                    <Link href={`/${locale}/login?tab=staff`} className="rounded-lg border-[1.5px] border-orange-500/50 px-3 py-2 text-center text-sm font-extrabold text-orange-600">
+                      {L('स्टाफ़ लॉगिन', 'Staff Login')}
                     </Link>
                     <Link href={`/${locale}/signup`} className="rounded-lg bg-orange-500 px-3 py-2 text-center text-sm font-extrabold text-white">
                       {L('मुफ़्त शुरू करें', 'Start Free')}
