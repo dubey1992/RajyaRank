@@ -567,14 +567,24 @@ export class StudentService {
   async updateProgress(p: Principal, lessonId: string, dto: ProgressUpdate) {
     const userId = this.studentId(p);
     await this.loadPublishedLesson(lessonId);
-    const completed = dto.status === 'COMPLETED' || dto.percentComplete === 100;
+    // Completion is sticky: a lesson stays COMPLETED once reached, even if a
+    // later call (a periodic time-tracking heartbeat that only carries
+    // videoPositionSeconds, or a replayed <video> onPlay) doesn't itself
+    // re-assert completion. Without checking the existing row, every such
+    // call recomputed `completed` from nothing but its own body and silently
+    // downgraded status back to IN_PROGRESS (clearing completedAt) any time
+    // it wasn't explicitly re-sent.
+    const existing = await this.prisma.lessonProgress.findUnique({
+      where: { studentId_lessonId: { studentId: userId, lessonId } },
+    });
+    const completed = dto.status === 'COMPLETED' || dto.percentComplete === 100 || existing?.status === 'COMPLETED';
     return this.prisma.lessonProgress.upsert({
       where: { studentId_lessonId: { studentId: userId, lessonId } },
       update: {
         status: completed ? 'COMPLETED' : 'IN_PROGRESS',
         videoPositionSeconds: dto.videoPositionSeconds ?? undefined,
         percentComplete: dto.percentComplete ?? undefined,
-        completedAt: completed ? new Date() : null,
+        completedAt: completed ? (existing?.completedAt ?? new Date()) : null,
         lastAccessedAt: new Date(),
       },
       create: {

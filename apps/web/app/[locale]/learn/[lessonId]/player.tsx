@@ -1,9 +1,12 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Alert } from '@rajyarank/ui';
 import { apiFetch, type ApiError } from '@/lib/api';
 import type { PlaybackTokenResponse } from '@rajyarank/contracts';
+
+// How often to report elapsed time back to the server while a lesson is open.
+const HEARTBEAT_SECONDS = 20;
 
 /**
  * Requests a short-lived signed URL only when the student presses play, then
@@ -18,6 +21,7 @@ export function LessonPlayer({
   title,
   summary,
   initialProgress,
+  initialVideoPositionSeconds,
   initialBookmarked,
 }: {
   lessonId: string;
@@ -27,6 +31,7 @@ export function LessonPlayer({
   title: string;
   summary: string;
   initialProgress: number;
+  initialVideoPositionSeconds: number;
   initialBookmarked: boolean;
 }) {
   const hi = locale === 'hi';
@@ -37,6 +42,12 @@ export function LessonPlayer({
   const [percent, setPercent] = useState(initialProgress);
   const [bookmarked, setBookmarked] = useState(initialBookmarked);
   const [done, setDone] = useState(initialProgress >= 100);
+  const doneRef = useRef(done);
+  doneRef.current = done;
+  const videoElRef = useRef<HTMLVideoElement | null>(null);
+  // Wall-clock seconds accumulated this visit for EMBED/DOCUMENT kinds, which
+  // expose no native "how far in" signal the way <video>.currentTime does.
+  const engagedSecondsRef = useRef(0);
 
   async function load() {
     setBusy(true);
@@ -52,14 +63,48 @@ export function LessonPlayer({
     }
   }
 
-  async function mark(status: 'IN_PROGRESS' | 'COMPLETED', p: number) {
-    setPercent(p);
+  /** status omitted (rather than always 'IN_PROGRESS') once a lesson is
+   *  already done — otherwise a later heartbeat on a revisited, completed
+   *  lesson would silently downgrade it back to IN_PROGRESS server-side. */
+  async function mark(status: 'IN_PROGRESS' | 'COMPLETED' | undefined, p: number | undefined, videoPositionSeconds?: number) {
+    if (p != null) setPercent(p);
     if (status === 'COMPLETED') setDone(true);
     await apiFetch(`/student/lessons/${lessonId}/progress`, {
       method: 'PATCH',
-      body: JSON.stringify({ status, percentComplete: p }),
+      body: JSON.stringify({ status, percentComplete: p, videoPositionSeconds }),
     }).catch(() => undefined);
   }
+
+  // Continuous time tracking — without this, Total Study Time and Course
+  // Progress only ever moved on an explicit onPlay/onEnded from a native
+  // <video> element, which never fires for a YouTube EMBED or a PDF iframe
+  // (both render as <iframe>, neither dispatches media events at all) — those
+  // lessons silently never accumulated any study time or progress.
+  useEffect(() => {
+    if (!media) return;
+    // The click-to-load itself is the only "started" signal an iframe gives us.
+    if (media.kind !== 'VIDEO' && !doneRef.current) {
+      void mark('IN_PROGRESS', Math.max(percent, 5));
+    }
+    engagedSecondsRef.current = 0;
+    const id = window.setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      if (media.kind === 'VIDEO') {
+        const el = videoElRef.current;
+        if (!el || el.paused) return;
+        const position = Math.round(el.currentTime);
+        const pct = el.duration && Number.isFinite(el.duration)
+          ? Math.min(99, Math.round((el.currentTime / el.duration) * 100))
+          : undefined;
+        void mark(doneRef.current ? undefined : 'IN_PROGRESS', pct != null ? Math.max(percent, pct) : undefined, position);
+      } else {
+        engagedSecondsRef.current += HEARTBEAT_SECONDS;
+        void mark(doneRef.current ? undefined : 'IN_PROGRESS', undefined, initialVideoPositionSeconds + engagedSecondsRef.current);
+      }
+    }, HEARTBEAT_SECONDS * 1000);
+    return () => window.clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- percent is read for a one-off max(), not a dependency the interval should restart on
+  }, [media]);
 
   async function toggleBookmark() {
     const next = !bookmarked;
@@ -106,11 +151,12 @@ export function LessonPlayer({
             </button>
           ) : media.kind === 'VIDEO' ? (
             <video
+              ref={videoElRef}
               controls
               className="h-full w-full bg-black"
               src={media.url}
               onPlay={() => void mark('IN_PROGRESS', Math.max(percent, 5))}
-              onEnded={() => void mark('COMPLETED', 100)}
+              onEnded={() => void mark('COMPLETED', 100, videoElRef.current ? Math.round(videoElRef.current.currentTime) : undefined)}
             >
               <track kind="captions" />
             </video>
@@ -151,7 +197,19 @@ export function LessonPlayer({
               🔖 {bookmarked ? L('सेव किया गया', 'Bookmarked') : L('बुकमार्क', 'Bookmark')}
             </button>
             <Link href={`/${locale}/doubts`} className={toolBtn}>❓ {L('डाउट पूछें', 'Ask doubt')}</Link>
-            <button type="button" onClick={() => void mark('COMPLETED', 100)} className="inline-flex min-h-[40px] items-center gap-2 rounded-xl bg-teal-600 px-3.5 text-[11px] font-extrabold text-white transition hover:-translate-y-0.5">
+            <button
+              type="button"
+              onClick={() => void mark(
+                'COMPLETED',
+                100,
+                media?.kind === 'VIDEO' && videoElRef.current
+                  ? Math.round(videoElRef.current.currentTime)
+                  : media
+                    ? initialVideoPositionSeconds + engagedSecondsRef.current
+                    : undefined,
+              )}
+              className="inline-flex min-h-[40px] items-center gap-2 rounded-xl bg-teal-600 px-3.5 text-[11px] font-extrabold text-white transition hover:-translate-y-0.5"
+            >
               ✓ {done ? L('पूर्ण', 'Completed') : L('पूर्ण चिह्नित करें', 'Mark completed')}
             </button>
           </div>

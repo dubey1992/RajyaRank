@@ -1,9 +1,10 @@
 import Link from 'next/link';
 import { cookies } from 'next/headers';
-import { redirect } from 'next/navigation';
+import { redirect, notFound } from 'next/navigation';
 import type { DashboardResponse, MistakeDnaView, ReadinessView, StudyPlanDay, WeakTopic } from '@rajyarank/contracts';
 import { resolveLocale } from '@/lib/i18n';
 import { apiFetchServer } from '@/lib/api';
+import { getMe } from '@/lib/student';
 import { StudentShell } from '@/components/StudentShell';
 import { ExamCountdown } from '@/components/ExamCountdown';
 import { ReadinessGauge } from '@/components/ReadinessGauge';
@@ -23,8 +24,13 @@ export default async function DashboardPage({ params }: { params: { locale: stri
   const L = (h: string, e: string) => (hi ? h : e);
   const cookie = cookies().toString();
 
+  // A real identity check first — /student/dashboard failing afterward is
+  // never a reason to bounce an authenticated student to the login screen
+  // (see the identical fix in learn/[lessonId]/page.tsx).
+  const me = await getMe(cookie);
+  if (!me) redirect(`/${locale}/login`);
   const data = await apiFetchServer<DashboardResponse>('/student/dashboard', cookie);
-  if (!data) redirect(`/${locale}/login`);
+  if (!data) notFound();
   if (!data.onboarded) redirect(`/${locale}/onboarding`);
 
   const weakTopics = (await apiFetchServer<WeakTopic[]>('/student/weak-topics', cookie)) ?? [];

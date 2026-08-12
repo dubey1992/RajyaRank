@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { cookies } from 'next/headers';
-import { redirect } from 'next/navigation';
+import { redirect, notFound } from 'next/navigation';
 import { resolveLocale } from '@/lib/i18n';
 import { apiFetchServer } from '@/lib/api';
 import { getMe, initialsOf } from '@/lib/student';
@@ -28,8 +28,13 @@ export default async function LearnPage({ params }: { params: { locale: string; 
 
   const me = await getMe(cookie);
   if (!me) redirect(`/${locale}/login`);
+  // `me` already proved the session is valid — a failed lesson fetch here is
+  // never an auth problem (it's a 404/403/500 from a stale, deleted, or
+  // inaccessible lesson id), so it must not send an already-logged-in student
+  // back to the login screen. That previously made a broken lesson link look
+  // exactly like a forced logout.
   const lesson = await apiFetchServer<LessonDetail>(`/student/lessons/${params.lessonId}`, cookie);
-  if (!lesson) redirect(`/${locale}/login`);
+  if (!lesson) notFound();
 
   const title = (hi ? lesson.title.hi : lesson.title.en) ?? lesson.title.en ?? lesson.title.hi ?? '';
   const summary = (hi ? lesson.summary?.hi : lesson.summary?.en) ?? '';
@@ -60,6 +65,7 @@ export default async function LearnPage({ params }: { params: { locale: string; 
         title={title}
         summary={summary}
         initialProgress={lesson.progress?.percentComplete ?? 0}
+        initialVideoPositionSeconds={lesson.progress?.videoPositionSeconds ?? 0}
         initialBookmarked={lesson.bookmarked}
       />
     </StudentShell>
