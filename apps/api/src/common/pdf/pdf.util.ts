@@ -105,8 +105,20 @@ export async function renderInstitutionInvoicePdf(input: {
   const colY = doc.y;
   const colWidth = 220;
   doc.font('Helvetica-Bold').fontSize(9).fillColor('#65798c').text('BILLED FROM', LEFT, colY, { characterSpacing: 0.3 });
-  doc.font('Helvetica-Bold').fontSize(11).fillColor('#0b2f4f').text('RajyaRank', LEFT, colY + 14);
-  doc.font('Helvetica').fontSize(10).fillColor('#374151').text('support@rajyarank.com', LEFT, colY + 30, { width: colWidth });
+  doc.font('Helvetica-Bold').fontSize(11).fillColor('#0b2f4f').text('NextWebGen Infotech Private Limited', LEFT, colY + 14, { width: colWidth });
+  let billedFromY = colY + 14 + doc.heightOfString('NextWebGen Infotech Private Limited', { width: colWidth }) + 4;
+
+  doc.font('Helvetica').fontSize(10).fillColor('#374151');
+  for (const line of [
+    'Oakwood Estate Akashneem Marg, OE-410',
+    'Oakwood Estate Condominium Association, DLF City Phase-II',
+    'Gurgaon, Haryana 122002, India',
+    'GSTIN: 06AAHCN3398J1Z0',
+    'support@rajyarank.com',
+  ]) {
+    doc.text(line, LEFT, billedFromY, { width: colWidth });
+    billedFromY += doc.heightOfString(line, { width: colWidth }) + 2;
+  }
 
   const rightColX = LEFT + 275;
   doc.font('Helvetica-Bold').fontSize(9).fillColor('#65798c').text('BILLED TO', rightColX, colY, { characterSpacing: 0.3 });
@@ -132,7 +144,7 @@ export async function renderInstitutionInvoicePdf(input: {
     billToY += doc.heightOfString(line, { width: colWidth }) + 2;
   }
 
-  doc.y = Math.max(colY + 30 + 14, billToY) + 8;
+  doc.y = Math.max(billedFromY, billToY) + 8;
   doc.moveTo(LEFT, doc.y).lineTo(RIGHT, doc.y).strokeColor('#dbe5ed').stroke();
   doc.moveDown(1);
 

@@ -23,6 +23,13 @@ export default function ContactPage({ params }: { params: { locale: string } }) 
         <div className="mt-8">
           <ContactForm locale={locale} />
         </div>
+        <div className="mt-10 border-t border-line pt-6 text-xs leading-relaxed text-muted">
+          <p>{L('विकसित द्वारा', 'Developed by')} <strong className="text-ink">NEXTWEBGEN INFOTECH PRIVATE LIMITED</strong></p>
+          <p className="mt-1">
+            Oakwood Estate Akashneem Marg, OE-410, Oakwood Estate Condominium Association, DLF City Phase-II, Gurgaon, Haryana 122002, India
+          </p>
+          <p className="mt-1">GSTIN: 06AAHCN3398J1Z0</p>
+        </div>
       </main>
     </>
   );

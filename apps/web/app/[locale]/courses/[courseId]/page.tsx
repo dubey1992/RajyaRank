@@ -14,7 +14,7 @@ import { CourseRatings } from '@/components/CourseRatings';
 import { WishlistToggle } from '@/components/WishlistToggle';
 import { CourseCurriculumPanel } from '@/components/CourseCurriculumPanel';
 import { CourseProgressCard } from '@/components/CourseProgressCard';
-import type { ProductView, CoursePricingResolved, CourseOutlineView, CoursePreviewResponse } from '@rajyarank/contracts';
+import type { ProductView, CoursePricingResolved, CourseOutlineView, CoursePreviewResponse, StudentCourseSummary } from '@rajyarank/contracts';
 
 export const dynamic = 'force-dynamic';
 
@@ -86,8 +86,17 @@ export default async function CourseDetailPage({
   // Public price always resolvable anonymously; the institute price (if this
   // student qualifies) only ever comes from the authenticated lookup below.
   const publicProduct = (publicProducts ?? []).find((p) => p.kind === 'COURSE' && p.courseId === course.id) ?? null;
-  const resolved = isStudent ? await apiFetchServer<CoursePricingResolved>(`/student/courses/${course.id}/pricing`, cookie) : null;
+  const [resolved, myCourses] = isStudent
+    ? await Promise.all([
+        apiFetchServer<CoursePricingResolved>(`/student/courses/${course.id}/pricing`, cookie),
+        apiFetchServer<StudentCourseSummary[]>('/student/courses', cookie),
+      ])
+    : [null, null];
   const buyProduct = resolved?.qualifiesForInstitute && resolved.institute ? resolved.institute : publicProduct;
+  // Neither InstitutePriceToggle nor the plain buy box below know anything
+  // about entitlements — both always render a "Buy"/pricing UI regardless of
+  // whether the student already owns the course, inviting a repeat purchase.
+  const owned = (myCourses ?? []).some((c) => c.courseId === course.id);
 
   const content = (
     <>
@@ -112,7 +121,19 @@ export default async function CourseDetailPage({
       {isStudent ? <WishlistToggle courseId={course.id} locale={locale} /> : null}
       {desc ? <p className="mt-3 max-w-2xl text-muted">{desc}</p> : null}
 
-      {course.orgId ? (
+      {owned ? (
+        <div className="mt-5 max-w-xs rounded-lg border border-line bg-white p-5">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-teal-100 px-2.5 py-1 text-[11px] font-extrabold text-success">
+            ✓ {L('नामांकित', 'Enrolled')}
+          </span>
+          <Link
+            href={`/${locale}/my-courses/${course.id}`}
+            className="mt-3 flex items-center justify-center rounded-md bg-teal-600 px-4 py-2.5 text-sm font-extrabold text-white transition hover:bg-teal-500"
+          >
+            {L('पढ़ाई जारी रखें', 'Continue Learning')}
+          </Link>
+        </div>
+      ) : course.orgId ? (
         <InstitutePriceToggle
           courseId={course.id}
           locale={locale}
