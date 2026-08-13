@@ -27,8 +27,8 @@ export function generateMetadata({ params }: { params: { locale: string } }): Me
   const locale = resolveLocale(params.locale);
   const hi = locale === 'hi';
   const description = hi
-    ? 'All Over India के सरकारी परीक्षा की तैयारी — हिंदी-पहले, द्विभाषी।'
-    : 'Bilingual government-exam preparation, All Over India.';
+    ? 'बिहार व झारखंड की सरकारी परीक्षा तैयारी — BPSC, SSC, रेलवे व पुलिस के लिए वीडियो क्लास, नोट्स, मॉक टेस्ट, दैनिक करेंट अफेयर्स और व्यक्तिगत अध्ययन योजना।'
+    : 'Bihar & Jharkhand government exam prep for BPSC, SSC, Railways & Police — video classes, notes, mock tests, daily current affairs and a personalised study plan.';
   return {
     metadataBase: new URL(SITE),
     title: { default: 'RajyaRank', template: '%s · RajyaRank' },
