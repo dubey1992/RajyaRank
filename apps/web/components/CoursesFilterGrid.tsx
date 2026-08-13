@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { apiFetch } from '@/lib/api';
 import { CourseBuyModal } from './CourseBuyModal';
 import type { FilterableCourse } from '@/lib/courses';
+import type { StudentCourseSummary } from '@rajyarank/contracts';
 
 export type { FilterableCourse } from '@/lib/courses';
 
@@ -31,11 +32,18 @@ export function CoursesFilterGrid({
 }) {
   const hi = locale === 'hi';
   const [wishlisted, setWishlisted] = useState<Set<string>>(new Set());
+  // Courses the student already has access to — without this, a purchased
+  // course still showed "Buy" here (this list has no per-student entitlement
+  // data on its own), inviting a repeat purchase of something already owned.
+  const [ownedCourseIds, setOwnedCourseIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!isStudent) return;
     apiFetch<string[]>('/student/wishlist/course-ids')
       .then((ids) => setWishlisted(new Set(ids)))
+      .catch(() => {});
+    apiFetch<StudentCourseSummary[]>('/student/courses')
+      .then((courses) => setOwnedCourseIds(new Set(courses.map((c) => c.courseId))))
       .catch(() => {});
   }, [isStudent]);
 
@@ -187,6 +195,7 @@ export function CoursesFilterGrid({
             );
 
             if (mode === 'buy') {
+              const owned = ownedCourseIds.has(c.id);
               return (
                 <div key={c.id} className="relative flex flex-col rounded-lg border border-line bg-white p-5 shadow-[0_10px_28px_rgba(15,23,42,0.05)]">
                   {heart}
@@ -196,10 +205,26 @@ export function CoursesFilterGrid({
                   <Link href={`/${locale}/courses/${c.id}`} className="mt-1 text-xs font-bold text-navy-700 hover:underline">
                     {hi ? 'सिलेबस देखें →' : 'View syllabus →'}
                   </Link>
-                  {priceBlock}
-                  <div className="mt-3">
-                    <CourseBuyModal courseId={c.id} courseTitle={hi ? c.titleHi : c.titleEn} publicProduct={c.product} orgId={c.orgId} locale={locale} />
-                  </div>
+                  {owned ? (
+                    <div className="mt-auto border-t border-line pt-4">
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-teal-100 px-2.5 py-1 text-[11px] font-extrabold text-success">
+                        ✓ {hi ? 'नामांकित' : 'Enrolled'}
+                      </span>
+                      <Link
+                        href={`/${locale}/my-courses/${c.id}`}
+                        className="mt-3 flex items-center justify-center rounded-md bg-teal-600 px-4 py-2 text-sm font-extrabold text-white transition hover:bg-teal-500"
+                      >
+                        {hi ? 'पढ़ाई जारी रखें' : 'Continue Learning'}
+                      </Link>
+                    </div>
+                  ) : (
+                    <>
+                      {priceBlock}
+                      <div className="mt-3">
+                        <CourseBuyModal courseId={c.id} courseTitle={hi ? c.titleHi : c.titleEn} publicProduct={c.product} orgId={c.orgId} locale={locale} />
+                      </div>
+                    </>
+                  )}
                 </div>
               );
             }

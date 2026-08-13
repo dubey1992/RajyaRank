@@ -198,21 +198,23 @@ export class StudentService {
       ? Math.max(0, Math.ceil((profile.targetDate.getTime() - Date.now()) / 86_400_000))
       : null;
 
-    const publishedInExam = profile?.targetExamId
-      ? await this.prisma.lesson.findMany({
-          where: {
-            deletedAt: null,
-            currentVersion: { status: 'PUBLISHED' },
-            topic: { chapter: { subject: { course: { examId: profile.targetExamId } } } },
-          },
-          orderBy: { sequence: 'asc' },
-          include: { currentVersion: true },
-          take: 50,
-        })
-      : [];
-
     const progress = await this.prisma.lessonProgress.findMany({ where: { studentId: userId } });
-    const completed = progress.filter((pr) => pr.status === 'COMPLETED').length;
+
+    // Course progress — aggregated across the courses the student is
+    // actually ENROLLED in (same per-course totals myCourses()/the course
+    // detail page use), not the student's chosen target exam. Those are
+    // different dimensions: a student's target exam ("BPSC Prelims") is a
+    // goal, not necessarily the exam category every course they've bought is
+    // tagged under. Scoping this tile to target-exam-tagged lessons instead
+    // of real enrollment meant it could show 0% (or a number unrelated to
+    // reality) immediately after finishing a course, while that course's own
+    // page correctly showed 100% — because the completed course simply
+    // wasn't one of the (possibly zero) lessons published under the target
+    // exam category. Reusing myCourses() keeps this tile always consistent
+    // with what each enrolled course's own detail page reports.
+    const enrolledCourses = await this.myCourses(p);
+    const lessonsTotal = enrolledCourses.reduce((sum, c) => sum + c.lessonsTotal, 0);
+    const lessonsCompleted = enrolledCourses.reduce((sum, c) => sum + c.lessonsCompleted, 0);
 
     // "Today's plan" now reads from the persisted StudyPlan (generated lazily
     // on first read) instead of an ad-hoc "next 5 incomplete lessons" query —
@@ -301,9 +303,9 @@ export class StudentService {
       testsAttempted: attempts.length,
       weeklyGoal: { targetMinutes: dailyGoal * 7, doneMinutes },
       stats: {
-        coursePercent: publishedInExam.length ? Math.round((completed / publishedInExam.length) * 100) : 0,
-        lessonsCompleted: completed,
-        lessonsTotal: publishedInExam.length,
+        coursePercent: lessonsTotal ? Math.round((lessonsCompleted / lessonsTotal) * 100) : 0,
+        lessonsCompleted,
+        lessonsTotal,
       },
       todayPlan,
       continueWatching: continueOut,

@@ -541,9 +541,8 @@ export default async function LandingPage({ params }: { params: { locale: string
             </ul>
           </div>
         </div>
-        <div className="mx-auto flex max-w-6xl flex-col justify-between gap-3 border-t border-white/10 px-4 py-4 text-xs text-white/50 sm:flex-row">
-          <span>© 2026 RajyaRank · {L('उत्पाद समीक्षा हेतु।', 'For product review.')}</span>
-          <span>{L('किसी सरकारी संस्था से संबद्ध नहीं।', 'Not affiliated with any government body.')}</span>
+        <div className="mx-auto max-w-6xl border-t border-white/10 px-4 py-4 text-xs text-white/50">
+          <span>© 2026 RajyaRank</span>
         </div>
       </footer>
     </main>
