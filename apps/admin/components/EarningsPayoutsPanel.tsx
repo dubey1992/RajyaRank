@@ -21,7 +21,7 @@ export function EarningsPayoutsPanel({
 
   return (
     <div className="grid gap-6">
-      <div className="grid gap-3 sm:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-5">
         <div className="rounded-lg border border-line bg-white p-4">
           <div className="text-xs font-extrabold uppercase text-muted">{L('कुल छात्र बिक्री', 'Gross student sales')}</div>
           <div className="mt-1.5 text-2xl font-black text-navy-950">{rupees(grossMinor)}</div>
@@ -37,6 +37,10 @@ export function EarningsPayoutsPanel({
         <div className="rounded-lg border border-line bg-white p-4">
           <div className="text-xs font-extrabold uppercase text-muted">{L('रिज़र्व होल्ड', 'Reserve held')}</div>
           <div className="mt-1.5 text-2xl font-black text-navy-950">{rupees(earnings.reserveHeldMinor)}</div>
+        </div>
+        <div className="rounded-lg border border-teal-200 bg-teal-100/40 p-4">
+          <div className="text-xs font-extrabold uppercase text-muted">{L('बैंक में निपटाया गया', 'Settled to bank')}</div>
+          <div className="mt-1.5 text-2xl font-black text-navy-950">{rupees(earnings.bankSettledMinor)}</div>
         </div>
       </div>
 
@@ -142,6 +146,52 @@ export function EarningsPayoutsPanel({
                         <span className="rounded-full bg-teal-100 px-2 py-0.5 text-xs font-extrabold text-success">{L('निपटाया', 'Settled')}</span>
                       )}
                     </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <section className="rounded-lg border border-line bg-white p-5">
+        <h2 className="mb-1 text-lg font-extrabold text-navy-900">{L('बैंक निपटान', 'Bank settlements')} ({earnings.settlements.length})</h2>
+        <p className="mb-3 text-xs text-muted">
+          {L(
+            'ऊपर "निपटाया" का मतलब है कि बिक्री का हिस्सा आपके लिंक्ड खाते में ट्रांसफर हो गया — यह वास्तव में Razorpay द्वारा आपके बैंक खाते में भुगतान होने से अलग है, जो यहाँ दिखता है।',
+            'The "Settled" status above just means the sale\'s share was transferred into your linked account — this is the actual list of Razorpay paying that money out to your real bank account.',
+          )}
+        </p>
+        {earnings.settlements.length === 0 ? (
+          <p className="text-sm text-muted">{L('अभी कोई बैंक निपटान नहीं।', 'No bank settlements yet.')}</p>
+        ) : (
+          <div className="overflow-x-auto rounded-lg border border-line">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-line bg-surface-soft text-xs uppercase text-muted">
+                <tr>
+                  <th className="px-3 py-2">{L('राशि', 'Amount')}</th>
+                  <th className="px-3 py-2">{L('शुल्क', 'Fees')}</th>
+                  <th className="px-3 py-2">{L('कर', 'Tax')}</th>
+                  <th className="px-3 py-2">UTR</th>
+                  <th className="px-3 py-2">{L('स्थिति', 'Status')}</th>
+                  <th className="px-3 py-2">{L('निपटान तिथि', 'Settled on')}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {earnings.settlements.map((s) => (
+                  <tr key={s.id}>
+                    <td className="px-3 py-2 font-bold text-ink">{rupees(s.amountMinor)}</td>
+                    <td className="px-3 py-2">{rupees(s.feesMinor)}</td>
+                    <td className="px-3 py-2">{rupees(s.taxMinor)}</td>
+                    <td className="px-3 py-2 font-mono text-xs">{s.utr ?? '—'}</td>
+                    <td className="px-3 py-2">
+                      {s.status === 'PROCESSED' ? (
+                        <span className="rounded-full bg-teal-100 px-2 py-0.5 text-xs font-extrabold text-success">{L('निपटाया', 'Settled')}</span>
+                      ) : (
+                        <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-extrabold text-danger">{L('विफल', 'Failed')}</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2">{new Date(s.settledAt).toLocaleDateString('en-GB')}</td>
                   </tr>
                 ))}
               </tbody>

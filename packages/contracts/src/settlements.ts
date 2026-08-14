@@ -116,6 +116,21 @@ export interface TransferView {
   createdAt: string;
 }
 
+/** A real Razorpay bank settlement to a linked account (settlement.processed
+ *  webhook) — distinct from TransferView.status === 'PROCESSED' above, which
+ *  only means the Route transfer into the linked account succeeded, not that
+ *  Razorpay has actually paid it out to the institute's bank account. */
+export interface BankSettlementView {
+  id: string;
+  orgName: string;
+  amountMinor: number;
+  feesMinor: number;
+  taxMinor: number;
+  utr: string | null;
+  status: string;
+  settledAt: string;
+}
+
 /** Cross-institution rollup for the Super Admin settlements view. */
 export interface SettlementSummaryView {
   grossMinor: number;
@@ -126,6 +141,10 @@ export interface SettlementSummaryView {
   // on the merchant account) — money was collected but not yet split to the
   // institute; excluded from institutionPayableMinor until reconciled.
   heldMinor: number;
+  // Real money Razorpay has actually paid out to institutes' bank accounts —
+  // see BankSettlementView above for how this differs from institutionPayableMinor.
+  bankSettledMinor: number;
+  recentSettlements: BankSettlementView[];
 }
 
 /** One institution's own payout statement, for the Academic Head view. */
@@ -140,6 +159,10 @@ export interface InstitutionEarningsView {
   // Same caveat as SettlementSummaryView.heldMinor — real sales pending
   // reconciliation because the Razorpay Route transfer failed.
   heldMinor: number;
+  // Real money actually paid out to this institute's bank account so far —
+  // see BankSettlementView for how this differs from payableMinor.
+  bankSettledMinor: number;
+  settlements: BankSettlementView[];
   linkedAccount: LinkedAccountView | null;
   transfers: TransferView[];
 }

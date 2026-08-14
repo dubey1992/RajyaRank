@@ -1172,6 +1172,7 @@ model InstituteLinkedAccount {
   organization Organization           @relation(fields: [orgId], references: [id], onDelete: Cascade)
   transfers    Transfer[]
   kycDocuments InstituteKycDocument[]
+  settlements  Settlement[]
 
   @@map("institute_linked_accounts")
 }
@@ -1226,6 +1227,38 @@ model Transfer {
 
   @@index([linkedAccountId, status])
   @@map("transfers")
+}
+
+enum SettlementStatus {
+  PROCESSED
+  FAILED
+}
+
+/// Real Razorpay bank settlements to an institute's linked account — distinct
+/// from Transfer above. A Transfer moving to PROCESSED only means the Route
+/// transfer into the linked account succeeded (money is now inside Razorpay,
+/// attributed to the institute); it says nothing about whether Razorpay has
+/// actually paid that money out to the institute's real bank account, which
+/// happens later, on Razorpay's own settlement schedule, and is reported via
+/// the settlement.processed webhook. One settlement batches many transfers —
+/// Razorpay's payload carries no transfer-level breakdown, only account-level
+/// settlement totals — so this is not linked back to individual Transfer rows.
+model Settlement {
+  id                   String           @id @default(uuid())
+  linkedAccountId      String           @map("linked_account_id")
+  razorpaySettlementId String           @unique @map("razorpay_settlement_id")
+  amountMinor          Int              @map("amount_minor")
+  feesMinor            Int              @map("fees_minor")
+  taxMinor             Int              @map("tax_minor")
+  utr                  String?
+  status               SettlementStatus @default(PROCESSED)
+  settledAt            DateTime         @map("settled_at")
+  createdAt            DateTime         @default(now()) @map("created_at")
+
+  linkedAccount InstituteLinkedAccount @relation(fields: [linkedAccountId], references: [id])
+
+  @@index([linkedAccountId, settledAt])
+  @@map("settlements")
 }
 
 model Payment {

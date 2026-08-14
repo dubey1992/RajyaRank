@@ -362,6 +362,55 @@ export class SettlementsService {
     }
   }
 
+  /** Real Razorpay bank settlement for a Route linked account — the
+   *  settlement.processed webhook. One settlement batches many transfers with
+   *  no per-transfer breakdown in the payload (Razorpay only reports
+   *  account-level totals), so this records the settlement itself rather than
+   *  trying to reconcile it against individual Transfer rows. Upserted on
+   *  razorpaySettlementId so a redelivered webhook is a safe no-op update,
+   *  not a duplicate row or a crash. */
+  async handleSettlementProcessed(
+    razorpayAccountId: string | undefined,
+    entity: { id?: string; amount?: number; fees?: number; tax?: number; utr?: string; status?: string; created_at?: number } | undefined,
+  ) {
+    if (!razorpayAccountId || !entity?.id) {
+      this.logger.warn('settlement.processed webhook missing account id or settlement id — ignoring.');
+      return;
+    }
+
+    const linkedAccount = await this.prisma.instituteLinkedAccount.findUnique({ where: { razorpayAccountId } });
+    if (!linkedAccount) {
+      this.logger.warn(`settlement.processed for unknown linked account: ${razorpayAccountId}`);
+      return;
+    }
+
+    const data = {
+      linkedAccountId: linkedAccount.id,
+      amountMinor: entity.amount ?? 0,
+      feesMinor: entity.fees ?? 0,
+      taxMinor: entity.tax ?? 0,
+      utr: entity.utr ?? null,
+      status: (entity.status === 'processed' ? 'PROCESSED' : 'FAILED') as 'PROCESSED' | 'FAILED',
+      settledAt: entity.created_at ? new Date(entity.created_at * 1000) : new Date(),
+    };
+
+    const settlement = await this.prisma.settlement.upsert({
+      where: { razorpaySettlementId: entity.id },
+      create: { razorpaySettlementId: entity.id, ...data },
+      update: data,
+    });
+
+    await this.audit.record({
+      action: 'settlements.settlement_processed',
+      targetType: 'Organization',
+      targetId: linkedAccount.orgId,
+      result: 'SUCCESS',
+      after: { razorpaySettlementId: entity.id, amountMinor: data.amountMinor, utr: data.utr },
+    });
+
+    return settlement;
+  }
+
   async superSummary() {
     const transfers = await this.prisma.transfer.findMany();
     const processed = transfers.filter((t) => t.status === 'PROCESSED');
@@ -371,7 +420,24 @@ export class SettlementsService {
     const platformRevenueMinor = processed.reduce((sum, t) => sum + t.platformFeeMinor, 0);
     const heldMinor = held.reduce((sum, t) => sum + t.netMinor, 0);
     const reserveHeldMinor = (await this.prisma.instituteLinkedAccount.aggregate({ _sum: { reserveHeldMinor: true } }))._sum.reserveHeldMinor ?? 0;
-    return { grossMinor, institutionPayableMinor, platformRevenueMinor, reserveHeldMinor, heldMinor };
+
+    const settlements = await this.prisma.settlement.findMany({
+      include: { linkedAccount: { include: { organization: { select: { name: true } } } } },
+      orderBy: { settledAt: 'desc' },
+    });
+    const bankSettledMinor = settlements.filter((s) => s.status === 'PROCESSED').reduce((sum, s) => sum + s.amountMinor, 0);
+    const recentSettlements = settlements.slice(0, 50).map((s) => ({
+      id: s.id,
+      orgName: s.linkedAccount.organization.name,
+      amountMinor: s.amountMinor,
+      feesMinor: s.feesMinor,
+      taxMinor: s.taxMinor,
+      utr: s.utr,
+      status: s.status,
+      settledAt: s.settledAt.toISOString(),
+    }));
+
+    return { grossMinor, institutionPayableMinor, platformRevenueMinor, reserveHeldMinor, heldMinor, bankSettledMinor, recentSettlements };
   }
 
   async listTransfers(orgId?: string) {
@@ -412,6 +478,21 @@ export class SettlementsService {
       this.listTransfers(orgId),
     ]);
 
+    const settlementsRaw = linkedAccountRaw
+      ? await this.prisma.settlement.findMany({ where: { linkedAccountId: linkedAccountRaw.id }, orderBy: { settledAt: 'desc' } })
+      : [];
+    const bankSettledMinor = settlementsRaw.filter((s) => s.status === 'PROCESSED').reduce((sum, s) => sum + s.amountMinor, 0);
+    const settlements = settlementsRaw.map((s) => ({
+      id: s.id,
+      orgName: linkedAccountRaw!.organization.name,
+      amountMinor: s.amountMinor,
+      feesMinor: s.feesMinor,
+      taxMinor: s.taxMinor,
+      utr: s.utr,
+      status: s.status,
+      settledAt: s.settledAt.toISOString(),
+    }));
+
     const internal = transfers.filter((t) => t.audience === 'INSTITUTE');
     const external = transfers.filter((t) => t.audience === 'PUBLIC');
     const sum = (rows: typeof transfers, key: 'grossMinor' | 'platformFeeMinor' | 'gatewayFeeMinor' | 'reserveMinor') => rows.reduce((s, t) => s + t[key], 0);
@@ -437,6 +518,8 @@ export class SettlementsService {
       reserveHeldMinor: linkedAccount?.reserveHeldMinor ?? 0,
       payableMinor: transfers.filter((t) => t.status === 'PROCESSED').reduce((s, t) => s + t.netMinor, 0),
       heldMinor: transfers.filter((t) => t.status === 'ON_HOLD').reduce((s, t) => s + t.netMinor, 0),
+      bankSettledMinor,
+      settlements,
       linkedAccount,
       transfers,
     };

@@ -61,7 +61,7 @@ export default async function OrganizationsPage({ params }: { params: { locale: 
                   {hi ? 'लिंक्ड-खाता भुगतान और सामंजस्य अवलोकन।' : 'Linked-account payout and reconciliation overview.'}
                 </p>
                 <SettlementsManager
-                  summary={summary ?? { grossMinor: 0, institutionPayableMinor: 0, platformRevenueMinor: 0, reserveHeldMinor: 0, heldMinor: 0 }}
+                  summary={summary ?? { grossMinor: 0, institutionPayableMinor: 0, platformRevenueMinor: 0, reserveHeldMinor: 0, heldMinor: 0, bankSettledMinor: 0, recentSettlements: [] }}
                   initialLinkedAccounts={accounts ?? []}
                   initialTransfers={transfers ?? []}
                   locale={locale}

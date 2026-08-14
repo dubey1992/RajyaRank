@@ -235,10 +235,15 @@ export class PaymentsService {
     }
     const event = JSON.parse(rawBody) as {
       event: string;
+      // Route webhooks (settlement.processed) carry the linked account's own
+      // Razorpay account id at the envelope's top level — a sibling of
+      // `payload`, not inside it, unlike every other field here.
+      account_id?: string;
       payload?: {
         payment?: { entity?: { id?: string; order_id?: string } };
         subscription?: { entity?: { id?: string } };
         account?: { entity?: { id?: string } };
+        settlement?: { entity?: { id?: string; amount?: number; fees?: number; tax?: number; utr?: string; status?: string; created_at?: number } };
       };
     };
 
@@ -262,6 +267,10 @@ export class PaymentsService {
     } else if (event.event.startsWith('account.')) {
       // Razorpay Route linked-account KYC lifecycle for an institute's payouts.
       await this.settlements.handleAccountEvent(event.event, event.payload ?? {});
+    } else if (event.event === 'settlement.processed') {
+      // Real bank settlement of a Route linked account — distinct from (and
+      // later than) the Transfer records created synchronously in markPaid().
+      await this.settlements.handleSettlementProcessed(event.account_id, event.payload?.settlement?.entity);
     }
     await this.prisma.paymentEvent.updateMany({ where: { providerEventId: eventId }, data: { processedAt: new Date() } });
     return { received: true };

@@ -141,7 +141,7 @@ export default async function OrganizationDetailPage({
       {earnings ? (
         <div className="mb-6 rounded-lg border border-line bg-white p-5">
           <h2 className="mb-3 text-lg font-extrabold text-navy-900">{L('कमाई सारांश', 'Earnings summary')}</h2>
-          <div className="grid gap-3 sm:grid-cols-4">
+          <div className="grid gap-3 sm:grid-cols-5">
             <div className="rounded-md border border-line bg-surface-soft p-3">
               <div className="text-xs font-extrabold uppercase text-muted">{L('कुल बिक्री', 'Gross sales')}</div>
               <div className="mt-1 text-xl font-black text-navy-950">{rupees(earnings.internalGrossMinor + earnings.externalGrossMinor)}</div>
@@ -157,6 +157,10 @@ export default async function OrganizationDetailPage({
             <div className="rounded-md border border-line bg-surface-soft p-3">
               <div className="text-xs font-extrabold uppercase text-muted">{L('रिज़र्व होल्ड', 'Reserve held')}</div>
               <div className="mt-1 text-xl font-black text-navy-950">{rupees(earnings.reserveHeldMinor)}</div>
+            </div>
+            <div className="rounded-md border border-teal-200 bg-teal-100/40 p-3">
+              <div className="text-xs font-extrabold uppercase text-muted">{L('बैंक में निपटाया गया', 'Settled to bank')}</div>
+              <div className="mt-1 text-xl font-black text-navy-950">{rupees(earnings.bankSettledMinor)}</div>
             </div>
           </div>
         </div>
