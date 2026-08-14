@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { Logo } from '@rajyarank/ui';
 import { resolveLocale, getT } from '@/lib/i18n';
 import { PublicHeader } from '@/components/PublicHeader';
+import { BackToTopButton } from '@/components/BackToTopButton';
 import { DemoQuiz } from '@/components/DemoQuiz';
 import { CoursesFilterGrid } from '@/components/CoursesFilterGrid';
 import { toFilterableCourses, type CourseListItem } from '@/lib/courses';
@@ -550,6 +551,7 @@ export default async function LandingPage({ params }: { params: { locale: string
           </p>
         </div>
       </footer>
+      <BackToTopButton locale={locale} />
     </main>
   );
 }
