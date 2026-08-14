@@ -6,6 +6,7 @@ import { apiFetch, type ApiError } from '@/lib/api';
 import { serverFieldErrors, validate } from '@/lib/form';
 import { PASSWORD_RULES, adminSetInvitePasswordSchema } from '@rajyarank/contracts';
 import type { OrganizationView, PendingHeadInviteView } from '@rajyarank/contracts';
+import { RowActionsMenu } from './RowActionsMenu';
 
 export function OrganizationsManager({ initial, locale }: { initial: OrganizationView[]; locale: 'hi' | 'en' }) {
   const hi = locale === 'hi';
@@ -176,8 +177,6 @@ export function OrganizationsManager({ initial, locale }: { initial: Organizatio
     }
   }
 
-  const mini = 'rounded-md border border-line px-2 py-1 text-xs font-bold hover:bg-surface-soft disabled:opacity-50';
-
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
       <section>
@@ -271,21 +270,32 @@ export function OrganizationsManager({ initial, locale }: { initial: Organizatio
                       </button>
                     </td>
                     <td className="px-3 py-2"><span className={`rounded-full px-2 py-0.5 text-xs font-extrabold ${o.status === 'ACTIVE' ? 'bg-teal-100 text-success' : 'bg-orange-100 text-danger'}`}>{o.status === 'ACTIVE' ? L('सक्रिय', 'Active') : L('निष्क्रिय', 'Inactive')}</span></td>
-                    <td className="px-3 py-2">
-                      <div className="flex flex-wrap justify-end gap-1.5">
-                        <Link href={`/${locale}/admin/organizations/${o.id}`} className={mini}>
-                          {L('संस्थान देखें', 'View Institute')}
-                        </Link>
-                        <button type="button" disabled={rowBusy === o.id} className={mini} onClick={() => { setInviteFor(o); setIName(''); setIEmail(''); setIPhone(''); setIErrors({}); }}>
-                          {L('प्रमुख आमंत्रित करें', 'Invite Head')}
-                        </button>
-                        <button type="button" disabled={rowBusy === o.id} className={mini} onClick={() => void toggleStatus(o)}>
-                          {o.status === 'ACTIVE' ? L('निष्क्रिय करें', 'Deactivate') : L('सक्रिय करें', 'Activate')}
-                        </button>
-                        <button type="button" disabled={rowBusy === o.id} className={`${mini} text-danger`} onClick={() => setDel(o)}>
-                          {L('हटाएँ', 'Delete')}
-                        </button>
-                      </div>
+                    <td className="px-3 py-2 text-right">
+                      <RowActionsMenu
+                        locale={locale}
+                        actions={[
+                          { key: 'view', label: L('संस्थान देखें', 'View Institute'), href: `/${locale}/admin/organizations/${o.id}` },
+                          {
+                            key: 'invite',
+                            label: L('प्रमुख आमंत्रित करें', 'Invite Head'),
+                            disabled: rowBusy === o.id,
+                            onClick: () => { setInviteFor(o); setIName(''); setIEmail(''); setIPhone(''); setIErrors({}); },
+                          },
+                          {
+                            key: 'toggle',
+                            label: o.status === 'ACTIVE' ? L('निष्क्रिय करें', 'Deactivate') : L('सक्रिय करें', 'Activate'),
+                            disabled: rowBusy === o.id,
+                            onClick: () => void toggleStatus(o),
+                          },
+                          {
+                            key: 'delete',
+                            label: L('हटाएँ', 'Delete'),
+                            disabled: rowBusy === o.id,
+                            tone: 'danger',
+                            onClick: () => setDel(o),
+                          },
+                        ]}
+                      />
                     </td>
                   </tr>
                   );

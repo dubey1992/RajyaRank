@@ -4,6 +4,7 @@ import { Alert, Button, ConfirmDialog, Field, PasswordChecklist, Toast } from '@
 import { apiFetch, type ApiError } from '@/lib/api';
 import { serverFieldErrors } from '@/lib/form';
 import { SearchInput } from './SearchInput';
+import { RowActionsMenu } from './RowActionsMenu';
 import { PASSWORD_RULES, type StudentListItem } from '@rajyarank/contracts';
 
 type Status = StudentListItem['status'];
@@ -13,6 +14,17 @@ const STATUS_TONE: Record<string, string> = {
   SUSPENDED: 'bg-orange-100 text-danger',
   DISABLED: 'bg-line text-muted',
 };
+
+function statusActionLabel(status: Status, hi: boolean): string {
+  switch (status) {
+    case 'ACTIVE': return hi ? 'सक्रिय करें' : 'Set Active';
+    case 'SUSPENDED': return hi ? 'निलंबित करें' : 'Set Suspended';
+    case 'DISABLED': return hi ? 'अक्षम करें' : 'Set Disabled';
+    // status is z.string() in the contract, not a narrow enum — an
+    // unrecognised value still needs a label instead of crashing.
+    default: return status;
+  }
+}
 
 interface Pending {
   id: string;
@@ -178,40 +190,53 @@ export function StudentsManager({
                       </span>
                     </td>
                     <td className="px-3 py-2 text-xs text-muted">{s.lastLoginAt ? new Date(s.lastLoginAt).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) : L('कभी नहीं', 'Never')}</td>
-                    <td className="px-3 py-2">
-                      <div className="flex flex-wrap items-center justify-end gap-1">
-                        {canDisable ? (
-                          <select
-                            aria-label={L('स्थिति बदलें', 'Change status')}
-                            value={s.status}
-                            disabled={busyId === s.id}
-                            onChange={(e) => confirmChangeStatus(s.id, e.target.value as Status)}
-                            className="rounded-md border border-line px-1 py-1 text-xs"
-                          >
-                            {(['ACTIVE', 'SUSPENDED', 'DISABLED'] as const).map((st) => (
-                              <option key={st} value={st}>{st}</option>
-                            ))}
-                          </select>
-                        ) : null}
-                        {s.email ? (
-                          <button
-                            type="button"
-                            disabled={busyId === s.id}
-                            onClick={() => confirmAction(s.id, 'force-password-reset', L('पासवर्ड रीसेट?', 'Force password reset?'), L('यह छात्र को पासवर्ड रीसेट के लिए बाध्य करेगा।', 'This forces the student to reset their password.'), L('पासवर्ड रीसेट ईमेल भेजा गया।', 'Password-reset email sent.'), false)}
-                            className="rounded-md border border-line px-2 py-1 text-xs font-bold text-navy-900 hover:bg-surface-soft"
-                          >
-                            {L('पासवर्ड रीसेट', 'Reset pwd')}
-                          </button>
-                        ) : null}
-                        <button
-                          type="button"
-                          disabled={busyId === s.id}
-                          onClick={() => confirmAction(s.id, 'revoke-sessions', L('सभी सत्र रद्द करें?', 'Revoke all sessions?'), L('यह छात्र के सभी सक्रिय सत्र समाप्त कर देगा।', 'This signs the student out of all active sessions.'), L('सत्र रद्द कर दिए गए।', 'Sessions revoked.'), true)}
-                          className="rounded-md border border-line px-2 py-1 text-xs font-bold text-danger hover:bg-orange-100/50"
-                        >
-                          {L('सत्र रद्द', 'Revoke')}
-                        </button>
-                      </div>
+                    <td className="px-3 py-2 text-right">
+                      <RowActionsMenu
+                        locale={locale}
+                        actions={[
+                          ...(canDisable
+                            ? (['ACTIVE', 'SUSPENDED', 'DISABLED'] as const)
+                                .filter((st) => st !== s.status)
+                                .map((st) => ({
+                                  key: `status-${st}`,
+                                  label: statusActionLabel(st, hi),
+                                  disabled: busyId === s.id,
+                                  onClick: () => confirmChangeStatus(s.id, st),
+                                }))
+                            : []),
+                          ...(s.email
+                            ? [{
+                                key: 'reset-password',
+                                label: L('पासवर्ड रीसेट', 'Reset password'),
+                                disabled: busyId === s.id,
+                                onClick: () =>
+                                  confirmAction(
+                                    s.id,
+                                    'force-password-reset',
+                                    L('पासवर्ड रीसेट?', 'Force password reset?'),
+                                    L('यह छात्र को पासवर्ड रीसेट के लिए बाध्य करेगा।', 'This forces the student to reset their password.'),
+                                    L('पासवर्ड रीसेट ईमेल भेजा गया।', 'Password-reset email sent.'),
+                                    false,
+                                  ),
+                              }]
+                            : []),
+                          {
+                            key: 'revoke-sessions',
+                            label: L('सभी सत्र रद्द करें', 'Revoke all sessions'),
+                            disabled: busyId === s.id,
+                            tone: 'danger',
+                            onClick: () =>
+                              confirmAction(
+                                s.id,
+                                'revoke-sessions',
+                                L('सभी सत्र रद्द करें?', 'Revoke all sessions?'),
+                                L('यह छात्र के सभी सक्रिय सत्र समाप्त कर देगा।', 'This signs the student out of all active sessions.'),
+                                L('सत्र रद्द कर दिए गए।', 'Sessions revoked.'),
+                                true,
+                              ),
+                          },
+                        ]}
+                      />
                     </td>
                   </tr>
                 ))}
