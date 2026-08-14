@@ -541,8 +541,13 @@ export default async function LandingPage({ params }: { params: { locale: string
             </ul>
           </div>
         </div>
-        <div className="mx-auto max-w-6xl border-t border-white/10 px-4 py-4 text-xs text-white/50">
-          <span>© 2026 RajyaRank</span>
+        <div className="mx-auto max-w-6xl border-t border-white/10 px-4 py-4 text-xs leading-relaxed text-white/50">
+          <p>© 2026 RajyaRank</p>
+          <p className="mt-2">
+            {L('विकसित द्वारा', 'Developed by')} <strong className="text-white/70">NEXTWEBGEN INFOTECH PRIVATE LIMITED</strong>
+            {' · '}Oakwood Estate Akashneem Marg, OE-410, Oakwood Estate Condominium Association, DLF City Phase-II, Gurgaon, Haryana 122002, India
+            {' · '}GSTIN: 06AAHCN3398J1Z0
+          </p>
         </div>
       </footer>
     </main>
