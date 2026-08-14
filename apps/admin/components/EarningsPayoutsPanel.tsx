@@ -18,6 +18,13 @@ export function EarningsPayoutsPanel({
   const L = (h: string, e: string) => (hi ? h : e);
   const grossMinor = earnings.internalGrossMinor + earnings.externalGrossMinor;
   const feeMinor = earnings.internalFeeMinor + earnings.externalFeeMinor;
+  // Defensive: the admin app (Amplify) and the API (ECS, manually deployed)
+  // roll out independently — a window where this page's build is newer than
+  // the API it's calling is normal, not exceptional. Without these fallbacks,
+  // an API response from before this field existed would hard-crash the
+  // whole page instead of just showing zero/empty.
+  const bankSettledMinor = earnings.bankSettledMinor ?? 0;
+  const settlements = earnings.settlements ?? [];
 
   return (
     <div className="grid gap-6">
@@ -40,7 +47,7 @@ export function EarningsPayoutsPanel({
         </div>
         <div className="rounded-lg border border-teal-200 bg-teal-100/40 p-4">
           <div className="text-xs font-extrabold uppercase text-muted">{L('बैंक में निपटाया गया', 'Settled to bank')}</div>
-          <div className="mt-1.5 text-2xl font-black text-navy-950">{rupees(earnings.bankSettledMinor)}</div>
+          <div className="mt-1.5 text-2xl font-black text-navy-950">{rupees(bankSettledMinor)}</div>
         </div>
       </div>
 
@@ -155,14 +162,14 @@ export function EarningsPayoutsPanel({
       </section>
 
       <section className="rounded-lg border border-line bg-white p-5">
-        <h2 className="mb-1 text-lg font-extrabold text-navy-900">{L('बैंक निपटान', 'Bank settlements')} ({earnings.settlements.length})</h2>
+        <h2 className="mb-1 text-lg font-extrabold text-navy-900">{L('बैंक निपटान', 'Bank settlements')} ({settlements.length})</h2>
         <p className="mb-3 text-xs text-muted">
           {L(
             'ऊपर "निपटाया" का मतलब है कि बिक्री का हिस्सा आपके लिंक्ड खाते में ट्रांसफर हो गया — यह वास्तव में Razorpay द्वारा आपके बैंक खाते में भुगतान होने से अलग है, जो यहाँ दिखता है।',
             'The "Settled" status above just means the sale\'s share was transferred into your linked account — this is the actual list of Razorpay paying that money out to your real bank account.',
           )}
         </p>
-        {earnings.settlements.length === 0 ? (
+        {settlements.length === 0 ? (
           <p className="text-sm text-muted">{L('अभी कोई बैंक निपटान नहीं।', 'No bank settlements yet.')}</p>
         ) : (
           <div className="overflow-x-auto rounded-lg border border-line">
@@ -178,7 +185,7 @@ export function EarningsPayoutsPanel({
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {earnings.settlements.map((s) => (
+                {settlements.map((s) => (
                   <tr key={s.id}>
                     <td className="px-3 py-2 font-bold text-ink">{rupees(s.amountMinor)}</td>
                     <td className="px-3 py-2">{rupees(s.feesMinor)}</td>

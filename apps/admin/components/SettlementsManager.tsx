@@ -27,6 +27,14 @@ export function SettlementsManager({
 }) {
   const hi = locale === 'hi';
   const L = (h: string, e: string) => (hi ? h : e);
+  // Defensive: the admin app (Amplify) and the API (ECS, manually deployed)
+  // roll out independently — a window where this page's build is newer than
+  // the API it's calling is normal, not exceptional. These two fields were
+  // added together on both sides, but during that window the API can still
+  // omit them entirely, and `undefined.length`/`.map()` below would otherwise
+  // hard-crash the whole page instead of just showing zero/empty.
+  const bankSettledMinor = summary.bankSettledMinor ?? 0;
+  const recentSettlements = summary.recentSettlements ?? [];
   const [accounts, setAccounts] = useState(initialLinkedAccounts);
   const [transfers, setTransfers] = useState(initialTransfers);
   const [rowBusy, setRowBusy] = useState<string | null>(null);
@@ -144,7 +152,7 @@ export function SettlementsManager({
         </div>
         <div className="rounded-lg border border-teal-200 bg-teal-100/40 p-4">
           <div className="text-xs font-extrabold uppercase text-muted">{L('बैंक में निपटाया गया', 'Settled to bank')}</div>
-          <div className="mt-1.5 text-2xl font-black text-navy-950">{rupees(summary.bankSettledMinor)}</div>
+          <div className="mt-1.5 text-2xl font-black text-navy-950">{rupees(bankSettledMinor)}</div>
         </div>
       </div>
 
@@ -329,14 +337,14 @@ export function SettlementsManager({
       </section>
 
       <section className="rounded-lg border border-line bg-white p-5">
-        <h2 className="mb-1 text-lg font-extrabold text-navy-900">{L('बैंक निपटान', 'Bank settlements')} ({summary.recentSettlements.length})</h2>
+        <h2 className="mb-1 text-lg font-extrabold text-navy-900">{L('बैंक निपटान', 'Bank settlements')} ({recentSettlements.length})</h2>
         <p className="mb-3 text-xs text-muted">
           {L(
             'ऊपर "निपटाया" का मतलब है कि बिक्री का हिस्सा संस्थान के लिंक्ड खाते में ट्रांसफर हो गया — यह वास्तव में Razorpay द्वारा संस्थान के बैंक खाते में भुगतान होने से अलग है, जो यहाँ दिखता है।',
             'The "Settled" status above just means the sale\'s share was transferred into the institute\'s linked account — this is the actual list of Razorpay paying that money out to institutes\' real bank accounts.',
           )}
         </p>
-        {summary.recentSettlements.length === 0 ? (
+        {recentSettlements.length === 0 ? (
           <p className="text-sm text-muted">{L('अभी कोई बैंक निपटान नहीं।', 'No bank settlements yet.')}</p>
         ) : (
           <div className="overflow-x-auto rounded-lg border border-line">
@@ -353,7 +361,7 @@ export function SettlementsManager({
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {summary.recentSettlements.map((s) => (
+                {recentSettlements.map((s) => (
                   <tr key={s.id}>
                     <td className="px-3 py-2 font-bold text-ink">{s.orgName}</td>
                     <td className="px-3 py-2 font-bold">{rupees(s.amountMinor)}</td>

@@ -160,7 +160,9 @@ export default async function OrganizationDetailPage({
             </div>
             <div className="rounded-md border border-teal-200 bg-teal-100/40 p-3">
               <div className="text-xs font-extrabold uppercase text-muted">{L('बैंक में निपटाया गया', 'Settled to bank')}</div>
-              <div className="mt-1 text-xl font-black text-navy-950">{rupees(earnings.bankSettledMinor)}</div>
+              {/* Defensive: earnings comes from the API, which can briefly lag this
+                  page's own Amplify deploy — see the same fallback in EarningsPayoutsPanel. */}
+              <div className="mt-1 text-xl font-black text-navy-950">{rupees(earnings.bankSettledMinor ?? 0)}</div>
             </div>
           </div>
         </div>
