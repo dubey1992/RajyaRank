@@ -29,6 +29,14 @@ export class CoursesController {
     return this.courses.listCourses(principal);
   }
 
+  // Static literal route — must stay ahead of the `:id` route below, or Nest
+  // would match "how-it-works-video" as an :id instead.
+  @Get('how-it-works-video')
+  @RequirePermission('course.manage')
+  howItWorksVideo() {
+    return this.courses.howItWorksVideoUrl();
+  }
+
   @Get(':id')
   @RequirePermission('course.manage')
   detail(@CurrentPrincipal() principal: Principal, @Param('id') id: string) {

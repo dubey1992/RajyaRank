@@ -6,6 +6,7 @@ import { apiFetch, type ApiError } from '@/lib/api';
 import type { CourseReadinessView } from '@rajyarank/contracts';
 import { CurriculumBuilder, type CurriculumSubject } from './CurriculumBuilder';
 import { CoursePricingPanel } from '../CoursePricingPanel';
+import { CourseHowItWorksButton } from '../CourseHowItWorksButton';
 
 interface Ref { id: string; code: string; nameHi: string; nameEn: string }
 
@@ -316,7 +317,10 @@ export function CourseStudioShell({
       <div className="rounded-lg border border-line bg-white p-5">
         {step === 'template' ? (
           <div className="grid gap-3">
-            <p className="text-sm text-muted">{L('टेम्पलेट पाठ्यक्रम की शुरुआती दिशा तय करता है — बाद में कुछ भी बदला जा सकता है।', 'The template just sets a starting direction — everything can be changed later.')}</p>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <p className="text-sm text-muted">{L('टेम्पलेट पाठ्यक्रम की शुरुआती दिशा तय करता है — बाद में कुछ भी बदला जा सकता है।', 'The template just sets a starting direction — everything can be changed later.')}</p>
+              <CourseHowItWorksButton locale={locale} className="shrink-0 text-xs" />
+            </div>
             <div className="grid gap-3 sm:grid-cols-3">
               {TEMPLATES.map((t) => (
                 <button
