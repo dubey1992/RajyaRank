@@ -16,7 +16,14 @@ import { AuthorizationService } from '../authz/authorization.service';
 import { AuditService } from '../audit/audit.service';
 import { TokenService } from '../auth/token.service';
 import { NotificationService } from '../notifications/notification.service';
+import { S3Service } from '../s3/s3.service';
 import { AppError } from '../common/errors/app-error';
+
+// Static, admin-authored onboarding video (not user-uploaded content) —
+// uploaded once directly to the private bucket under this fixed key. Served
+// via a short-lived presigned GET, same access model as every other asset in
+// this app (see S3Service's doc comment: no permanent public URLs).
+const HOW_IT_WORKS_VIDEO_KEY = 'onboarding/course-creation-how-it-works-hi.mp4';
 
 interface Scope {
   orgId?: string;
@@ -39,7 +46,13 @@ export class CoursesService {
     private readonly audit: AuditService,
     private readonly tokens: TokenService,
     private readonly notifications: NotificationService,
+    private readonly s3: S3Service,
   ) {}
+
+  async howItWorksVideoUrl(): Promise<{ url: string }> {
+    const url = await this.s3.presignGet(HOW_IT_WORKS_VIDEO_KEY, 3600);
+    return { url };
+  }
 
   private assertScope(principal: Principal, scope: Scope) {
     const decision = this.authz.check(principal, 'course.manage', { type: 'course', scope });

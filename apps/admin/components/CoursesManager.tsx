@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button, ConfirmDialog, Toast } from '@rajyarank/ui';
 import { apiFetch } from '@/lib/api';
+import { CourseHowItWorksButton } from './CourseHowItWorksButton';
 
 export interface CourseRow {
   id: string;
@@ -84,6 +85,9 @@ export function CoursesManager({
         <Link href={`/${locale}/admin/courses/studio/new`}>
           <Button className="w-full text-sm">{L('+ कोर्स स्टूडियो खोलें', '+ Open Course Studio')}</Button>
         </Link>
+        <div className="mt-2">
+          <CourseHowItWorksButton locale={locale} />
+        </div>
       </section>
 
       <ConfirmDialog
