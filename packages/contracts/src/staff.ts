@@ -28,6 +28,25 @@ export const studentListItemSchema = z.object({
 });
 export type StudentListItem = z.infer<typeof studentListItemSchema>;
 
+// ── Independent students (support.manage, read-only) ─────────────────────────
+// Students who signed up directly ("Create new account") and have never
+// joined an institute via an access code — orgId stays null until they do.
+// See apps/api/src/students/students.service.ts#listIndependent.
+export const independentStudentListItemSchema = z.object({
+  id: z.string(),
+  fullName: z.string(),
+  phone: z.string(),
+  email: z.string().nullable(),
+  status: z.string(),
+  createdAt: z.string(),
+  lastLoginAt: z.string().nullable(),
+  // Set only when the student arrived via an institute's referral link but
+  // never actually joined (entered no code) — distinct from orgId, which
+  // would make them show up in that institute's own roster instead of here.
+  referredByOrgName: z.string().nullable(),
+});
+export type IndependentStudentListItem = z.infer<typeof independentStudentListItemSchema>;
+
 export const staffStatusSchema = z.enum(['ACTIVE', 'SUSPENDED', 'DISABLED']);
 
 export const patchStaffStatusSchema = z.object({

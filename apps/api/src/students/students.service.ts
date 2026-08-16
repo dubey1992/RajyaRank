@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import * as argon2 from 'argon2';
 import type { Principal } from '@rajyarank/auth';
-import type { EnrollStudent, StudentListItem } from '@rajyarank/contracts';
+import type { EnrollStudent, IndependentStudentListItem, StudentListItem } from '@rajyarank/contracts';
 import { ENV } from '../config/config.module';
 import type { ApiEnv } from '@rajyarank/config/env';
 import { PrismaService } from '../prisma/prisma.service';
@@ -55,6 +55,53 @@ export class StudentsService {
       email: u.email,
       status: u.status,
       lastLoginAt: u.lastLoginAt?.toISOString() ?? null,
+    }));
+  }
+
+  /**
+   * Platform-wide oversight list, not an institution roster: every student
+   * who signed up directly (Create new account) and has never joined an
+   * institute via an access code — orgId IS NULL. Gated on support.manage,
+   * not user.manage, so it stays reachable to Super Admin (who deliberately
+   * lacks user.manage) without handing them the org-scoped roster's
+   * enroll/disable/reset actions. See customer-lookup for the same pattern
+   * applied to a single-student deep-dive instead of a browsable list.
+   */
+  async listIndependent(search?: string, from?: string, to?: string): Promise<IndependentStudentListItem[]> {
+    const createdAt: { gte?: Date; lte?: Date } = {};
+    if (from) createdAt.gte = new Date(`${from}T00:00:00.000Z`);
+    if (to) createdAt.lte = new Date(`${to}T23:59:59.999Z`);
+
+    const students = await this.prisma.user.findMany({
+      where: {
+        kind: 'STUDENT',
+        deletedAt: null,
+        orgId: null,
+        ...(Object.keys(createdAt).length ? { createdAt } : {}),
+        ...(search
+          ? {
+              OR: [
+                { phone: { contains: search } },
+                { email: { contains: search, mode: 'insensitive' } },
+                { displayName: { contains: search, mode: 'insensitive' } },
+                { studentProfile: { fullName: { contains: search, mode: 'insensitive' } } },
+              ],
+            }
+          : {}),
+      },
+      include: { studentProfile: true, referredByOrg: { select: { name: true } } },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+    });
+    return students.map((u) => ({
+      id: u.id,
+      fullName: u.studentProfile?.fullName ?? u.displayName ?? '',
+      phone: u.phone ?? '',
+      email: u.email,
+      status: u.status,
+      createdAt: u.createdAt.toISOString(),
+      lastLoginAt: u.lastLoginAt?.toISOString() ?? null,
+      referredByOrgName: u.referredByOrg?.name ?? null,
     }));
   }
 

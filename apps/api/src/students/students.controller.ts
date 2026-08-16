@@ -16,6 +16,18 @@ export class StudentsController {
     return this.students.list(principal, search);
   }
 
+  // Platform-wide, not org-scoped — see StudentsService#listIndependent for
+  // why this is gated on support.manage rather than user.manage.
+  @Get('independent')
+  @RequirePermission('support.manage')
+  listIndependent(
+    @Query('search') search?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.students.listIndependent(search, from, to);
+  }
+
   @Post()
   @RequirePermission('user.manage')
   enroll(
