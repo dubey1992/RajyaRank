@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Alert, Button, Field, Toast } from '@rajyarank/ui';
 import { apiFetch, type ApiError } from '@/lib/api';
@@ -94,6 +94,7 @@ export function CourseStudioShell({
   const [basicsBusy, setBasicsBusy] = useState(false);
 
   const [audience, setAudience] = useState<Audience>('PUBLIC_AND_INSTITUTE');
+  const [audienceBusy, setAudienceBusy] = useState(false);
 
   const [coursePromiseHi, setCoursePromiseHi] = useState('');
   const [coursePromiseEn, setCoursePromiseEn] = useState('');
@@ -115,31 +116,16 @@ export function CourseStudioShell({
   });
   const step = steps[Math.min(stepIndex, steps.length - 1)];
 
-  // Audience has no persisted field of its own — it's only mapped to
-  // `visibility` at publish time (Review step). Since `visibility` stays
-  // PRIVATE right up until that publish action, re-deriving it from the
-  // server on every refresh (e.g. after adding a curriculum item) would
-  // silently clobber whatever the user picked in the Audience step. Derive
-  // it from the server exactly once per mount, never again.
-  //
-  // …and only when `visibility` actually carries a user decision. A course
-  // that has never been published is DRAFT + PRIVATE purely from the Prisma
-  // defaults, which is indistinguishable from a deliberate "Institute only"
-  // choice — so gate on status too (publish sets ACTIVE and nothing moves a
-  // course back to DRAFT). Without that gate every new course opened the
-  // Audience step on INSTITUTE_ONLY, overriding the PUBLIC_AND_INSTITUTE
-  // default above.
-  const audienceHydrated = useRef(false);
-
+  // Audience is just a friendlier label over `visibility`, which the
+  // Audience step now saves immediately on "Next" (like every other step —
+  // see goNext()) instead of deferring to the publish action. Since it's
+  // genuinely persisted the moment the user leaves the step, re-deriving it
+  // from the server on every load is safe and always correct — no more
+  // guessing from status, and nothing left to clobber.
   function hydrate(c: StudioCourse) {
     setCode(c.code); setStateId(c.stateId ?? ''); setExamId(c.examId ?? '');
     setTitleHi(c.titleHi); setTitleEn(c.titleEn); setDescHi(c.descHi ?? ''); setDescEn(c.descEn ?? '');
-    if (!audienceHydrated.current) {
-      setAudience(
-        c.orgId && c.status !== 'DRAFT' && c.visibility === 'PRIVATE' ? 'INSTITUTE_ONLY' : 'PUBLIC_AND_INSTITUTE',
-      );
-      audienceHydrated.current = true;
-    }
+    setAudience(c.orgId && c.visibility === 'PRIVATE' ? 'INSTITUTE_ONLY' : 'PUBLIC_AND_INSTITUTE');
     setCoursePromiseHi(c.coursePromiseHi ?? ''); setCoursePromiseEn(c.coursePromiseEn ?? '');
     setOutcomes(c.learningOutcomes.length ? c.learningOutcomes : ['']);
     setDailyMinutes(c.recommendedDailyStudyMinutes ? String(c.recommendedDailyStudyMinutes) : '');
@@ -210,6 +196,22 @@ export function CourseStudioShell({
         return;
       }
       setBasicsBusy(false);
+    }
+
+    if (step === 'audience' && courseId) {
+      setAudienceBusy(true);
+      try {
+        await apiFetch(`/admin/courses/${courseId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ visibility: audience === 'INSTITUTE_ONLY' ? 'PRIVATE' : 'PUBLIC' }),
+        });
+        setToast(L('सहेजा गया।', 'Saved.'));
+      } catch (e) {
+        setError((e as ApiError).message ?? L('सहेजना विफल रहा।', 'Save failed.'));
+        setAudienceBusy(false);
+        return;
+      }
+      setAudienceBusy(false);
     }
 
     if (step === 'learningDesign' && courseId) {
@@ -534,7 +536,7 @@ export function CourseStudioShell({
           {stepIndex === 0 ? L('रद्द करें', 'Cancel') : L('पीछे', 'Back')}
         </Button>
         {step !== 'review' ? (
-          <Button onClick={() => void goNext()} loading={basicsBusy || designBusy} disabled={!canAdvance()} className="text-sm">
+          <Button onClick={() => void goNext()} loading={basicsBusy || audienceBusy || designBusy} disabled={!canAdvance()} className="text-sm">
             {L('आगे', 'Next')}
           </Button>
         ) : null}
