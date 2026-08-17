@@ -66,8 +66,14 @@ export class StudentsService {
    * lacks user.manage) without handing them the org-scoped roster's
    * enroll/disable/reset actions. See customer-lookup for the same pattern
    * applied to a single-student deep-dive instead of a browsable list.
+   *
+   * Also explicitly Super-Admin-only, even though Support Agent and Academic
+   * Head both hold support.manage too — this list is platform oversight
+   * tooling for Super Admin specifically, not a general support feature.
    */
-  async listIndependent(search?: string, from?: string, to?: string): Promise<IndependentStudentListItem[]> {
+  async listIndependent(actor: Principal, search?: string, from?: string, to?: string): Promise<IndependentStudentListItem[]> {
+    if (!actor.isSuperAdmin) throw AppError.permissionDenied('Super Admin only.');
+
     const createdAt: { gte?: Date; lte?: Date } = {};
     if (from) createdAt.gte = new Date(`${from}T00:00:00.000Z`);
     if (to) createdAt.lte = new Date(`${to}T23:59:59.999Z`);

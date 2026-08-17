@@ -2,7 +2,6 @@ import { cookies } from 'next/headers';
 import { resolveLocale } from '@/lib/i18n';
 import { getMeOrRedirect } from '@/lib/auth';
 import { apiFetchServer } from '@/lib/api';
-import { can } from '@/lib/permissions';
 import { Shell } from '@/components/Shell';
 import { AccessDenied } from '@/components/AccessDenied';
 import { IndependentStudentsManager } from '@/components/IndependentStudentsManager';
@@ -16,10 +15,13 @@ export default async function IndependentStudentsPage({ params }: { params: { lo
   const me = await getMeOrRedirect(locale);
   const title = hi ? 'स्वतंत्र छात्र' : 'Independent Students';
 
-  if (!can(me, 'support.manage')) {
+  // Super-Admin-only, not general support.manage — see Shell.tsx's nav entry
+  // for this page and students.service.ts#listIndependent for the matching
+  // server-side check.
+  if (!me.roleKeys.includes('SUPER_ADMIN')) {
     return (
       <Shell me={me} locale={locale} title={title}>
-        <AccessDenied locale={locale} permission="support.manage" />
+        <AccessDenied locale={locale} />
       </Shell>
     );
   }
