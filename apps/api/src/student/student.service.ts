@@ -319,7 +319,12 @@ export class StudentService {
   /** Enrolled courses (active entitlement) with real completion progress. */
   async myCourses(p: Principal): Promise<StudentCourseSummary[]> {
     const userId = this.studentId(p);
-    const ents = await this.prisma.entitlement.findMany({ where: { userId, status: 'ACTIVE', courseId: { not: null } } });
+    // status: 'ACTIVE' alone isn't enough — nothing flips it to EXPIRED when
+    // endsAt passes, so a lapsed entitlement stays ACTIVE in the row until
+    // something else touches it. Same live-check as hasCourseAccess/dashboard.
+    const ents = await this.prisma.entitlement.findMany({
+      where: { userId, status: 'ACTIVE', courseId: { not: null }, OR: [{ endsAt: null }, { endsAt: { gt: new Date() } }] },
+    });
     const courseIds = [...new Set(ents.map((e) => e.courseId).filter((c): c is string => !!c))];
     if (!courseIds.length) return [];
 
@@ -408,8 +413,15 @@ export class StudentService {
       orderBy: { sequence: 'asc' },
     });
     if (!courses.length) return [];
+    // Same expiry gap as myCourses() above — status alone doesn't reflect
+    // whether endsAt has actually passed.
     const entitlements = await this.prisma.entitlement.findMany({
-      where: { userId, status: 'ACTIVE', courseId: { in: courses.map((c) => c.id) } },
+      where: {
+        userId,
+        status: 'ACTIVE',
+        courseId: { in: courses.map((c) => c.id) },
+        OR: [{ endsAt: null }, { endsAt: { gt: new Date() } }],
+      },
       select: { courseId: true },
     });
     const entitledSet = new Set(entitlements.map((e) => e.courseId));
