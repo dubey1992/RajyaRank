@@ -65,7 +65,11 @@ const NAV: NavItem[] = [
   { href: '/admin/payments', label: { hi: 'भुगतान प्रबंधन', en: 'Manage Payments' }, show: (me) => can(me, 'payment.manage') },
   { href: '/admin/support', label: { hi: 'सहायता', en: 'Support' }, show: (me) => can(me, 'support.manage') },
   { href: '/admin/customer-lookup', label: { hi: 'ग्राहक खोज', en: 'Customer Lookup' }, show: (me) => can(me, 'support.manage') },
-  { href: '/admin/independent-students', label: { hi: 'स्वतंत्र छात्र', en: 'Independent Students' }, show: (me) => can(me, 'support.manage') },
+  // Super-Admin-only oversight tool, not a general support.manage feature —
+  // deliberately role-checked rather than permission-checked, even though
+  // Support Agent/Academic Head also hold support.manage (see below, and
+  // students.service.ts#listIndependent for the matching server-side check).
+  { href: '/admin/independent-students', label: { hi: 'स्वतंत्र छात्र', en: 'Independent Students' }, show: (me) => me.roleKeys.includes('SUPER_ADMIN') },
   { href: '/admin/ratings', label: { hi: 'रेटिंग मॉडरेशन', en: 'Ratings Moderation' }, show: (me) => can(me, 'support.manage') },
   { href: '/admin/refunds', label: { hi: 'धनवापसी प्रबंधन', en: 'Refund Management' }, show: (me) => can(me, 'payment.manage') },
   { href: '/admin/activities', label: { hi: 'हाल की गतिविधियाँ', en: 'Recent Activities' }, show: (me) => can(me, 'audit.view') },

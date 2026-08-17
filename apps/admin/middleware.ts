@@ -24,6 +24,12 @@ function buildCsp(nonce: string): string {
     "style-src 'self' 'unsafe-inline'",
     scriptSrc,
     `connect-src 'self' ${api} ${storage} https://api.razorpay.com https://lumberjack.razorpay.com`,
+    // The "How it works?" onboarding video plays directly from a presigned
+    // storage URL (same origin as the upload path above) — without this,
+    // media-src falls back to default-src 'self' and the <video> silently
+    // fails to load (no console-visible error to the end user, it just
+    // renders an empty player).
+    `media-src 'self' ${storage}`,
     'frame-src https://api.razorpay.com https://checkout.razorpay.com',
     "object-src 'none'",
     "base-uri 'self'",

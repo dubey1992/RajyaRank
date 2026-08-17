@@ -16,16 +16,19 @@ export class StudentsController {
     return this.students.list(principal, search);
   }
 
-  // Platform-wide, not org-scoped — see StudentsService#listIndependent for
-  // why this is gated on support.manage rather than user.manage.
+  // Platform-wide, not org-scoped — gated on support.manage (which Super
+  // Admin holds without needing user.manage) PLUS an explicit isSuperAdmin
+  // check in the service, since Support Agent and Academic Head also hold
+  // support.manage but must not see this Super-Admin-only oversight list.
   @Get('independent')
   @RequirePermission('support.manage')
   listIndependent(
+    @CurrentPrincipal() principal: Principal,
     @Query('search') search?: string,
     @Query('from') from?: string,
     @Query('to') to?: string,
   ) {
-    return this.students.listIndependent(search, from, to);
+    return this.students.listIndependent(principal, search, from, to);
   }
 
   @Post()
