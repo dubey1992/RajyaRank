@@ -131,6 +131,19 @@ export class PaymentsService {
     });
     if (existingEntitlement) throw AppError.conflict('You already have an active plan for this product.');
 
+    // Free (accessType FREE, priced ₹0) courses are a subscriber perk, not
+    // open enrollment — without this, any logged-in student could claim one
+    // instantly via the amountMinor <= 0 fast path below regardless of
+    // whether they hold a plan at all. Scoped to accessType FREE specifically
+    // (not a coupon that merely discounts an otherwise-paid course to zero —
+    // that's a separate, intentional promotion flow).
+    if (product.kind === 'COURSE' && product.accessType === 'FREE') {
+      const hasActivePlan = await this.entitlements.hasAnyActiveSubscription(principal.userId);
+      if (!hasActivePlan) {
+        throw AppError.conflict('An active Subscription Plan is required to enroll in this free course.');
+      }
+    }
+
     // Coupons are a course-purchase concept only (Coupon.courseId scopes
     // them there) — nothing stops a sitewide, non-course-scoped coupon
     // (courseId null) from matching a SUBSCRIPTION product's checkout too,

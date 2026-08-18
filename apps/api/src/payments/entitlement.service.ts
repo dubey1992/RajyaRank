@@ -129,6 +129,18 @@ export class EntitlementService {
     return Boolean(subscription);
   }
 
+  /** Does the user hold ANY currently-active Subscription Plan (Pro or Plus,
+   *  regardless of which exam) — used by PaymentsService to gate free
+   *  (accessType FREE, ₹0) course claims. Those exist as a subscriber perk,
+   *  not open enrollment, so a student with no plan at all shouldn't be able
+   *  to claim one via the ≤0 instant-checkout path. */
+  async hasAnyActiveSubscription(userId: string): Promise<boolean> {
+    const subscription = await this.prisma.entitlement.findFirst({
+      where: { userId, ...this.activeWhere(), product: { kind: 'SUBSCRIPTION' } },
+    });
+    return Boolean(subscription);
+  }
+
   private activeWhere() {
     const now = new Date();
     return { status: 'ACTIVE' as const, OR: [{ endsAt: null }, { endsAt: { gt: now } }] };
