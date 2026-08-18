@@ -64,6 +64,10 @@ const NAV: NavItem[] = [
   { href: '/admin/mock-tests', label: { hi: 'मॉक टेस्ट', en: 'Mock Tests' }, show: (me) => can(me, 'test.create') || can(me, 'content.approve') },
   { href: '/admin/payments', label: { hi: 'भुगतान प्रबंधन', en: 'Manage Payments' }, show: (me) => can(me, 'payment.manage') },
   { href: '/admin/support', label: { hi: 'सहायता', en: 'Support' }, show: (me) => can(me, 'support.manage') },
+  // Separate from Support above — Teacher/Content Admin/Academic Reviewer
+  // hold doubt.respond but not support.manage, and still need their own
+  // queue (see doubts/page.tsx for the matching server-side gate).
+  { href: '/admin/doubts', label: { hi: 'शंका समाधान', en: 'Doubt Queue' }, show: (me) => can(me, 'doubt.respond') },
   { href: '/admin/customer-lookup', label: { hi: 'ग्राहक खोज', en: 'Customer Lookup' }, show: (me) => can(me, 'support.manage') },
   // Super-Admin-only oversight tool, not a general support.manage feature —
   // deliberately role-checked rather than permission-checked, even though
