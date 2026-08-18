@@ -2,7 +2,6 @@ import { cookies } from 'next/headers';
 import { resolveLocale } from '@/lib/i18n';
 import { getMeOrRedirect } from '@/lib/auth';
 import { apiFetchServer } from '@/lib/api';
-import { can } from '@/lib/permissions';
 import { Shell } from '@/components/Shell';
 import { AccessDenied } from '@/components/AccessDenied';
 import { TicketPanel } from '@/components/TicketPanel';
@@ -18,23 +17,27 @@ export default async function SupportPage({ params }: { params: { locale: string
   const hi = locale === 'hi';
 
   const me = await getMeOrRedirect(locale);
+  const isInternalStaff = me.roleKeys.some((r) => r === 'SUPPORT_AGENT' || r === 'SUPER_ADMIN');
 
-  if (!can(me, 'support.manage')) {
+  // Support Agent + Super Admin only — Academic Head held support.manage too
+  // (for Customer Lookup/Ratings Moderation, unrelated to this page) but no
+  // longer gets the ticket queue itself; they handle lesson doubts via
+  // Doubt Queue instead. Role-checked, matching support.service.ts and
+  // Shell.tsx's nav gate. isInternalStaff already expresses exactly this
+  // set, so it doubles as both the page gate and the tab-visibility check
+  // below (Contact Messages/Demo Requests were already internal-staff-only).
+  if (!isInternalStaff) {
+    // No `permission` prop here on purpose — an Academic Head hitting this
+    // gate genuinely holds support.manage (for Customer Lookup/Ratings), so
+    // "Required permission: support.manage" would tell them they're missing
+    // something they already have. This gate is role-based, not a missing
+    // permission.
     return (
       <Shell me={me} locale={locale} title="Support Queue">
-        <AccessDenied locale={locale} permission="support.manage" />
+        <AccessDenied locale={locale} />
       </Shell>
     );
   }
-
-  // Contact Messages + Demo Requests are RajyaRank's own sales/support leads
-  // (public-site "book a demo" / "contact us" submissions, unrelated to any
-  // institute) — only SUPPORT_AGENT/SUPER_ADMIN should see them. An Academic
-  // Head also holds support.manage (for their institute's own ticket queue),
-  // but seeing every prospective institution's leads is unusable noise for
-  // that role, so those two tabs stay hidden for anyone who isn't internal
-  // RajyaRank staff.
-  const isInternalStaff = me.roleKeys.some((r) => r === 'SUPPORT_AGENT' || r === 'SUPER_ADMIN');
 
   const cookie = cookies().toString();
   const [tickets, contactMessages, demoRequests] = await Promise.all([

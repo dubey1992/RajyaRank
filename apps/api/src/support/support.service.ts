@@ -57,7 +57,21 @@ export class SupportService {
   }
 
   // ── Staff (support.manage) ──
+  // support.manage is also held by Academic Head (for Customer Lookup and
+  // Ratings Moderation, both unrelated to this queue) and by Super Admin —
+  // but the ticket queue itself is Support Agent + Super Admin only.
+  // Academic Head handles lesson doubts via the separate Doubt Queue
+  // (doubt.respond) instead. Narrower than the broad support.manage grant,
+  // same defense-in-depth pattern as StudentsService.listIndependent's
+  // explicit isSuperAdmin check.
+  private assertSupportStaff(p: Principal) {
+    if (!p.isSuperAdmin && !p.roleKeys.includes('SUPPORT_AGENT')) {
+      throw AppError.permissionDenied('Support Agent or Super Admin required.');
+    }
+  }
+
   async staffList(p: Principal, status?: string) {
+    this.assertSupportStaff(p);
     const orgScoped = !p.isSuperAdmin && !!p.orgId;
     const tickets = await this.prisma.supportTicket.findMany({
       where: {
@@ -111,6 +125,7 @@ export class SupportService {
   }
 
   private async requireTicket(p: Principal, id: string) {
+    this.assertSupportStaff(p);
     const orgScoped = !p.isSuperAdmin && !!p.orgId;
     const ticket = await this.prisma.supportTicket.findFirst({ where: { id, ...(orgScoped ? { orgId: p.orgId } : {}) } });
     if (!ticket) throw AppError.notFound('Ticket not found.');

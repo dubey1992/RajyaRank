@@ -53,7 +53,10 @@ export default async function AdminDashboard({ params }: { params: { locale: str
     { href: '/admin/courses', label: hi ? 'कोर्स' : 'Courses', show: can(me, 'course.manage') },
     { href: showsMergedContent(me) ? '/admin/manage-content' : '/admin/content', label: hi ? 'कंटेंट' : 'Content', show: can(me, 'content.edit_all') || can(me, 'content.review') },
     { href: '/admin/question-bank', label: hi ? 'प्रश्न बैंक' : 'Question Bank', show: can(me, 'question.create') },
-    { href: '/admin/support', label: hi ? 'सहायता' : 'Support', show: can(me, 'support.manage') },
+    // Support Agent + Super Admin only — matches Shell.tsx's nav gate and
+    // support/page.tsx's own access check, not the broader support.manage
+    // permission (still held by Academic Head for Customer Lookup/Ratings).
+    { href: '/admin/support', label: hi ? 'सहायता' : 'Support', show: me.roleKeys.includes('SUPPORT_AGENT') || isSuper },
   ];
 
   return (
