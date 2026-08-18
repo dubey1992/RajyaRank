@@ -77,10 +77,27 @@ export class QuestionBankService {
     return sha256(norm);
   }
 
+  /** duplicateFingerprint was being stored on every question but nothing ever
+   *  checked it — a CSV re-upload (or two near-identical rows in the same
+   *  file) silently created another DRAFT with the same type + question
+   *  text, cluttering the review queue with copies. Scoped to the subject
+   *  (not global) so the same question text legitimately reused across
+   *  unrelated subjects isn't blocked. Runs per-row inside import()'s loop,
+   *  so it also catches duplicates *within* the same upload, not just
+   *  against what was already in the bank. */
+  private async rejectDuplicate(subjectId: string, dto: Pick<CreateQuestion, 'type' | 'textEn' | 'textHi'>) {
+    const existing = await this.prisma.question.findFirst({
+      where: { subjectId, duplicateFingerprint: this.fingerprint(dto), deletedAt: null },
+      select: { id: true },
+    });
+    if (existing) throw AppError.conflict('A question with this exact text already exists in this subject.');
+  }
+
   async create(principal: Principal, dto: CreateQuestion) {
     const scope = await this.subjectScope(dto.subjectId);
     this.authorize(principal, 'question.create', scope);
     validateAnswerShape(dto.type, dto.options, dto.correctAnswer); // throws on invalid
+    await this.rejectDuplicate(scope.subjectId, dto);
 
     const question = await this.prisma.$transaction((tx) => this.createInTx(tx, principal, dto, 'DRAFT'));
     await this.audit.record({ actorUserId: principal.userId, action: 'question.create', targetType: 'Question', targetId: question.id, result: 'SUCCESS' });
