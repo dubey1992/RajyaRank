@@ -44,6 +44,12 @@ export class QuestionBankController {
     return this.qb.submit(p, id);
   }
 
+  @Post('versions/:id/start-review')
+  @RequirePermission('content.review')
+  startReview(@CurrentPrincipal() p: Principal, @Param('id') id: string) {
+    return this.qb.startReview(p, id);
+  }
+
   @Post('versions/:id/approve')
   @RequirePermission('content.approve')
   approve(@CurrentPrincipal() p: Principal, @Param('id') id: string) {

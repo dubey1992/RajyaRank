@@ -7,13 +7,9 @@ import { Shell } from '@/components/Shell';
 import { AccessDenied } from '@/components/AccessDenied';
 import { QuickQuestionForm } from '@/components/QuickQuestionForm';
 import { QuestionImport } from '@/components/QuestionImport';
+import { QuestionBankBrowser, type QuestionItem } from '@/components/QuestionBankBrowser';
 
 export const dynamic = 'force-dynamic';
-
-interface QItem {
-  id: string;
-  currentVersion: { id: string; type: string; textEn: string | null; textHi: string | null; status: string; difficulty: string; marks: number } | null;
-}
 
 export default async function QuestionBankPage({ params }: { params: { locale: string } }) {
   const locale = resolveLocale(params.locale);
@@ -28,7 +24,7 @@ export default async function QuestionBankPage({ params }: { params: { locale: s
     );
   }
 
-  const questions = (await apiFetchServer<QItem[]>('/staff/questions', cookies().toString())) ?? [];
+  const questions = (await apiFetchServer<QuestionItem[]>('/staff/questions', cookies().toString())) ?? [];
 
   return (
     <Shell me={me} locale={locale} title={hi ? 'प्रश्न बैंक' : 'Question Bank'}>
@@ -41,25 +37,13 @@ export default async function QuestionBankPage({ params }: { params: { locale: s
           <h2 className="mb-3 text-lg font-extrabold text-navy-900">
             {hi ? 'प्रश्न' : 'Questions'} ({questions.length})
           </h2>
-          {questions.length === 0 ? (
-            <p className="text-sm text-muted">
-              {hi
-                ? 'अभी कोई प्रश्न नहीं। बाईं ओर से एक प्रश्न बनाएँ, या CSV बल्क-इम्पोर्ट का उपयोग करें।'
-                : 'No questions yet. Create one on the left, or use CSV bulk-import.'}
-            </p>
-          ) : (
-            <ul className="grid gap-2 text-sm">
-              {questions.map((q) => (
-                <li key={q.id} className="rounded-md border border-line bg-white p-3">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-ink">{(hi ? q.currentVersion?.textHi : q.currentVersion?.textEn) ?? q.currentVersion?.textEn ?? q.currentVersion?.textHi ?? '—'}</span>
-                    <span className="rounded-full bg-line px-2 py-0.5 text-xs font-extrabold">{q.currentVersion?.status}</span>
-                  </div>
-                  <div className="text-xs text-muted">{q.currentVersion?.type} · {q.currentVersion?.difficulty} · {q.currentVersion?.marks} mark(s)</div>
-                </li>
-              ))}
-            </ul>
-          )}
+          <QuestionBankBrowser
+            questions={questions}
+            locale={locale}
+            canSubmit={can(me, 'question.create')}
+            canReview={can(me, 'content.review')}
+            canApprove={can(me, 'content.approve')}
+          />
         </section>
       </div>
     </Shell>
