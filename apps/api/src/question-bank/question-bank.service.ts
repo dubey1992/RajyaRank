@@ -67,8 +67,8 @@ export class QuestionBankService {
     throw AppError.notFound(`Topic not found: "${topicIdOrName}" in this subject. Use the topic's ID, its exact name, or leave it blank.`);
   }
 
-  private authorize(principal: Principal, permission: string, scope: object, status?: string) {
-    const decision = this.authz.check(principal, permission, { type: 'question', status, scope });
+  private authorize(principal: Principal, permission: string, scope: object, status?: string, assurance?: 'AAL2') {
+    const decision = this.authz.check(principal, permission, { type: 'question', status, scope }, assurance);
     if (!decision.allow) throw AppError.permissionDenied(decision.reason);
   }
 
@@ -215,6 +215,40 @@ export class QuestionBankService {
     });
     await this.audit.record({ actorUserId: principal.userId, action: 'question.approved', targetType: 'QuestionVersion', targetId: versionId, result: 'SUCCESS' });
     return updated;
+  }
+
+  /** Soft-delete (Question.deletedAt) — the checkbox-select bulk-delete CTA
+   *  in the admin's Question Bank browser, replacing the one-off production
+   *  cleanup script this same operation previously required. Every place
+   *  questions are shown (Question Bank, Manage Tests tab, the Mock Test
+   *  question picker) already filters on deletedAt: null, so this clears
+   *  them everywhere at once; already-built Mock Tests are unaffected since
+   *  TestQuestion references QuestionVersion directly, not gated on the
+   *  parent Question's deletedAt.
+   *
+   *  Requires AAL2 (recent MFA) — same step-up bar content.archive already
+   *  carries for Lessons/Current Affairs/Official Notices
+   *  (content-workflow.service.ts's archive()), since this is a destructive,
+   *  cross-question action. Authorization is checked per question BEFORE any
+   *  row is deleted (all-or-nothing) — a batch that includes even one
+   *  out-of-scope question id is rejected whole, not silently partial. */
+  async bulkDelete(principal: Principal, questionIds: string[]): Promise<{ deleted: number }> {
+    const questions = await this.prisma.question.findMany({ where: { id: { in: questionIds }, deletedAt: null } });
+    for (const q of questions) {
+      this.authorize(principal, 'content.archive', await this.subjectScope(q.subjectId), undefined, 'AAL2');
+    }
+    if (!questions.length) return { deleted: 0 };
+    const result = await this.prisma.question.updateMany({
+      where: { id: { in: questions.map((q) => q.id) } },
+      data: { deletedAt: new Date() },
+    });
+    await this.audit.record({
+      actorUserId: principal.userId,
+      action: 'question.bulk_deleted',
+      result: 'SUCCESS',
+      after: { count: result.count, questionIds: questions.map((q) => q.id) },
+    });
+    return { deleted: result.count };
   }
 
   /** Bulk import with per-row validation; valid rows are inserted, invalid rows reported. */

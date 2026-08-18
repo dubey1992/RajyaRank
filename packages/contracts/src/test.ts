@@ -48,6 +48,9 @@ export const importResultSchema = z.object({
 });
 export type ImportResult = z.infer<typeof importResultSchema>;
 
+export const bulkDeleteQuestionsSchema = z.object({ questionIds: z.array(z.string().uuid()).min(1) });
+export type BulkDeleteQuestions = z.infer<typeof bulkDeleteQuestionsSchema>;
+
 // ── Test builder ────────────────────────────────────────────────────────────
 export const createTestSchema = z.object({
   examId: z.string().uuid(),

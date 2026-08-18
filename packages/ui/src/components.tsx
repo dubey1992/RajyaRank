@@ -5,7 +5,7 @@ function cx(...parts: Array<string | false | undefined>): string {
 }
 
 type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: 'primary' | 'secondary' | 'outline';
+  variant?: 'primary' | 'secondary' | 'outline' | 'danger';
   loading?: boolean;
 };
 
@@ -16,6 +16,7 @@ export function Button({ variant = 'primary', loading, className, children, ...r
     primary: 'bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-60',
     secondary: 'bg-navy-900 text-white hover:bg-navy-800 disabled:opacity-60',
     outline: 'border border-line bg-white text-navy-900 hover:bg-surface-soft',
+    danger: 'bg-danger text-white hover:opacity-90 disabled:opacity-60',
   };
   return (
     <button

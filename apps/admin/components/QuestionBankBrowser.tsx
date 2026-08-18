@@ -49,12 +49,14 @@ export function QuestionBankBrowser({
   canSubmit,
   canReview,
   canApprove,
+  canDelete,
 }: {
   questions: QuestionItem[];
   locale?: string;
   canSubmit: boolean;
   canReview: boolean;
   canApprove: boolean;
+  canDelete?: boolean;
 }) {
   const hi = locale === 'hi';
   const L = (h: string, e: string) => (hi ? h : e);
@@ -62,6 +64,43 @@ export function QuestionBankBrowser({
   const [openCourseId, setOpenCourseId] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
+
+  function toggleSelected(questionId: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(questionId)) next.delete(questionId);
+      else next.add(questionId);
+      return next;
+    });
+  }
+
+  async function deleteSelected() {
+    const count = selected.size;
+    if (!count) return;
+    const ok = window.confirm(
+      L(
+        `${count} प्रश्न स्थायी रूप से हटाएँ? यह क्रिया पूर्ववत नहीं की जा सकती।`,
+        `Delete ${count} question(s)? This cannot be undone from the UI.`,
+      ),
+    );
+    if (!ok) return;
+    setDeleting(true);
+    setError(null);
+    try {
+      await apiFetch('/staff/questions/bulk-delete', {
+        method: 'POST',
+        body: JSON.stringify({ questionIds: [...selected] }),
+      });
+      setSelected(new Set());
+      router.refresh();
+    } catch (e) {
+      setError((e as ApiError).message ?? L('हटाना विफल रहा।', 'Delete failed.'));
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   const courses = useMemo(() => {
     const byId = new Map<string, { id: string; code: string; title: string; count: number }>();
@@ -112,6 +151,25 @@ export function QuestionBankBrowser({
   return (
     <div className="grid gap-2">
       {error ? <Alert tone="error">{error}</Alert> : null}
+      {canDelete ? (
+        <div className="flex items-center justify-between gap-3 rounded-md border border-line bg-white p-3">
+          <span className="text-xs text-muted">
+            {selected.size
+              ? L(`${selected.size} चयनित`, `${selected.size} selected`)
+              : L('हटाने के लिए प्रश्न चुनें।', 'Select questions to delete.')}
+          </span>
+          <Button
+            type="button"
+            variant="danger"
+            loading={deleting}
+            disabled={selected.size === 0}
+            onClick={() => void deleteSelected()}
+            className="min-h-[32px] px-3 text-xs"
+          >
+            {L(`चयनित हटाएँ (${selected.size})`, `Delete selected (${selected.size})`)}
+          </Button>
+        </div>
+      ) : null}
       {courses.map((c) => (
         <div key={c.id} className="rounded-md border border-line bg-white">
           <button
@@ -140,6 +198,9 @@ export function QuestionBankBrowser({
                   onSubmit={() => q.currentVersion && void submitForReview(q.currentVersion.id)}
                   onStartReview={() => q.currentVersion && void startReview(q.currentVersion.id)}
                   onApprove={() => q.currentVersion && void approve(q.currentVersion.id)}
+                  canDelete={canDelete}
+                  selected={selected.has(q.id)}
+                  onToggleSelected={() => toggleSelected(q.id)}
                 />
               ))}
             </ul>
@@ -184,6 +245,9 @@ function QuestionRow({
   onSubmit,
   onStartReview,
   onApprove,
+  canDelete,
+  selected,
+  onToggleSelected,
 }: {
   q: QuestionItem;
   hi: boolean;
@@ -195,6 +259,9 @@ function QuestionRow({
   onSubmit: () => void;
   onStartReview: () => void;
   onApprove: () => void;
+  canDelete?: boolean;
+  selected?: boolean;
+  onToggleSelected?: () => void;
 }) {
   const status = q.currentVersion?.status ?? 'DRAFT';
   const showSubmit = canSubmit && (status === 'DRAFT' || status === 'CORRECTION_REQUIRED');
@@ -203,7 +270,16 @@ function QuestionRow({
   return (
     <li className="rounded-md border border-line bg-surface-soft p-3">
       <div className="flex items-start justify-between gap-3">
-        <span className="text-sm font-bold text-ink">
+        <span className="flex items-start gap-2 text-sm font-bold text-ink">
+          {canDelete ? (
+            <input
+              type="checkbox"
+              checked={selected ?? false}
+              onChange={onToggleSelected}
+              aria-label={L('यह प्रश्न चुनें', 'Select this question')}
+              className="mt-0.5"
+            />
+          ) : null}
           {(hi ? q.currentVersion?.textHi : q.currentVersion?.textEn) ?? q.currentVersion?.textEn ?? q.currentVersion?.textHi ?? '—'}
         </span>
         <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-black ${STATUS_TONE[status] ?? 'bg-line'}`}>{status}</span>

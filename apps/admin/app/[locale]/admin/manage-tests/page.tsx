@@ -63,6 +63,7 @@ export default async function ManageTestsPage({ params }: { params: { locale: st
               canSubmit={can(me, 'question.create')}
               canReview={can(me, 'content.review')}
               canApprove={can(me, 'content.approve')}
+              canDelete={can(me, 'content.archive')}
             />
           </section>
         </div>
