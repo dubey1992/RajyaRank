@@ -146,7 +146,12 @@ export class QuestionBankService {
         ...(subjectId ? { subjectId } : {}),
         ...(orgScoped ? { subject: { course: { OR: [{ orgId: principal.orgId }, { orgId: null }] } } } : {}),
       },
-      include: { currentVersion: { select: { id: true, type: true, textHi: true, textEn: true, status: true, difficulty: true, marks: true } } },
+      include: {
+        currentVersion: { select: { id: true, type: true, textHi: true, textEn: true, status: true, difficulty: true, marks: true } },
+        // Course/subject grouping for the admin's Question Bank browser
+        // (Course -> Questions), not just a flat creation-order list.
+        subject: { select: { id: true, nameHi: true, nameEn: true, courseId: true, course: { select: { id: true, code: true, titleHi: true, titleEn: true } } } },
+      },
       orderBy: { createdAt: 'desc' },
       take: 100,
     });
@@ -159,10 +164,27 @@ export class QuestionBankService {
     return this.prisma.questionVersion.update({ where: { id: versionId }, data: { status: 'SUBMITTED' } });
   }
 
+  /** SUBMITTED -> UNDER_REVIEW, same intermediate step content-workflow.service.ts
+   *  uses for lessons (startReview). Required: the policy engine's
+   *  STATUS_ALLOWS only lets 'content.approve' act on UNDER_REVIEW, never
+   *  SUBMITTED directly — without this, a submitted question had no way to
+   *  ever reach APPROVED at all. */
+  async startReview(principal: Principal, versionId: string) {
+    const v = await this.loadVersion(versionId);
+    this.authorize(principal, 'content.review', await this.scopeOf(v.questionId), v.status);
+    if (v.status !== 'SUBMITTED') throw AppError.contentStateInvalid();
+    const updated = await this.prisma.questionVersion.update({ where: { id: versionId }, data: { status: 'UNDER_REVIEW' } });
+    await this.audit.record({ actorUserId: principal.userId, action: 'question.review_started', targetType: 'QuestionVersion', targetId: versionId, result: 'SUCCESS' });
+    return updated;
+  }
+
   async approve(principal: Principal, versionId: string) {
     const v = await this.loadVersion(versionId);
     this.authorize(principal, 'content.approve', await this.scopeOf(v.questionId), v.status);
-    if (v.status !== 'SUBMITTED' && v.status !== 'UNDER_REVIEW') throw AppError.contentStateInvalid();
+    // The policy engine's STATUS_ALLOWS for 'content.approve' already rejects
+    // anything but UNDER_REVIEW before this line runs — matched here rather
+    // than left permissive, so this guard means what it says.
+    if (v.status !== 'UNDER_REVIEW') throw AppError.contentStateInvalid();
     const updated = await this.prisma.questionVersion.update({
       where: { id: versionId },
       data: { status: 'APPROVED', approvedBy: principal.userId },
