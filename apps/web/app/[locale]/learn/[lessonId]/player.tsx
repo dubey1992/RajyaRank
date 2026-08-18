@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Alert } from '@rajyarank/ui';
 import { apiFetch, type ApiError } from '@/lib/api';
+import { AskDoubtModal } from '@/components/AskDoubtModal';
 import type { PlaybackTokenResponse } from '@rajyarank/contracts';
 
 // How often to report elapsed time back to the server while a lesson is open.
@@ -223,7 +224,7 @@ export function LessonPlayer({
             <button type="button" onClick={() => void toggleBookmark()} className={bookmarked ? 'inline-flex min-h-[40px] items-center gap-2 rounded-xl bg-orange-100 px-3.5 text-[11px] font-extrabold text-orange-600 transition hover:-translate-y-0.5' : toolBtn}>
               🔖 {bookmarked ? L('सेव किया गया', 'Bookmarked') : L('बुकमार्क', 'Bookmark')}
             </button>
-            <Link href={`/${locale}/doubts`} className={toolBtn}>❓ {L('डाउट पूछें', 'Ask doubt')}</Link>
+            <AskDoubtModal lessonId={lessonId} locale={locale} triggerClassName={toolBtn}>❓ {L('डाउट पूछें', 'Ask doubt')}</AskDoubtModal>
             <button
               type="button"
               onClick={() => void completeLesson(
@@ -251,7 +252,13 @@ export function LessonPlayer({
         <div className="rounded-[18px] border border-line bg-white p-5">
           <h3 className="text-sm font-black text-navy-900">{L('मदद चाहिए?', 'Need help?')}</h3>
           <p className="mt-1 text-[11px] text-muted">{L('इस पाठ से जुड़ा सवाल पूछें।', 'Ask a lesson-related doubt.')}</p>
-          <Link href={`/${locale}/doubts`} className="mt-3 inline-flex w-full items-center justify-center rounded-xl border border-line bg-white px-4 py-2.5 text-[11px] font-extrabold text-navy-900 transition hover:bg-surface-soft">❓ {L('डाउट पूछें', 'Ask a doubt')}</Link>
+          <AskDoubtModal
+            lessonId={lessonId}
+            locale={locale}
+            triggerClassName="mt-3 inline-flex w-full items-center justify-center rounded-xl border border-line bg-white px-4 py-2.5 text-[11px] font-extrabold text-navy-900 transition hover:bg-surface-soft"
+          >
+            ❓ {L('डाउट पूछें', 'Ask a doubt')}
+          </AskDoubtModal>
         </div>
       </aside>
     </div>
