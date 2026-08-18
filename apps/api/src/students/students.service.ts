@@ -202,6 +202,16 @@ export class StudentsService {
           include: { studentProfile: true },
         });
 
+    // Every other path that changes User.orgId (joinInstitution/
+    // leaveInstitution, patchStatus) invalidates the cached Principal
+    // afterward — this one didn't. Without it, a student re-attached here
+    // from being unaffiliated (wasUnaffiliatedReattach) keeps resolving
+    // requests against their stale pre-enrollment orgId for up to the 300s
+    // Redis TTL (authorization.service.ts), so anything they do in that
+    // window — e.g. submitting a doubt, which snapshots orgId once at
+    // creation and never re-derives it — gets permanently mis-scoped.
+    await this.authz.invalidate(user.id);
+
     await this.audit.record({
       actorUserId: actor.userId,
       action: 'student.enroll',
