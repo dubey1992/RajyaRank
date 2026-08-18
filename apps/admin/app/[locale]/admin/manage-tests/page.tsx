@@ -7,16 +7,12 @@ import { Shell } from '@/components/Shell';
 import { AccessDenied } from '@/components/AccessDenied';
 import { QuickQuestionForm } from '@/components/QuickQuestionForm';
 import { QuestionImport } from '@/components/QuestionImport';
+import { QuestionBankBrowser, type QuestionItem } from '@/components/QuestionBankBrowser';
 import { MockTestsManager } from '@/components/MockTestsManager';
 import { TabbedSections, type TabSection } from '@/components/TabbedSections';
 import type { TestListItem } from '@rajyarank/contracts';
 
 export const dynamic = 'force-dynamic';
-
-interface QItem {
-  id: string;
-  currentVersion: { id: string; type: string; textEn: string | null; textHi: string | null; status: string; difficulty: string; marks: number } | null;
-}
 
 /** Question bank + mock tests, merged into one page for anyone who'd
  *  otherwise see both as separate nav entries (see showsMergedTests in
@@ -39,13 +35,15 @@ export default async function ManageTestsPage({ params }: { params: { locale: st
 
   const cookie = cookies().toString();
   const [questions, tests] = await Promise.all([
-    canQuestions ? apiFetchServer<QItem[]>('/staff/questions', cookie) : Promise.resolve(null),
+    canQuestions ? apiFetchServer<QuestionItem[]>('/staff/questions', cookie) : Promise.resolve(null),
     canTests ? apiFetchServer<TestListItem[]>('/staff/tests', cookie) : Promise.resolve(null),
   ]);
 
   const sections: TabSection[] = [];
   if (canQuestions) {
-    const qs = questions ?? [];
+    // Same browser as the standalone /admin/question-bank page (Course ->
+    // Questions grouping + Submit/Start review/Approve) — this tab used to
+    // carry its own stale flat list with no review actions at all.
     sections.push({
       key: 'questions',
       label: hi ? 'प्रश्न बैंक' : 'Question Bank',
@@ -57,27 +55,15 @@ export default async function ManageTestsPage({ params }: { params: { locale: st
           </div>
           <section>
             <h2 className="mb-3 text-lg font-extrabold text-navy-900">
-              {hi ? 'प्रश्न' : 'Questions'} ({qs.length})
+              {hi ? 'प्रश्न' : 'Questions'} ({(questions ?? []).length})
             </h2>
-            {qs.length === 0 ? (
-              <p className="text-sm text-muted">
-                {hi
-                  ? 'अभी कोई प्रश्न नहीं। बाईं ओर से एक प्रश्न बनाएँ, या CSV बल्क-इम्पोर्ट का उपयोग करें।'
-                  : 'No questions yet. Create one on the left, or use CSV bulk-import.'}
-              </p>
-            ) : (
-              <ul className="grid gap-2 text-sm">
-                {qs.map((q) => (
-                  <li key={q.id} className="rounded-md border border-line bg-white p-3">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-ink">{(hi ? q.currentVersion?.textHi : q.currentVersion?.textEn) ?? q.currentVersion?.textEn ?? q.currentVersion?.textHi ?? '—'}</span>
-                      <span className="rounded-full bg-line px-2 py-0.5 text-xs font-extrabold">{q.currentVersion?.status}</span>
-                    </div>
-                    <div className="text-xs text-muted">{q.currentVersion?.type} · {q.currentVersion?.difficulty} · {q.currentVersion?.marks} mark(s)</div>
-                  </li>
-                ))}
-              </ul>
-            )}
+            <QuestionBankBrowser
+              questions={questions ?? []}
+              locale={locale}
+              canSubmit={can(me, 'question.create')}
+              canReview={can(me, 'content.review')}
+              canApprove={can(me, 'content.approve')}
+            />
           </section>
         </div>
       ),

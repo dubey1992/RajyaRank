@@ -96,12 +96,21 @@ export class TestBuilderService {
     // Bulk-uploaded rows: validate ALL up front (all-or-nothing) — quickCreate
     // is deliberately atomic (see its doc comment above), so a mid-list bad
     // row must never leave a test half-built with only some questions attached.
+    // Includes the same duplicate-question check question-bank.service.ts's
+    // create()/import() use — this path bypasses both by calling createInTx
+    // directly, so without this a bulk-uploaded quiz could silently attach
+    // (and auto-approve) exact repeats of questions already in the bank.
     if (dto.newQuestions.length) {
       const fieldErrors: { path: string; message: string }[] = [];
+      const seenInBatch = new Set<string>();
       for (const [i, row] of dto.newQuestions.entries()) {
         try {
           validateAnswerShape(row.type, row.options, row.correctAnswer);
-          await this.questionBank.subjectScope(row.subjectId); // throws if subject doesn't exist
+          const scope = await this.questionBank.subjectScope(row.subjectId); // throws if subject doesn't exist
+          const batchKey = `${scope.subjectId}:${this.questionBank.fingerprint(row)}`;
+          if (seenInBatch.has(batchKey)) throw AppError.conflict('Duplicate question within this upload.');
+          seenInBatch.add(batchKey);
+          await this.questionBank.rejectDuplicate(scope.subjectId, row);
         } catch (e) {
           fieldErrors.push({ path: `newQuestions.${i}`, message: e instanceof AppError ? e.message : 'Invalid row' });
         }

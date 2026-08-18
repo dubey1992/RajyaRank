@@ -72,12 +72,19 @@ export class QuestionBankService {
     if (!decision.allow) throw AppError.permissionDenied(decision.reason);
   }
 
-  private fingerprint(q: Pick<CreateQuestion, 'type' | 'textEn' | 'textHi'>): string {
+  /** Public — also used by TestBuilderService's own bulk-question-upload step
+   *  (quickCreate's newQuestions, which calls createInTx directly rather than
+   *  create()) to build the same subject-scoped dedup key. */
+  fingerprint(q: Pick<CreateQuestion, 'type' | 'textEn' | 'textHi'>): string {
     const norm = `${q.type}:${(q.textEn ?? q.textHi ?? '').toLowerCase().replace(/\s+/g, ' ').trim()}`;
     return sha256(norm);
   }
 
-  /** duplicateFingerprint was being stored on every question but nothing ever
+  /** Public — same reason as fingerprint() above: TestBuilderService's bulk
+   *  question upload bypasses create()/import(), so it calls this directly
+   *  too, rather than duplicating the dedup query.
+   *
+   *  duplicateFingerprint was being stored on every question but nothing ever
    *  checked it — a CSV re-upload (or two near-identical rows in the same
    *  file) silently created another DRAFT with the same type + question
    *  text, cluttering the review queue with copies. Scoped to the subject
@@ -85,7 +92,7 @@ export class QuestionBankService {
    *  unrelated subjects isn't blocked. Runs per-row inside import()'s loop,
    *  so it also catches duplicates *within* the same upload, not just
    *  against what was already in the bank. */
-  private async rejectDuplicate(subjectId: string, dto: Pick<CreateQuestion, 'type' | 'textEn' | 'textHi'>) {
+  async rejectDuplicate(subjectId: string, dto: Pick<CreateQuestion, 'type' | 'textEn' | 'textHi'>) {
     const existing = await this.prisma.question.findFirst({
       where: { subjectId, duplicateFingerprint: this.fingerprint(dto), deletedAt: null },
       select: { id: true },
