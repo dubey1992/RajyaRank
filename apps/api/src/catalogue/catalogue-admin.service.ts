@@ -33,8 +33,14 @@ export class CatalogueAdminService {
   }
 
   async listExams(principal: Principal) {
+    // Same "own org's rows OR platform-wide" pattern question-bank.service.ts's
+    // list() uses — an org-scoped filter of JUST { orgId: principal.orgId }
+    // excluded every platform-seeded exam (orgId: null), which is the ONLY
+    // kind that exists today (no institution has ever created its own
+    // private exam here yet) — so an Academic Head's dropdown came back
+    // empty even though their own courses are built on these exact exams.
     return this.prisma.exam.findMany({
-      where: principal.orgId ? { orgId: principal.orgId } : {},
+      where: principal.orgId ? { OR: [{ orgId: principal.orgId }, { orgId: null }] } : {},
       orderBy: { code: 'asc' },
     });
   }
