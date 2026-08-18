@@ -236,6 +236,15 @@ export class AnalyticsService {
   async contentPipeline(principal: Principal) {
     const orgId = principal.orgId;
     const courseFilter = orgId ? { topic: { chapter: { subject: { course: { orgId } } } } } : {};
+    // Question's course lives one hop closer (subject -> course, no
+    // topic/chapter) than Lesson's, so it needs its own filter shape — and,
+    // unlike lesson/course/test above, this was previously missing BOTH the
+    // org scope (an Academic Head saw every institute's pending count, not
+    // just their own) and deletedAt (soft-deleted questions kept counting
+    // forever, e.g. after a bulk-delete). UNDER_REVIEW is included alongside
+    // DRAFT/SUBMITTED since content.approve only acts on UNDER_REVIEW — a
+    // question sitting there is still "pending approval", not done.
+    const questionFilter = { deletedAt: null, ...(orgId ? { subject: { course: { orgId } } } : {}) };
     const [draft, submittedOrUnderReview, correctionRequired, approved, published, archivedOrRejected, courses, tests, questionsPending] =
       await Promise.all([
         this.prisma.lessonVersion.count({ where: { status: 'DRAFT', lesson: courseFilter } }),
@@ -246,7 +255,7 @@ export class AnalyticsService {
         this.prisma.lessonVersion.count({ where: { status: { in: ['ARCHIVED', 'REJECTED'] }, lesson: courseFilter } }),
         this.prisma.course.count({ where: { deletedAt: null, ...(orgId ? { orgId } : {}) } }),
         this.prisma.test.count({ where: { deletedAt: null, ...(orgId ? { orgId } : {}) } }),
-        this.prisma.questionVersion.count({ where: { status: { in: ['DRAFT', 'SUBMITTED'] } } }),
+        this.prisma.questionVersion.count({ where: { status: { in: ['DRAFT', 'SUBMITTED', 'UNDER_REVIEW'] }, question: questionFilter } }),
       ]);
 
     return { draft, submittedOrUnderReview, correctionRequired, approved, published, archivedOrRejected, courses, tests, questionsPending };

@@ -1,7 +1,7 @@
 'use client';
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Alert, Button } from '@rajyarank/ui';
+import { Alert, Button, ConfirmDialog } from '@rajyarank/ui';
 import { apiFetch, type ApiError } from '@/lib/api';
 
 export interface QuestionItem {
@@ -66,6 +66,7 @@ export function QuestionBankBrowser({
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
   function toggleSelected(questionId: string) {
     setSelected((prev) => {
@@ -77,15 +78,7 @@ export function QuestionBankBrowser({
   }
 
   async function deleteSelected() {
-    const count = selected.size;
-    if (!count) return;
-    const ok = window.confirm(
-      L(
-        `${count} प्रश्न स्थायी रूप से हटाएँ? यह क्रिया पूर्ववत नहीं की जा सकती।`,
-        `Delete ${count} question(s)? This cannot be undone from the UI.`,
-      ),
-    );
-    if (!ok) return;
+    if (!selected.size) return;
     setDeleting(true);
     setError(null);
     try {
@@ -98,6 +91,7 @@ export function QuestionBankBrowser({
     } catch (e) {
       setError((e as ApiError).message ?? L('हटाना विफल रहा।', 'Delete failed.'));
     } finally {
+      setConfirmDeleteOpen(false);
       setDeleting(false);
     }
   }
@@ -161,9 +155,8 @@ export function QuestionBankBrowser({
           <Button
             type="button"
             variant="danger"
-            loading={deleting}
             disabled={selected.size === 0}
-            onClick={() => void deleteSelected()}
+            onClick={() => setConfirmDeleteOpen(true)}
             className="min-h-[32px] px-3 text-xs"
           >
             {L(`चयनित हटाएँ (${selected.size})`, `Delete selected (${selected.size})`)}
@@ -225,11 +218,28 @@ export function QuestionBankBrowser({
                 onSubmit={() => q.currentVersion && void submitForReview(q.currentVersion.id)}
                 onStartReview={() => q.currentVersion && void startReview(q.currentVersion.id)}
                 onApprove={() => q.currentVersion && void approve(q.currentVersion.id)}
+                canDelete={canDelete}
+                selected={selected.has(q.id)}
+                onToggleSelected={() => toggleSelected(q.id)}
               />
             ))}
           </ul>
         </div>
       ) : null}
+      <ConfirmDialog
+        open={confirmDeleteOpen}
+        title={L('चयनित प्रश्न हटाएँ?', 'Delete selected questions?')}
+        message={L(
+          `${selected.size} प्रश्न स्थायी रूप से हटाए जाएँगे। यह क्रिया पूर्ववत नहीं की जा सकती।`,
+          `${selected.size} question(s) will be removed everywhere they're listed. This cannot be undone from the UI.`,
+        )}
+        confirmLabel={L('हटाएँ', 'Delete')}
+        cancelLabel={L('रद्द करें', 'Cancel')}
+        tone="danger"
+        busy={deleting}
+        onConfirm={() => void deleteSelected()}
+        onCancel={() => setConfirmDeleteOpen(false)}
+      />
     </div>
   );
 }
