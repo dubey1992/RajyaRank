@@ -1,8 +1,10 @@
 import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import type { Principal } from '@rajyarank/auth';
 import {
+  bulkDeleteQuestionsSchema,
   createQuestionSchema,
   importQuestionsSchema,
+  type BulkDeleteQuestions,
   type CreateQuestion,
 } from '@rajyarank/contracts';
 import { CurrentPrincipal } from '../common/decorators/current-principal.decorator';
@@ -54,5 +56,14 @@ export class QuestionBankController {
   @RequirePermission('content.approve')
   approve(@CurrentPrincipal() p: Principal, @Param('id') id: string) {
     return this.qb.approve(p, id);
+  }
+
+  @Post('bulk-delete')
+  @RequirePermission('content.archive', { assurance: 'AAL2' })
+  bulkDelete(
+    @CurrentPrincipal() p: Principal,
+    @Body(new ZodValidationPipe(bulkDeleteQuestionsSchema)) body: BulkDeleteQuestions,
+  ) {
+    return this.qb.bulkDelete(p, body.questionIds);
   }
 }

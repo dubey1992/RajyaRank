@@ -43,6 +43,7 @@ export default async function QuestionBankPage({ params }: { params: { locale: s
             canSubmit={can(me, 'question.create')}
             canReview={can(me, 'content.review')}
             canApprove={can(me, 'content.approve')}
+            canDelete={can(me, 'content.archive')}
           />
         </section>
       </div>
