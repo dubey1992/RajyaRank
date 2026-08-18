@@ -63,7 +63,12 @@ const NAV: NavItem[] = [
   { href: '/admin/official-notices', label: { hi: 'आधिकारिक सूचनाएँ', en: 'Official Notices' }, show: (me) => can(me, 'content.create') || can(me, 'content.review') },
   { href: '/admin/mock-tests', label: { hi: 'मॉक टेस्ट', en: 'Mock Tests' }, show: (me) => can(me, 'test.create') || can(me, 'content.approve') },
   { href: '/admin/payments', label: { hi: 'भुगतान प्रबंधन', en: 'Manage Payments' }, show: (me) => can(me, 'payment.manage') },
-  { href: '/admin/support', label: { hi: 'सहायता', en: 'Support' }, show: (me) => can(me, 'support.manage') },
+  // Support Agent + Super Admin only — Academic Head also holds
+  // support.manage (for Customer Lookup/Ratings Moderation below, both
+  // unrelated to this queue) but no longer gets the ticket queue itself;
+  // they handle lesson doubts via Doubt Queue instead. Role-checked rather
+  // than permission-checked, matching support.service.ts's server-side gate.
+  { href: '/admin/support', label: { hi: 'सहायता', en: 'Support' }, show: (me) => me.roleKeys.includes('SUPPORT_AGENT') },
   // Separate from Support above — Teacher/Content Admin/Academic Reviewer
   // hold doubt.respond but not support.manage, and still need their own
   // queue (see doubts/page.tsx for the matching server-side gate).
