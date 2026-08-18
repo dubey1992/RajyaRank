@@ -4,6 +4,7 @@ import type { CreateDoubt, DoubtReplyInput } from '@rajyarank/contracts';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { NotificationService } from '../notifications/notification.service';
+import { EntitlementService } from '../payments/entitlement.service';
 import { doubtAnsweredEmail } from '../notifications/email-templates/support';
 import { AppError } from '../common/errors/app-error';
 
@@ -13,6 +14,7 @@ export class DoubtsService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly notifications: NotificationService,
+    private readonly entitlements: EntitlementService,
   ) {}
 
   private studentId(p: Principal): string {
@@ -22,10 +24,28 @@ export class DoubtsService {
 
   async create(p: Principal, dto: CreateDoubt) {
     const studentId = this.studentId(p);
+    // A doubt about a specific lesson belongs to whichever institute owns
+    // that lesson's course — NOT necessarily the student's own institute. A
+    // student can buy an institute's course via access code
+    // (payments.service.ts's codeMatches path) without ever becoming a
+    // member of that institute, so defaulting to p.orgId silently misrouted
+    // (or, for an unaffiliated/independent student, completely orphaned —
+    // orgId null) every doubt raised on a purchased-but-not-joined
+    // institute's course, making it invisible in that institute's Academic
+    // Head/Content Admin queue no matter how long they waited.
+    //
+    // Gated on hasCourseAccess: without it, any authenticated student could
+    // hand in an arbitrary lessonId for a course they never bought or
+    // joined and have their doubt routed straight into that institute's
+    // staff queue — an unrelated institute's internal queue, reachable by
+    // just knowing/guessing a lesson id. Falls back to the student's own
+    // org (unchanged pre-existing behaviour) whenever access can't be
+    // confirmed, rather than trusting the lessonId blindly.
+    const orgId = dto.lessonId ? await this.courseOrgIdForLesson(dto.lessonId, studentId, p.orgId ?? null) : (p.orgId ?? null);
     const doubt = await this.prisma.doubt.create({
       data: {
         studentId,
-        orgId: p.orgId ?? null,
+        orgId,
         subjectId: dto.subjectId ?? null,
         lessonId: dto.lessonId ?? null,
         questionVersionId: dto.questionVersionId ?? null,
@@ -36,6 +56,17 @@ export class DoubtsService {
     });
     await this.audit.record({ actorUserId: studentId, action: 'doubt.created', targetType: 'Doubt', targetId: doubt.id, result: 'SUCCESS' });
     return this.view(doubt.id);
+  }
+
+  private async courseOrgIdForLesson(lessonId: string, studentId: string, fallback: string | null): Promise<string | null> {
+    const lesson = await this.prisma.lesson.findUnique({
+      where: { id: lessonId },
+      select: { topic: { select: { chapter: { select: { subject: { select: { courseId: true, course: { select: { orgId: true } } } } } } } } },
+    });
+    if (!lesson) return fallback;
+    const courseId = lesson.topic.chapter.subject.courseId;
+    const hasAccess = await this.entitlements.hasCourseAccess(studentId, courseId);
+    return hasAccess ? lesson.topic.chapter.subject.course.orgId : fallback;
   }
 
   async listMine(p: Principal) {
