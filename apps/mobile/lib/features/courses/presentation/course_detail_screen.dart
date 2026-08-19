@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/auth_repository.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../wishlist/data/wishlist_repository.dart';
 import '../data/course_models.dart';
 import '../data/course_repository.dart';
 
@@ -15,9 +16,25 @@ class CourseDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final detail = ref.watch(courseCurriculumProvider(courseId));
+    final wishlistIds = ref.watch(wishlistCourseIdsProvider);
+    final wishlisted = wishlistIds.maybeWhen(
+      data: (ids) => ids.contains(courseId),
+      orElse: () => false,
+    );
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Course')),
+      appBar: AppBar(
+        title: const Text('Course'),
+        actions: [
+          IconButton(
+            icon: Icon(wishlisted ? Icons.favorite : Icons.favorite_border),
+            onPressed: () async {
+              await ref.read(wishlistRepositoryProvider).toggle(courseId);
+              ref.invalidate(wishlistCourseIdsProvider);
+            },
+          ),
+        ],
+      ),
       body: detail.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => Center(

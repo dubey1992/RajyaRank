@@ -44,6 +44,9 @@ dependencies:
   chewie: ^1.13.1
   webview_flutter: ^4.14.1
   pdfx: ^2.9.2
+  razorpay_flutter: ^1.4.5
+  open_filex: ^4.7.0
+  path_provider: ^2.1.6
 
 dev_dependencies:
   flutter_test:

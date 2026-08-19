@@ -2,14 +2,24 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/account/presentation/account_screen.dart';
 import '../../features/auth/presentation/forgot_password_screen.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/signup_screen.dart';
 import '../../features/courses/presentation/course_detail_screen.dart';
+import '../../features/current_affairs/presentation/current_affairs_screen.dart';
+import '../../features/doubts/presentation/doubts_screen.dart';
 import '../../features/lesson/presentation/lesson_player_screen.dart';
 import '../../features/onboarding/presentation/onboarding_screen.dart';
+import '../../features/payments/presentation/order_history_screen.dart';
+import '../../features/payments/presentation/pricing_screen.dart';
+import '../../features/payments/presentation/saved_cards_screen.dart';
+import '../../features/pyq/presentation/pyq_screen.dart';
+import '../../features/search/presentation/search_screen.dart';
+import '../../features/support/presentation/support_tickets_screen.dart';
 import '../../features/tests/presentation/test_review_screen.dart';
 import '../../features/tests/presentation/test_runner_screen.dart';
+import '../../features/wishlist/presentation/wishlist_screen.dart';
 import '../auth/auth_repository.dart';
 import '../navigation/home_shell.dart';
 
@@ -69,6 +79,43 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => TestReviewScreen(
           attemptId: state.pathParameters['attemptId']!,
         ),
+      ),
+      GoRoute(
+        path: '/account',
+        builder: (context, state) => const AccountScreen(),
+      ),
+      GoRoute(
+        path: '/account/orders',
+        builder: (context, state) => const OrderHistoryScreen(),
+      ),
+      GoRoute(
+        path: '/account/cards',
+        builder: (context, state) => const SavedCardsScreen(),
+      ),
+      GoRoute(
+        path: '/pricing',
+        builder: (context, state) => const PricingScreen(),
+      ),
+      GoRoute(path: '/pyq', builder: (context, state) => const PyqScreen()),
+      GoRoute(
+        path: '/doubts',
+        builder: (context, state) => const DoubtsScreen(),
+      ),
+      GoRoute(
+        path: '/current-affairs',
+        builder: (context, state) => const CurrentAffairsScreen(),
+      ),
+      GoRoute(
+        path: '/search',
+        builder: (context, state) => const SearchScreen(),
+      ),
+      GoRoute(
+        path: '/wishlist',
+        builder: (context, state) => const WishlistScreen(),
+      ),
+      GoRoute(
+        path: '/support',
+        builder: (context, state) => const SupportTicketsScreen(),
       ),
     ],
   );

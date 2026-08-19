@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/auth_repository.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/confirm_logout.dart';
 import '../data/dashboard_models.dart';
 import '../data/dashboard_repository.dart';
 
@@ -29,9 +30,19 @@ class DashboardScreen extends ConsumerWidget {
         title: const Text('RajyaRank'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.search),
+            tooltip: 'Search',
+            onPressed: () => context.push('/search'),
+          ),
+          IconButton(
+            icon: const Icon(Icons.account_circle_outlined),
+            tooltip: 'Account',
+            onPressed: () => context.push('/account'),
+          ),
+          IconButton(
             icon: const Icon(Icons.logout),
             tooltip: 'Sign out',
-            onPressed: () => _confirmLogout(context, ref),
+            onPressed: () => confirmLogout(context, ref),
           ),
         ],
       ),
@@ -49,29 +60,6 @@ class DashboardScreen extends ConsumerWidget {
         ),
       ),
     );
-  }
-}
-
-Future<void> _confirmLogout(BuildContext context, WidgetRef ref) async {
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('Sign out'),
-      content: const Text('Are you sure want to logout?'),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('Cancel'),
-        ),
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(true),
-          child: const Text('Okay'),
-        ),
-      ],
-    ),
-  );
-  if (confirmed == true) {
-    await ref.read(authControllerProvider.notifier).logout();
   }
 }
 
