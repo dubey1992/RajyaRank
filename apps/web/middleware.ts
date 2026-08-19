@@ -97,7 +97,7 @@ async function maybeRefresh(req: NextRequest): Promise<{ setCookies: string[]; c
 }
 
 /**
- * Locale routing (explicit NEXT_LOCALE cookie / default hi) + per-request nonce
+ * Locale routing (explicit NEXT_LOCALE cookie / default en) + per-request nonce
  * CSP + silent token refresh.
  */
 export async function middleware(req: NextRequest) {

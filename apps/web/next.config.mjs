@@ -24,9 +24,6 @@ const nextConfig = {
   // from the traced output on Amplify's monorepo builds).
   experimental: { outputFileTracingRoot: path.join(__dirname, '../../') },
   transpilePackages: ['@rajyarank/ui', '@rajyarank/i18n', '@rajyarank/contracts'],
-  async rewrites() {
-    return [{ source: '/', destination: '/en' }];
-  },
   async headers() {
     return [{ source: '/:path*', headers: securityHeaders }];
   },
