@@ -8,6 +8,8 @@ import '../../features/auth/presentation/signup_screen.dart';
 import '../../features/courses/presentation/course_detail_screen.dart';
 import '../../features/lesson/presentation/lesson_player_screen.dart';
 import '../../features/onboarding/presentation/onboarding_screen.dart';
+import '../../features/tests/presentation/test_review_screen.dart';
+import '../../features/tests/presentation/test_runner_screen.dart';
 import '../auth/auth_repository.dart';
 import '../navigation/home_shell.dart';
 
@@ -55,6 +57,17 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/learn/:lessonId',
         builder: (context, state) => LessonPlayerScreen(
           lessonId: state.pathParameters['lessonId']!,
+        ),
+      ),
+      GoRoute(
+        path: '/tests/runner',
+        builder: (context, state) =>
+            TestRunnerScreen(args: state.extra as RunnerArgs),
+      ),
+      GoRoute(
+        path: '/tests/review/:attemptId',
+        builder: (context, state) => TestReviewScreen(
+          attemptId: state.pathParameters['attemptId']!,
         ),
       ),
     ],

@@ -134,6 +134,21 @@ class AuthController extends StateNotifier<AuthState> {
     );
   }
 
+  /// POST auth/student/password/reset — takes the 6-digit code emailed by
+  /// [forgotPassword] plus a new password. Revokes all sessions/trusted
+  /// devices server-side, so this does NOT sign the caller in; matches web's
+  /// `studentPasswordResetSchema` (email/code/password).
+  Future<void> resetPassword({
+    required String email,
+    required String code,
+    required String password,
+  }) async {
+    await _apiClient.dio.post(
+      '/auth/student/password/reset',
+      data: {'email': email, 'code': code, 'password': password},
+    );
+  }
+
   Future<void> _signIn(Map<String, dynamic> data) async {
     await _tokenStore.save(
       accessToken: data['accessToken'] as String,

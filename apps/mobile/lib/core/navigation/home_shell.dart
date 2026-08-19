@@ -4,6 +4,7 @@ import '../../features/courses/presentation/my_courses_screen.dart';
 import '../../features/dashboard/presentation/dashboard_screen.dart';
 import '../../features/revision/presentation/revision_screen.dart';
 import '../../features/study_plan/presentation/study_plan_screen.dart';
+import '../../features/tests/presentation/test_catalogue_screen.dart';
 import '../theme/app_theme.dart';
 
 /// The four tabs that make up the signed-in home experience. Each tab owns
@@ -23,6 +24,7 @@ class _HomeShellState extends State<HomeShell> {
   static const _tabs = [
     DashboardScreen(),
     MyCoursesScreen(),
+    TestCatalogueScreen(),
     StudyPlanScreen(),
     RevisionScreen(),
   ];
@@ -46,6 +48,11 @@ class _HomeShellState extends State<HomeShell> {
             icon: Icon(Icons.menu_book_outlined),
             selectedIcon: Icon(Icons.menu_book, color: AppColors.navy900),
             label: 'Courses',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.quiz_outlined),
+            selectedIcon: Icon(Icons.quiz, color: AppColors.navy900),
+            label: 'Tests',
           ),
           NavigationDestination(
             icon: Icon(Icons.event_note_outlined),

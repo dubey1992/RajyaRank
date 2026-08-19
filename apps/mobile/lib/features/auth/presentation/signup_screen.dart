@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/auth_repository.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/validation/password_rules.dart';
+import '../../../core/widgets/password_checklist.dart';
 
 class SignupScreen extends ConsumerStatefulWidget {
   const SignupScreen({super.key});
@@ -21,12 +24,21 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
   String? _error;
 
   @override
+  void initState() {
+    super.initState();
+    _passwordController.addListener(_onPasswordChanged);
+  }
+
+  @override
   void dispose() {
+    _passwordController.removeListener(_onPasswordChanged);
     _emailController.dispose();
     _codeController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
+
+  void _onPasswordChanged() => setState(() {});
 
   Future<void> _requestCode() async {
     final email = _emailController.text.trim();
@@ -49,12 +61,12 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
   }
 
   Future<void> _verify() async {
-    if (_codeController.text.trim().isEmpty) {
-      setState(() => _error = 'Enter the verification code from your email');
+    if (_codeController.text.trim().length != 6) {
+      setState(() => _error = 'Enter the 6-digit code from your email');
       return;
     }
-    if (_passwordController.text.length < 8) {
-      setState(() => _error = 'Password must be at least 8 characters');
+    if (!isValidPassword(_passwordController.text)) {
+      setState(() => _error = 'Password does not meet all requirements');
       return;
     }
     setState(() {
@@ -114,18 +126,30 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                     TextField(
                       controller: _codeController,
                       keyboardType: TextInputType.number,
+                      textAlign: TextAlign.center,
+                      maxLength: 6,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      style: const TextStyle(
+                        fontSize: 22,
+                        letterSpacing: 8,
+                        fontWeight: FontWeight.w700,
+                      ),
                       decoration: const InputDecoration(
-                        labelText: 'Verification code (from email)',
+                        labelText: 'Verification code',
+                        counterText: '',
                       ),
                     ),
                     const SizedBox(height: 14),
                     TextField(
                       controller: _passwordController,
                       obscureText: true,
+                      autofillHints: const [AutofillHints.newPassword],
                       decoration: const InputDecoration(
                         labelText: 'Create a password',
                       ),
                     ),
+                    const SizedBox(height: 10),
+                    PasswordChecklist(password: _passwordController.text),
                   ],
                   if (_error != null) ...[
                     const SizedBox(height: 14),

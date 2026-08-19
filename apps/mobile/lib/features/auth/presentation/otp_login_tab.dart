@@ -213,6 +213,7 @@ class _CodeStep extends StatelessWidget {
           controller: codeController,
           keyboardType: TextInputType.number,
           maxLength: 6,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
           textAlign: TextAlign.center,
           style: const TextStyle(
             fontSize: 22,

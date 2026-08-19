@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/auth_repository.dart';
 import '../../../core/theme/app_theme.dart';
-import 'otp_login_tab.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -17,7 +16,6 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen>
     with TickerProviderStateMixin {
   late final AnimationController _fadeController;
-  bool _useOtp = false;
 
   @override
   void initState() {
@@ -83,47 +81,7 @@ class _LoginScreenState extends State<LoginScreen>
                         style: TextStyle(color: AppColors.muted),
                       ),
                       const SizedBox(height: 22),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: AppColors.surfaceSoft,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        padding: const EdgeInsets.all(4),
-                        child: Row(
-                          children: [
-                            _SegmentButton(
-                              label: 'Password',
-                              selected: !_useOtp,
-                              onTap: () {
-                                HapticFeedback.selectionClick();
-                                setState(() => _useOtp = false);
-                              },
-                            ),
-                            _SegmentButton(
-                              label: 'OTP',
-                              selected: _useOtp,
-                              onTap: () {
-                                HapticFeedback.selectionClick();
-                                setState(() => _useOtp = true);
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 260),
-                        transitionBuilder: (child, animation) => FadeTransition(
-                          opacity: animation,
-                          child: SizeTransition(
-                            sizeFactor: animation,
-                            child: child,
-                          ),
-                        ),
-                        child: _useOtp
-                            ? const OtpLoginTab(key: ValueKey('otp'))
-                            : const _PasswordTab(key: ValueKey('password')),
-                      ),
+                      const _PasswordTab(),
                       const SizedBox(height: 8),
                       Center(
                         child: TextButton(
@@ -143,45 +101,8 @@ class _LoginScreenState extends State<LoginScreen>
   }
 }
 
-class _SegmentButton extends StatelessWidget {
-  const _SegmentButton({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            color: selected ? AppColors.navy900 : Colors.transparent,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            label,
-            style: TextStyle(
-              color: selected ? Colors.white : AppColors.muted,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _PasswordTab extends ConsumerStatefulWidget {
-  const _PasswordTab({super.key});
+  const _PasswordTab();
 
   @override
   ConsumerState<_PasswordTab> createState() => _PasswordTabState();
