@@ -36,7 +36,7 @@ export default async function WishlistPage({ params }: { params: { locale: strin
   const heading = L('मेरी विशलिस्ट', 'My Wishlist');
 
   return (
-    <StudentShell locale={locale} name={me.displayName ?? L('विद्यार्थी', 'Student')} initials={initialsOf(me.displayName)} target={heading}>
+    <StudentShell locale={locale} name={me.displayName ?? L('विद्यार्थी', 'Student')} initials={initialsOf(me.displayName)} target={heading} hasInstitute={Boolean(me.orgId)}>
       <div className="mb-6">
         <h1 className="text-[26px] font-black tracking-tight text-navy-950 md:text-[34px]">{heading}</h1>
         <p className="mt-1 text-sm text-muted">{L('बाद में खरीदने के लिए सहेजे गए कोर्स।', 'Courses you saved to buy later.')}</p>

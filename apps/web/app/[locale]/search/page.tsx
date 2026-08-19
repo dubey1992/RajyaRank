@@ -97,7 +97,7 @@ export default async function SearchPage({
 
   if (isStudent) {
     return (
-      <StudentShell locale={locale} name={me.displayName ?? L('विद्यार्थी', 'Student')} initials={initialsOf(me.displayName)} target={L('खोज', 'Search')}>
+      <StudentShell locale={locale} name={me.displayName ?? L('विद्यार्थी', 'Student')} initials={initialsOf(me.displayName)} target={L('खोज', 'Search')} hasInstitute={Boolean(me.orgId)}>
         {content}
       </StudentShell>
     );

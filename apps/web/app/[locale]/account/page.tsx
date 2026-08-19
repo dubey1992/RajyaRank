@@ -56,6 +56,7 @@ export default async function AccountPage({ params }: { params: { locale: string
       target={L('प्रोफ़ाइल व सेटिंग्स', 'Profile & Settings')}
       hasActivePlan={hasActivePlan}
       activeEntitlementEndsAt={activeEntitlementEndsAt}
+      hasInstitute={Boolean(me.orgId)}
     >
       <div className="mb-6">
         <h1 className="text-[26px] font-black tracking-tight text-navy-950 md:text-[34px]">{L('प्रोफ़ाइल व सेटिंग्स', 'Profile & Settings')}</h1>

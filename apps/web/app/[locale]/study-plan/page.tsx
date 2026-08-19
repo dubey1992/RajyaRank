@@ -21,7 +21,7 @@ export default async function StudyPlanPage({ params }: { params: { locale: stri
   const week = await apiFetchServer<StudyPlanDay[]>('/student/study-plan/week', cookie);
 
   return (
-    <StudentShell locale={locale} name={me.displayName ?? L('विद्यार्थी', 'Student')} initials={initialsOf(me.displayName)} target={L('स्टडी प्लान', 'Study plan')}>
+    <StudentShell locale={locale} name={me.displayName ?? L('विद्यार्थी', 'Student')} initials={initialsOf(me.displayName)} target={L('स्टडी प्लान', 'Study plan')} hasInstitute={Boolean(me.orgId)}>
       <div className="mb-6">
         <h1 className="text-[26px] font-black tracking-tight text-navy-950 md:text-[34px]">{L('स्टडी प्लान', 'Study plan')}</h1>
         <p className="mt-1 text-sm text-muted">{L('आपकी दैनिक अध्ययन योजना — प्रगति को ट्रैक करें और कमज़ोर विषयों पर ध्यान दें।', 'Your day-by-day study plan — track progress and focus on weak topics.')}</p>

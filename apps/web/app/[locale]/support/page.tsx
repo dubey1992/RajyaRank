@@ -32,7 +32,7 @@ export default async function SupportPage({ params }: { params: { locale: string
   ];
 
   return (
-    <StudentShell locale={locale} name={me.displayName ?? L('विद्यार्थी', 'Student')} initials={initialsOf(me.displayName)} target={L('सहायता केंद्र', 'Help centre')}>
+    <StudentShell locale={locale} name={me.displayName ?? L('विद्यार्थी', 'Student')} initials={initialsOf(me.displayName)} target={L('सहायता केंद्र', 'Help centre')} hasInstitute={Boolean(me.orgId)}>
       <div className="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-start">
         <div>
           <h1 className="text-[26px] font-black tracking-tight text-navy-950 md:text-[34px]">{L('सहायता और सपोर्ट', 'Help & Support')}</h1>

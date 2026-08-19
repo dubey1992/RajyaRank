@@ -26,7 +26,7 @@ export default async function EnrolledCoursePage({ params }: { params: { locale:
   const desc = (hi ? course.descHi : course.descEn) ?? '';
 
   return (
-    <StudentShell locale={locale} name={me.displayName ?? L('विद्यार्थी', 'Student')} initials={initialsOf(me.displayName)} target={title}>
+    <StudentShell locale={locale} name={me.displayName ?? L('विद्यार्थी', 'Student')} initials={initialsOf(me.displayName)} target={title} hasInstitute={Boolean(me.orgId)}>
       <nav className="mb-3 flex flex-wrap items-center gap-2 text-[11px] text-muted">
         <Link href={`/${locale}/my-courses`} className="font-bold text-orange-600">{L('मेरे कोर्स', 'My Courses')}</Link>
         <span>›</span>

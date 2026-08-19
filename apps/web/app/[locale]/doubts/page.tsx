@@ -29,7 +29,7 @@ export default async function DoubtsPage({ params }: { params: { locale: string 
   const doubts = (await apiFetchServer<DoubtView[]>('/student/doubts', cookie)) ?? [];
 
   return (
-    <StudentShell locale={locale} name={me.displayName ?? L('विद्यार्थी', 'Student')} initials={initialsOf(me.displayName)} target={L('मेरे सवाल', 'My Doubts')}>
+    <StudentShell locale={locale} name={me.displayName ?? L('विद्यार्थी', 'Student')} initials={initialsOf(me.displayName)} target={L('मेरे सवाल', 'My Doubts')} hasInstitute={Boolean(me.orgId)}>
       <div className="mb-6">
         <h1 className="text-[26px] font-black tracking-tight text-navy-950 md:text-[34px]">{L('मेरे सवाल', 'My Doubts')}</h1>
         <p className="mt-1 text-sm text-muted">{L('अपने शिक्षकों से पूछें और हर उत्तर को ट्रैक करें।', 'Ask your educators and track every response.')}</p>

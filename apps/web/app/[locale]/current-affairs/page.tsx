@@ -82,7 +82,7 @@ export default async function CurrentAffairsPage({ params }: { params: { locale:
   // Logged-in student → render inside the portal shell.
   if (me && me.kind === 'STUDENT') {
     return (
-      <StudentShell locale={locale} name={me.displayName ?? L('विद्यार्थी', 'Student')} initials={initialsOf(me.displayName)} target={L('करंट अफेयर्स', 'Current Affairs')}>
+      <StudentShell locale={locale} name={me.displayName ?? L('विद्यार्थी', 'Student')} initials={initialsOf(me.displayName)} target={L('करंट अफेयर्स', 'Current Affairs')} hasInstitute={Boolean(me.orgId)}>
         <div className="mb-2">
           <h1 className="text-[26px] font-black tracking-tight text-navy-950 md:text-[34px]">{L('करंट अफेयर्स', 'Current Affairs')}</h1>
           <p className="mt-1 text-sm text-muted">{L('परीक्षा-केंद्रित दैनिक अपडेट।', 'Exam-focused daily updates.')}</p>

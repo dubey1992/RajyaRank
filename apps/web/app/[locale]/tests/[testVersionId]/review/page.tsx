@@ -47,7 +47,7 @@ export default async function TestReviewPage({
   if (!result) redirect(`/${locale}/tests`);
 
   return (
-    <StudentShell locale={locale} name={me.displayName ?? L('विद्यार्थी', 'Student')} initials={initialsOf(me.displayName)} target={L('उत्तर समीक्षा', 'Review answers')}>
+    <StudentShell locale={locale} name={me.displayName ?? L('विद्यार्थी', 'Student')} initials={initialsOf(me.displayName)} target={L('उत्तर समीक्षा', 'Review answers')} hasInstitute={Boolean(me.orgId)}>
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-[26px] font-black tracking-tight text-navy-950 md:text-[34px]">{L('उत्तर समीक्षा', 'Review answers')}</h1>

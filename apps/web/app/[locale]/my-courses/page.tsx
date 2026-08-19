@@ -35,7 +35,7 @@ export default async function MyCoursesPage({ params }: { params: { locale: stri
   );
 
   return (
-    <StudentShell locale={locale} name={me.displayName ?? L('विद्यार्थी', 'Student')} initials={initialsOf(me.displayName)} target={L('मेरे कोर्स', 'My Courses')}>
+    <StudentShell locale={locale} name={me.displayName ?? L('विद्यार्थी', 'Student')} initials={initialsOf(me.displayName)} target={L('मेरे कोर्स', 'My Courses')} hasInstitute={Boolean(me.orgId)}>
       <div className="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-start">
         <div>
           <h1 className="text-[26px] font-black tracking-tight text-navy-950 md:text-[34px]">{L('मेरे कोर्स', 'My Courses')}</h1>
