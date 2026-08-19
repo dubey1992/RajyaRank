@@ -211,7 +211,11 @@ class _PlanItemCardState extends ConsumerState<_PlanItemCard> {
     if (picked == null) return;
     setState(() => _busy = true);
     try {
-      final iso = picked.toIso8601String().split('T').first;
+      // Server validates `toDate` with zod's `.datetime()`, which requires a
+      // full ISO-8601 UTC string ("...T00:00:00.000Z") — a bare date like
+      // "2026-08-25" fails that check with a 422 VALIDATION_FAILED.
+      final iso = DateTime.utc(picked.year, picked.month, picked.day)
+          .toIso8601String();
       await ref
           .read(studyPlanRepositoryProvider)
           .reschedule(widget.item.id, iso);

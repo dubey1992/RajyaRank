@@ -26,8 +26,10 @@ class StudyPlanRepository {
     );
   }
 
-  /// `toDate` is an ISO date string (YYYY-MM-DD is accepted by the server's
-  /// datetime coercion).
+  /// `toDate` must be a full ISO-8601 UTC datetime string (zod's
+  /// `.datetime()` on `planItemRescheduleSchema` rejects a bare date like
+  /// "2026-08-25" with a 422) — callers should pass something like
+  /// `DateTime.utc(y, m, d).toIso8601String()`.
   Future<void> reschedule(String itemId, String toDate) async {
     final api = _ref.read(apiClientProvider);
     await api.dio.post(
