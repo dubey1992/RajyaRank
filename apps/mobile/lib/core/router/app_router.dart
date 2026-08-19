@@ -10,6 +10,7 @@ import '../../features/courses/presentation/course_detail_screen.dart';
 import '../../features/current_affairs/presentation/current_affairs_screen.dart';
 import '../../features/doubts/presentation/doubts_screen.dart';
 import '../../features/lesson/presentation/lesson_player_screen.dart';
+import '../../features/notifications/presentation/notifications_screen.dart';
 import '../../features/onboarding/presentation/onboarding_screen.dart';
 import '../../features/payments/presentation/order_history_screen.dart';
 import '../../features/payments/presentation/pricing_screen.dart';
@@ -116,6 +117,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/support',
         builder: (context, state) => const SupportTicketsScreen(),
+      ),
+      GoRoute(
+        path: '/notifications',
+        builder: (context, state) => const NotificationsScreen(),
       ),
     ],
   );

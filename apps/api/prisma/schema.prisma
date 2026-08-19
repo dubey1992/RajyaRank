@@ -491,6 +491,7 @@ model User {
   orders            Order[]
   entitlements      Entitlement[]
   pushSubscriptions PushSubscription[]
+  deviceTokens      DeviceToken[]
   membershipEvents  OrgMembershipEvent[]
   studyPlans        StudyPlan[]
   courseRatings     CourseRating[]
@@ -537,6 +538,21 @@ model PushSubscription {
 
   @@index([userId])
   @@map("push_subscriptions")
+}
+
+/// FCM device tokens for native mobile push (Android/iOS) — parallel to
+/// PushSubscription's role for web push, but a bare token string rather than
+/// a Web Push endpoint+keys triple.
+model DeviceToken {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  token     String   @unique
+  platform  String
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("device_tokens")
 }
 
 model UserIdentity {

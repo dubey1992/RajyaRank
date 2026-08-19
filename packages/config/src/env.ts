@@ -101,6 +101,11 @@ export const apiEnvSchema = z.object({
   VAPID_PRIVATE_KEY: z.string().optional().default(''),
   VAPID_SUBJECT: z.string().optional().default('mailto:no-reply@rajyarank.com'),
 
+  // FCM (native mobile push). Same degrade-gracefully-when-empty contract as
+  // VAPID above — a full Firebase service-account JSON document, as issued
+  // by the Firebase console (Project settings → Service accounts).
+  FCM_SERVICE_ACCOUNT_JSON: z.string().optional().default(''),
+
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
 }).refine((env) => !(env.COOKIE_SAME_SITE === 'none' && !env.COOKIE_SECURE), {
   message: 'COOKIE_SAME_SITE=none requires COOKIE_SECURE=true — browsers silently reject SameSite=None cookies that are not Secure.',

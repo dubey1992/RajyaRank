@@ -35,6 +35,11 @@ class DashboardScreen extends ConsumerWidget {
             onPressed: () => context.push('/search'),
           ),
           IconButton(
+            icon: const Icon(Icons.notifications_none),
+            tooltip: 'Notifications',
+            onPressed: () => context.push('/notifications'),
+          ),
+          IconButton(
             icon: const Icon(Icons.account_circle_outlined),
             tooltip: 'Account',
             onPressed: () => context.push('/account'),

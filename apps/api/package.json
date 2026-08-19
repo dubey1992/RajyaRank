@@ -29,6 +29,7 @@
     "@rajyarank/contracts": "workspace:*",
     "argon2": "^0.41.1",
     "cookie-parser": "^1.4.6",
+    "firebase-admin": "^14.2.0",
     "helmet": "^8.0.0",
     "ioredis": "^5.4.1",
     "nestjs-pino": "^4.1.0",

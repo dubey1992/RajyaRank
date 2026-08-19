@@ -5,12 +5,14 @@ import { CurrentPrincipal } from '../common/decorators/current-principal.decorat
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 import { NotificationService } from './notification.service';
 import { PushService, type PushSubscriptionInput } from './push.service';
+import { FcmService, type DeviceTokenInput } from './fcm.service';
 
 @Controller('student/notifications')
 export class NotificationsController {
   constructor(
     private readonly notifications: NotificationService,
     private readonly push: PushService,
+    private readonly fcm: FcmService,
   ) {}
 
   // ── Web push ──
@@ -27,6 +29,17 @@ export class NotificationsController {
   @Post('push/unsubscribe')
   unsubscribe(@CurrentPrincipal() p: Principal, @Body() body: { endpoint: string }) {
     return this.push.unsubscribe(p.userId, body.endpoint).then(() => ({ unsubscribed: true }));
+  }
+
+  // ── Native mobile push (FCM) ──
+  @Post('push/register-fcm-token')
+  registerFcmToken(@CurrentPrincipal() p: Principal, @Body() body: DeviceTokenInput) {
+    return this.fcm.registerToken(p.userId, body).then(() => ({ registered: true }));
+  }
+
+  @Post('push/unregister-fcm-token')
+  unregisterFcmToken(@CurrentPrincipal() p: Principal, @Body() body: { token: string }) {
+    return this.fcm.unregisterToken(p.userId, body.token).then(() => ({ unregistered: true }));
   }
 
   @Get()

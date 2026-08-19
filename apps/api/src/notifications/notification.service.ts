@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import type { NotificationCategory } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotifierService } from './notifier.service';
+import { PushService } from './push.service';
+import { FcmService } from './fcm.service';
 
 export interface EmitInput {
   userId: string;
@@ -31,6 +33,8 @@ export class NotificationService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifier: NotifierService,
+    private readonly push: PushService,
+    private readonly fcm: FcmService,
   ) {}
 
   async emit(input: EmitInput): Promise<void> {
@@ -62,6 +66,15 @@ export class NotificationService {
     }
     if (input.sms && user.phone && (essential || pref?.smsEnabled) && (essential || !muted)) {
       await this.notifier.sendSms(user.phone, input.sms.text);
+    }
+
+    if ((essential || pref?.pushEnabled !== false) && (essential || !muted)) {
+      const title = locale === 'hi' ? input.titleHi : input.titleEn;
+      const body = (locale === 'hi' ? input.bodyHi : input.bodyEn) ?? '';
+      await Promise.all([
+        this.push.sendToUser(input.userId, { title, body }),
+        this.fcm.sendToUser(input.userId, { title, body }),
+      ]);
     }
   }
 
