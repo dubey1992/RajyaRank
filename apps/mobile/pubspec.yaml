@@ -69,7 +69,13 @@ flutter_launcher_icons:
   ios: true
   image_path: "assets/images/logo_1024.png"
   adaptive_icon_background: "#0B2F4F"
-  adaptive_icon_foreground: "assets/images/logo_1024.png"
+  # Glyph-only, transparent, padded to Android's adaptive-icon safe zone —
+  # NOT the full-bleed logo_1024.png, which the OS mask was cropping into.
+  adaptive_icon_foreground: "assets/images/logo_adaptive_foreground.png"
+  # logo_1024.png has transparent corners (baked-in rounded-square shape);
+  # the App Store rejects icons with an alpha channel, so flatten to navy.
+  remove_alpha_ios: true
+  background_color_ios: "#0B2F4F"
 
 # `dart run flutter_native_splash:create` regenerates the native (pre-Flutter-
 # engine) splash screens so cold start isn't a blank white flash.
@@ -78,7 +84,9 @@ flutter_native_splash:
   image: "assets/images/logo_1024.png"
   android_12:
     color: "#0B2F4F"
-    image: "assets/images/logo_1024.png"
+    # Android 12+ splash icon is circle-masked the same way as the adaptive
+    # icon, so it needs the same safe-zone-padded, transparent glyph.
+    image: "assets/images/logo_adaptive_foreground.png"
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -93,6 +101,7 @@ flutter:
 
   assets:
     - assets/images/logo_1024.png
+    - assets/images/logo_adaptive_foreground.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

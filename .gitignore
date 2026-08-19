@@ -72,3 +72,6 @@ apps/api/generated/
 *.png
 !docs/**/*.png
 !apps/*/public/**/*.png
+!apps/mobile/assets/**/*.png
+!apps/mobile/android/app/src/main/res/**/*.png
+!apps/mobile/ios/Runner/Assets.xcassets/**/*.png
