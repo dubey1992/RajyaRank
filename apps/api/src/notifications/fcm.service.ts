@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import admin from 'firebase-admin';
+import { initializeApp, cert, type App, type ServiceAccount } from 'firebase-admin/app';
+import { getMessaging } from 'firebase-admin/messaging';
 import { ENV } from '../config/config.module';
 import type { ApiEnv } from '@rajyarank/config/env';
 import { PrismaService } from '../prisma/prisma.service';
@@ -19,7 +20,7 @@ export interface DeviceTokenInput {
 export class FcmService {
   private readonly logger = new Logger('Fcm');
   private readonly enabled: boolean;
-  private app: admin.app.App | null = null;
+  private app: App | null = null;
 
   constructor(
     @Inject(ENV) private readonly env: ApiEnv,
@@ -28,11 +29,8 @@ export class FcmService {
     this.enabled = !!env.FCM_SERVICE_ACCOUNT_JSON;
     if (this.enabled) {
       try {
-        const credentials = JSON.parse(env.FCM_SERVICE_ACCOUNT_JSON) as admin.ServiceAccount;
-        this.app = admin.initializeApp(
-          { credential: admin.credential.cert(credentials) },
-          'fcm',
-        );
+        const credentials = JSON.parse(env.FCM_SERVICE_ACCOUNT_JSON) as ServiceAccount;
+        this.app = initializeApp({ credential: cert(credentials) }, 'fcm');
       } catch (err) {
         this.logger.error(`Invalid FCM_SERVICE_ACCOUNT_JSON: ${(err as Error).message}`);
         this.enabled = false;
@@ -62,7 +60,7 @@ export class FcmService {
     const tokens = await this.prisma.deviceToken.findMany({ where: { userId } });
     if (!tokens.length) return;
 
-    const messaging = admin.messaging(this.app);
+    const messaging = getMessaging(this.app);
     await Promise.all(
       tokens.map(async (t) => {
         try {
