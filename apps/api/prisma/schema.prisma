@@ -400,9 +400,43 @@ model MediaAsset {
   updatedAt       DateTime    @updatedAt @map("updated_at")
 
   lessonAssets LessonAsset[]
+  pyqPapers    PreviousYearPaper[]
 
   @@index([ownerUserId, status])
   @@map("media_assets")
+}
+
+// Staff-uploaded previous-year exam paper (PDF/document) that students can
+// view/download once published. Deliberately a flat, single-row content
+// type — same right-sized ContentStatus subset OfficialNotice/CurrentAffairs
+// use, not the full versioned Lesson state machine — but with a REAL
+// MediaAsset FK (unlike OfficialNotice.sourceAssetId, which is just a bare
+// external-source scalar with no relation). orgId null = platform-wide
+// (visible to every student regardless of institute), set = that
+// institution's own paper — same convention as Course/Test/Exam.
+model PreviousYearPaper {
+  id          String        @id @default(uuid())
+  examId      String        @map("exam_id")
+  orgId       String?       @map("org_id")
+  titleHi     String        @map("title_hi")
+  titleEn     String        @map("title_en")
+  year        Int
+  assetId     String        @map("asset_id")
+  status      ContentStatus @default(DRAFT)
+  createdBy   String        @map("created_by")
+  approvedBy  String?       @map("approved_by")
+  publishedAt DateTime?     @map("published_at")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+  deletedAt   DateTime?     @map("deleted_at")
+
+  exam  Exam          @relation(fields: [examId], references: [id])
+  org   Organization? @relation(fields: [orgId], references: [id])
+  asset MediaAsset    @relation(fields: [assetId], references: [id])
+
+  @@index([examId])
+  @@index([orgId])
+  @@map("previous_year_papers")
 }
 
 model LessonAsset {
@@ -1847,6 +1881,7 @@ model Exam {
   tests      Test[]
   concepts   Concept[]
   notices    OfficialNotice[]
+  pyqPapers  PreviousYearPaper[]
 
   // Official exam-body calendar (Phase 4 Notification-to-Action) — written
   // ONLY by OfficialNotice.publish(), never a separate manual edit form, so
@@ -2033,6 +2068,7 @@ model Organization {
   subscription     OrganizationSubscription?
   linkedAccount    InstituteLinkedAccount?
   membershipEvents OrgMembershipEvent[]
+  pyqPapers        PreviousYearPaper[]
 
   @@map("organizations")
 }

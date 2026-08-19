@@ -24,3 +24,4 @@ export * from './ratings';
 export * from './concepts';
 export * from './institutions';
 export * from './official-notices';
+export * from './previous-year-papers';
