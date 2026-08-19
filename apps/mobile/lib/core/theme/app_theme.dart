@@ -47,7 +47,10 @@ class AppTheme {
       useMaterial3: true,
       colorScheme: colorScheme,
       scaffoldBackgroundColor: AppColors.surfaceSoft,
-      textTheme: textTheme.apply(bodyColor: AppColors.ink, displayColor: AppColors.ink),
+      textTheme: textTheme.apply(
+        bodyColor: AppColors.ink,
+        displayColor: AppColors.ink,
+      ),
       appBarTheme: const AppBarTheme(
         backgroundColor: AppColors.navy900,
         foregroundColor: Colors.white,
@@ -59,7 +62,9 @@ class AppTheme {
           backgroundColor: AppColors.navy900,
           foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
           textStyle: const TextStyle(fontWeight: FontWeight.w600),
         ),
       ),
@@ -78,7 +83,10 @@ class AppTheme {
           borderRadius: BorderRadius.circular(10),
           borderSide: const BorderSide(color: AppColors.navy900, width: 1.5),
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 14,
+        ),
       ),
       cardTheme: CardThemeData(
         color: Colors.white,

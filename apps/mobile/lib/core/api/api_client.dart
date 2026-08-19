@@ -13,8 +13,18 @@ const apiBaseUrl = 'https://api.rajyarank.com/api/v1';
 /// refresh-then-retry before giving up and asking the caller to log in again.
 class ApiClient {
   ApiClient(this._tokenStore) {
-    _dio = Dio(BaseOptions(baseUrl: apiBaseUrl, connectTimeout: const Duration(seconds: 15)));
-    _refreshDio = Dio(BaseOptions(baseUrl: apiBaseUrl, connectTimeout: const Duration(seconds: 15)));
+    _dio = Dio(
+      BaseOptions(
+        baseUrl: apiBaseUrl,
+        connectTimeout: const Duration(seconds: 15),
+      ),
+    );
+    _refreshDio = Dio(
+      BaseOptions(
+        baseUrl: apiBaseUrl,
+        connectTimeout: const Duration(seconds: 15),
+      ),
+    );
 
     _dio.interceptors.add(
       InterceptorsWrapper(
@@ -56,16 +66,24 @@ class ApiClient {
   /// Coalesces concurrent 401s into a single POST auth/refresh call — several
   /// requests failing at once shouldn't each try to rotate the refresh token.
   Future<bool> _refreshOnce() {
-    return _refreshInFlight ??= _doRefresh().whenComplete(() => _refreshInFlight = null);
+    return _refreshInFlight ??= _doRefresh().whenComplete(
+      () => _refreshInFlight = null,
+    );
   }
 
   Future<bool> _doRefresh() async {
     final refreshToken = await _tokenStore.readRefreshToken();
     if (refreshToken == null) return false;
     try {
-      final response = await _refreshDio.post('/auth/refresh', data: {'refreshToken': refreshToken});
+      final response = await _refreshDio.post(
+        '/auth/refresh',
+        data: {'refreshToken': refreshToken},
+      );
       final data = response.data['data'] as Map<String, dynamic>;
-      await _tokenStore.save(accessToken: data['accessToken'] as String, refreshToken: data['refreshToken'] as String);
+      await _tokenStore.save(
+        accessToken: data['accessToken'] as String,
+        refreshToken: data['refreshToken'] as String,
+      );
       return true;
     } catch (_) {
       await _tokenStore.clear();

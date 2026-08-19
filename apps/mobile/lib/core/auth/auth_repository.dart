@@ -22,7 +22,8 @@ String apiErrorMessage(Object error) {
       final message = (data['error'] as Map)['message'];
       if (message is String && message.isNotEmpty) return message;
     }
-    if (error.type == DioExceptionType.connectionTimeout || error.type == DioExceptionType.connectionError) {
+    if (error.type == DioExceptionType.connectionTimeout ||
+        error.type == DioExceptionType.connectionError) {
       return 'Could not reach RajyaRank. Check your internet connection.';
     }
   }
@@ -30,7 +31,8 @@ String apiErrorMessage(Object error) {
 }
 
 class AuthController extends StateNotifier<AuthState> {
-  AuthController(this._tokenStore, this._apiClient) : super(const AuthState(AuthStatus.unknown)) {
+  AuthController(this._tokenStore, this._apiClient)
+    : super(const AuthState(AuthStatus.unknown)) {
     _restore();
   }
 
@@ -39,19 +41,90 @@ class AuthController extends StateNotifier<AuthState> {
 
   Future<void> _restore() async {
     final token = await _tokenStore.readRefreshToken();
-    state = AuthState(token == null ? AuthStatus.signedOut : AuthStatus.signedIn);
+    state = AuthState(
+      token == null ? AuthStatus.signedOut : AuthStatus.signedIn,
+    );
   }
 
   /// Mirrors POST auth/student/login (apps/api/src/auth/auth.controller.ts) —
   /// same credentials the web login form's "email/password" tab uses.
   Future<void> login({required String email, required String password}) async {
-    final response = await _apiClient.dio.post('/auth/student/login', data: {
-      'email': email,
-      'password': password,
-      'remember': true,
-    });
-    final data = response.data['data'] as Map<String, dynamic>;
-    await _tokenStore.save(accessToken: data['accessToken'] as String, refreshToken: data['refreshToken'] as String);
+    final response = await _apiClient.dio.post(
+      '/auth/student/login',
+      data: {'email': email, 'password': password, 'remember': true},
+    );
+    await _signIn(response.data['data'] as Map<String, dynamic>);
+  }
+
+  /// POST auth/student/otp/request — SMS OTP, throttled 5/min server-side.
+  /// Returns the OTP's TTL so the screen can drive its own countdown.
+  Future<int> requestOtp(String phone) async {
+    final response = await _apiClient.dio.post(
+      '/auth/student/otp/request',
+      data: {'phone': phone},
+    );
+    return (response.data['data']['expiresInSeconds'] as num).toInt();
+  }
+
+  /// POST auth/student/otp/verify — creates the account on first login, same
+  /// as the (currently web-hidden, but fully functional) phone tab.
+  Future<void> verifyOtp({
+    required String phone,
+    required String code,
+    String? referralCode,
+  }) async {
+    final response = await _apiClient.dio.post(
+      '/auth/student/otp/verify',
+      data: {
+        'phone': phone,
+        'code': code,
+        if (referralCode != null) 'referralCode': referralCode,
+      },
+    );
+    await _signIn(response.data['data'] as Map<String, dynamic>);
+  }
+
+  /// POST auth/student/signup/request — sends a 6-digit email verification code.
+  Future<void> requestSignup(String email) async {
+    await _apiClient.dio.post(
+      '/auth/student/signup/request',
+      data: {'email': email},
+    );
+  }
+
+  /// POST auth/student/signup/verify — creates the account and signs in.
+  Future<void> verifySignup({
+    required String email,
+    required String code,
+    required String password,
+    String? referralCode,
+  }) async {
+    final response = await _apiClient.dio.post(
+      '/auth/student/signup/verify',
+      data: {
+        'email': email,
+        'code': code,
+        'password': password,
+        if (referralCode != null) 'referralCode': referralCode,
+      },
+    );
+    await _signIn(response.data['data'] as Map<String, dynamic>);
+  }
+
+  /// POST auth/student/password/forgot — always succeeds server-side (doesn't
+  /// reveal whether the email exists), so there's nothing to branch on here.
+  Future<void> forgotPassword(String email) async {
+    await _apiClient.dio.post(
+      '/auth/student/password/forgot',
+      data: {'email': email},
+    );
+  }
+
+  Future<void> _signIn(Map<String, dynamic> data) async {
+    await _tokenStore.save(
+      accessToken: data['accessToken'] as String,
+      refreshToken: data['refreshToken'] as String,
+    );
     state = const AuthState(AuthStatus.signedIn);
   }
 
@@ -69,10 +142,19 @@ class AuthController extends StateNotifier<AuthState> {
 
 final secureStorageProvider = Provider((ref) => const FlutterSecureStorage());
 
-final tokenStoreProvider = Provider((ref) => TokenStore(ref.watch(secureStorageProvider)));
+final tokenStoreProvider = Provider(
+  (ref) => TokenStore(ref.watch(secureStorageProvider)),
+);
 
-final apiClientProvider = Provider((ref) => ApiClient(ref.watch(tokenStoreProvider)));
+final apiClientProvider = Provider(
+  (ref) => ApiClient(ref.watch(tokenStoreProvider)),
+);
 
-final authControllerProvider = StateNotifierProvider<AuthController, AuthState>((ref) {
-  return AuthController(ref.watch(tokenStoreProvider), ref.watch(apiClientProvider));
-});
+final authControllerProvider = StateNotifierProvider<AuthController, AuthState>(
+  (ref) {
+    return AuthController(
+      ref.watch(tokenStoreProvider),
+      ref.watch(apiClientProvider),
+    );
+  },
+);

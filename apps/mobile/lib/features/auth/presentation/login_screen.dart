@@ -1,17 +1,193 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/auth_repository.dart';
 import '../../../core/theme/app_theme.dart';
+import 'otp_login_tab.dart';
 
-class LoginScreen extends ConsumerStatefulWidget {
+class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
   @override
-  ConsumerState<LoginScreen> createState() => _LoginScreenState();
+  State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends ConsumerState<LoginScreen> {
+class _LoginScreenState extends State<LoginScreen>
+    with TickerProviderStateMixin {
+  late final AnimationController _fadeController;
+  bool _useOtp = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _fadeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 420),
+    )..forward();
+  }
+
+  @override
+  void dispose() {
+    _fadeController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: FadeTransition(
+          opacity: CurvedAnimation(
+            parent: _fadeController,
+            curve: Curves.easeOut,
+          ),
+          child: SlideTransition(
+            position:
+                Tween<Offset>(
+                  begin: const Offset(0, 0.03),
+                  end: Offset.zero,
+                ).animate(
+                  CurvedAnimation(
+                    parent: _fadeController,
+                    curve: Curves.easeOutCubic,
+                  ),
+                ),
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 28,
+                  vertical: 32,
+                ),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 420),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Center(
+                        child: Image.asset(
+                          'assets/images/logo_1024.png',
+                          width: 72,
+                          height: 72,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Text(
+                        'Welcome back',
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Sign in to continue your exam prep with RajyaRank.',
+                        style: TextStyle(color: AppColors.muted),
+                      ),
+                      const SizedBox(height: 22),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceSoft,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: const EdgeInsets.all(4),
+                        child: Row(
+                          children: [
+                            _SegmentButton(
+                              label: 'Password',
+                              selected: !_useOtp,
+                              onTap: () {
+                                HapticFeedback.selectionClick();
+                                setState(() => _useOtp = false);
+                              },
+                            ),
+                            _SegmentButton(
+                              label: 'OTP',
+                              selected: _useOtp,
+                              onTap: () {
+                                HapticFeedback.selectionClick();
+                                setState(() => _useOtp = true);
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 260),
+                        transitionBuilder: (child, animation) => FadeTransition(
+                          opacity: animation,
+                          child: SizeTransition(
+                            sizeFactor: animation,
+                            child: child,
+                          ),
+                        ),
+                        child: _useOtp
+                            ? const OtpLoginTab(key: ValueKey('otp'))
+                            : const _PasswordTab(key: ValueKey('password')),
+                      ),
+                      const SizedBox(height: 8),
+                      Center(
+                        child: TextButton(
+                          onPressed: () => context.push('/signup'),
+                          child: const Text("Don't have an account? Sign up"),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SegmentButton extends StatelessWidget {
+  const _SegmentButton({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: selected ? AppColors.navy900 : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            label,
+            style: TextStyle(
+              color: selected ? Colors.white : AppColors.muted,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PasswordTab extends ConsumerStatefulWidget {
+  const _PasswordTab({super.key});
+
+  @override
+  ConsumerState<_PasswordTab> createState() => _PasswordTabState();
+}
+
+class _PasswordTabState extends ConsumerState<_PasswordTab> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -33,11 +209,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       _error = null;
     });
     try {
-      await ref.read(authControllerProvider.notifier).login(
+      await ref
+          .read(authControllerProvider.notifier)
+          .login(
             email: _emailController.text.trim(),
             password: _passwordController.text,
           );
     } catch (error) {
+      HapticFeedback.mediumImpact();
       setState(() => _error = apiErrorMessage(error));
     } finally {
       if (mounted) setState(() => _submitting = false);
@@ -46,92 +225,76 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Container(
-                      width: 64,
-                      height: 64,
-                      decoration: BoxDecoration(
-                        color: AppColors.navy900,
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                      alignment: Alignment.center,
-                      child: const Text(
-                        'R',
-                        style: TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.w700),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    Text('Welcome back', style: Theme.of(context).textTheme.headlineSmall),
-                    const SizedBox(height: 4),
-                    const Text(
-                      'Sign in to continue your exam prep with RajyaRank.',
-                      style: TextStyle(color: AppColors.muted),
-                    ),
-                    const SizedBox(height: 28),
-                    TextFormField(
-                      controller: _emailController,
-                      keyboardType: TextInputType.emailAddress,
-                      autofillHints: const [AutofillHints.email],
-                      decoration: const InputDecoration(labelText: 'Email'),
-                      validator: (value) =>
-                          (value == null || !value.contains('@')) ? 'Enter a valid email address' : null,
-                    ),
-                    const SizedBox(height: 14),
-                    TextFormField(
-                      controller: _passwordController,
-                      obscureText: _obscure,
-                      autofillHints: const [AutofillHints.password],
-                      decoration: InputDecoration(
-                        labelText: 'Password',
-                        suffixIcon: IconButton(
-                          icon: Icon(_obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined),
-                          onPressed: () => setState(() => _obscure = !_obscure),
-                        ),
-                      ),
-                      validator: (value) =>
-                          (value == null || value.isEmpty) ? 'Enter your password' : null,
-                      onFieldSubmitted: (_) => _submit(),
-                    ),
-                    if (_error != null) ...[
-                      const SizedBox(height: 14),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: AppColors.danger.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: AppColors.danger.withValues(alpha: 0.25)),
-                        ),
-                        child: Text(_error!, style: const TextStyle(color: AppColors.danger)),
-                      ),
-                    ],
-                    const SizedBox(height: 22),
-                    ElevatedButton(
-                      onPressed: _submitting ? null : _submit,
-                      child: _submitting
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white),
-                            )
-                          : const Text('Sign in'),
-                    ),
-                  ],
+    return Form(
+      key: _formKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TextFormField(
+            controller: _emailController,
+            keyboardType: TextInputType.emailAddress,
+            autofillHints: const [AutofillHints.email],
+            decoration: const InputDecoration(labelText: 'Email'),
+            validator: (value) => (value == null || !value.contains('@'))
+                ? 'Enter a valid email address'
+                : null,
+          ),
+          const SizedBox(height: 14),
+          TextFormField(
+            controller: _passwordController,
+            obscureText: _obscure,
+            autofillHints: const [AutofillHints.password],
+            decoration: InputDecoration(
+              labelText: 'Password',
+              suffixIcon: IconButton(
+                icon: Icon(
+                  _obscure
+                      ? Icons.visibility_outlined
+                      : Icons.visibility_off_outlined,
                 ),
+                onPressed: () => setState(() => _obscure = !_obscure),
               ),
             ),
+            validator: (value) =>
+                (value == null || value.isEmpty) ? 'Enter your password' : null,
+            onFieldSubmitted: (_) => _submit(),
           ),
-        ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: () => context.push('/forgot-password'),
+              child: const Text('Forgot password?'),
+            ),
+          ),
+          if (_error != null) ...[
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.danger.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                _error!,
+                style: const TextStyle(color: AppColors.danger),
+              ),
+            ),
+          ],
+          const SizedBox(height: 10),
+          ElevatedButton(
+            onPressed: _submitting ? null : _submit,
+            child: _submitting
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.4,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Text('Sign in'),
+          ),
+        ],
       ),
     );
   }

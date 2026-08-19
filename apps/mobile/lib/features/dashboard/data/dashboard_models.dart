@@ -37,10 +37,12 @@ class DashboardData {
       hasActivePlan: json['hasActivePlan'] as bool? ?? false,
       todayPlan: todayPlanJson
           .cast<Map<String, dynamic>>()
-          .map((item) => TodayPlanItem(
-                titleEn: item['titleEn'] as String? ?? '',
-                kind: item['kind'] as String? ?? '',
-              ))
+          .map(
+            (item) => TodayPlanItem(
+              titleEn: item['titleEn'] as String? ?? '',
+              kind: item['kind'] as String? ?? '',
+            ),
+          )
           .toList(),
     );
   }

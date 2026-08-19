@@ -12,7 +12,10 @@ class TokenStore {
   static const _accessKey = 'rr_access_token';
   static const _refreshKey = 'rr_refresh_token';
 
-  Future<void> save({required String accessToken, required String refreshToken}) async {
+  Future<void> save({
+    required String accessToken,
+    required String refreshToken,
+  }) async {
     await _storage.write(key: _accessKey, value: accessToken);
     await _storage.write(key: _refreshKey, value: refreshToken);
   }
