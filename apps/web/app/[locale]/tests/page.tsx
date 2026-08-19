@@ -28,7 +28,7 @@ export default async function TestsPage({ params }: { params: { locale: string }
   const tests = (await apiFetchServer<StudentTestListItem[]>('/student/tests', cookie)) ?? [];
 
   return (
-    <StudentShell locale={locale} name={me.displayName ?? L('विद्यार्थी', 'Student')} initials={initialsOf(me.displayName)} target={L('टेस्ट और अभ्यास', 'Tests & Practice')}>
+    <StudentShell locale={locale} name={me.displayName ?? L('विद्यार्थी', 'Student')} initials={initialsOf(me.displayName)} target={L('टेस्ट और अभ्यास', 'Tests & Practice')} hasInstitute={Boolean(me.orgId)}>
       <div className="mb-6">
         <h1 className="text-[26px] font-black tracking-tight text-navy-950 md:text-[34px]">{L('टेस्ट और अभ्यास', 'Tests & Practice')}</h1>
         <p className="mt-1 text-sm text-muted">{L('नियमित अभ्यास करें और जानें कि कहाँ सुधार करना है।', 'Practise regularly and understand exactly where to improve.')}</p>

@@ -40,6 +40,7 @@ export function StudentShell({
   notifCount,
   hasActivePlan,
   activeEntitlementEndsAt,
+  hasInstitute,
   children,
 }: {
   locale: 'hi' | 'en';
@@ -55,6 +56,11 @@ export function StudentShell({
   /** ISO expiry of the student's active plan, when it has one (null for none
    *  active, or for an active lifetime plan — check hasActivePlan). */
   activeEntitlementEndsAt?: string | null;
+  /** Whether the student is an actual member of an institute (User.orgId
+   *  set). Tests are institute-only content — student-tests.service.ts's
+   *  orgScopeFilter already returns none for a non-member, so this just
+   *  hides the nav link rather than inviting a click into an empty page. */
+  hasInstitute?: boolean;
   children: ReactNode;
 }) {
   const hi = locale === 'hi';
@@ -72,7 +78,7 @@ export function StudentShell({
     { href: '/study-plan', label: L('स्टडी प्लान', 'Study Plan'), icon: 'clipboard' },
     { href: '/my-courses', label: L('मेरे कोर्स', 'My Courses'), icon: 'book' },
     { href: '/wishlist', label: L('विशलिस्ट', 'Wishlist'), icon: 'heart' },
-    { href: '/tests', label: L('टेस्ट और अभ्यास', 'Tests & Practice'), icon: 'clipboard' },
+    ...(hasInstitute ? [{ href: '/tests', label: L('टेस्ट और अभ्यास', 'Tests & Practice'), icon: 'clipboard' as const }] : []),
     { href: '/revision', label: L('रिवीज़न', 'Revision'), icon: 'bookmark' },
     { href: '/current-affairs', label: L('करंट अफेयर्स', 'Current Affairs'), icon: 'newspaper' },
   ];
@@ -85,7 +91,7 @@ export function StudentShell({
   const mobileNav: NavItem[] = [
     { href: '/dashboard', label: L('डैशबोर्ड', 'Dashboard'), icon: 'home' },
     { href: '/my-courses', label: L('कोर्स', 'Courses'), icon: 'book' },
-    { href: '/tests', label: L('टेस्ट', 'Tests'), icon: 'clipboard' },
+    ...(hasInstitute ? [{ href: '/tests', label: L('टेस्ट', 'Tests'), icon: 'clipboard' as const }] : []),
     { href: '/revision', label: L('रिवीज़न', 'Revision'), icon: 'bookmark' },
     { href: '/account', label: L('प्रोफ़ाइल', 'Profile'), icon: 'user' },
   ];
@@ -219,7 +225,10 @@ export function StudentShell({
       </div>
 
       {/* Mobile bottom nav */}
-      <nav className="fixed inset-x-0 bottom-0 z-[75] grid h-[70px] grid-cols-5 border-t border-line bg-white/96 px-1 py-1.5 backdrop-blur-xl md:hidden">
+      <nav
+        className="fixed inset-x-0 bottom-0 z-[75] grid h-[70px] border-t border-line bg-white/96 px-1 py-1.5 backdrop-blur-xl md:hidden"
+        style={{ gridTemplateColumns: `repeat(${mobileNav.length}, minmax(0, 1fr))` }}
+      >
         {mobileNav.map((it) => (
           <Link key={it.href} href={p(it.href)} className={`grid place-items-center gap-0.5 text-[8px] font-black ${active(it.href) ? 'text-orange-600' : 'text-[#708698]'}`}>
             <Icon name={it.icon} />

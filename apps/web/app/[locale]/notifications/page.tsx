@@ -27,7 +27,7 @@ export default async function NotificationsPage({ params }: { params: { locale: 
   const unread = items.filter((n) => !n.read).length;
 
   return (
-    <StudentShell locale={locale} name={me.displayName ?? L('विद्यार्थी', 'Student')} initials={initialsOf(me.displayName)} target={L('सूचनाएँ', 'Notifications')} notifCount={unread}>
+    <StudentShell locale={locale} name={me.displayName ?? L('विद्यार्थी', 'Student')} initials={initialsOf(me.displayName)} target={L('सूचनाएँ', 'Notifications')} notifCount={unread} hasInstitute={Boolean(me.orgId)}>
       <div className="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-start">
         <div>
           <h1 className="text-[26px] font-black tracking-tight text-navy-950 md:text-[34px]">{L('सूचनाएँ', 'Notifications')}</h1>

@@ -198,7 +198,7 @@ export default async function CourseDetailPage({
   // Logged-in student → portal shell (no public login CTAs).
   if (isStudent) {
     return (
-      <StudentShell locale={locale} name={me.displayName ?? L('विद्यार्थी', 'Student')} initials={initialsOf(me.displayName)} target={title}>
+      <StudentShell locale={locale} name={me.displayName ?? L('विद्यार्थी', 'Student')} initials={initialsOf(me.displayName)} target={title} hasInstitute={Boolean(me.orgId)}>
         {content}
       </StudentShell>
     );

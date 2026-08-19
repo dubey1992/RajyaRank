@@ -29,7 +29,7 @@ export default async function ExamNoticesPage({ params }: { params: { locale: st
   const items = (await apiFetchServer<ExamNotice[]>('/student/exam-notices', cookie)) ?? [];
 
   return (
-    <StudentShell locale={locale} name={me.displayName ?? L('विद्यार्थी', 'Student')} initials={initialsOf(me.displayName)} target={L('परीक्षा सूचनाएँ', 'Exam Notices')}>
+    <StudentShell locale={locale} name={me.displayName ?? L('विद्यार्थी', 'Student')} initials={initialsOf(me.displayName)} target={L('परीक्षा सूचनाएँ', 'Exam Notices')} hasInstitute={Boolean(me.orgId)}>
       <div className="mb-6">
         <h1 className="text-[26px] font-black tracking-tight text-navy-950 md:text-[34px]">{L('परीक्षा सूचनाएँ', 'Exam Notices')}</h1>
         <p className="mt-1 text-sm text-muted">{L('आपकी लक्ष्य परीक्षा से संबंधित आधिकारिक अपडेट, समीक्षा के बाद प्रकाशित।', 'Official updates about your target exam, published after academic review.')}</p>

@@ -40,7 +40,7 @@ export default async function LearnPage({ params }: { params: { locale: string; 
   const summary = (hi ? lesson.summary?.hi : lesson.summary?.en) ?? '';
 
   return (
-    <StudentShell locale={locale} name={me.displayName ?? L('विद्यार्थी', 'Student')} initials={initialsOf(me.displayName)} target={L('पाठ', 'Lesson')}>
+    <StudentShell locale={locale} name={me.displayName ?? L('विद्यार्थी', 'Student')} initials={initialsOf(me.displayName)} target={L('पाठ', 'Lesson')} hasInstitute={Boolean(me.orgId)}>
       {/* Breadcrumb */}
       <nav className="mb-3 flex flex-wrap items-center gap-2 text-[11px] text-muted">
         <Link href={`/${locale}/dashboard`} className="font-bold text-orange-600">{L('डैशबोर्ड', 'Dashboard')}</Link>

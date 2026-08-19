@@ -100,7 +100,7 @@ export default async function ExamDetailPage({ params }: { params: { locale: str
 
   if (isStudent) {
     return (
-      <StudentShell locale={locale} name={me.displayName ?? L('विद्यार्थी', 'Student')} initials={initialsOf(me.displayName)} target={nm(exam)}>
+      <StudentShell locale={locale} name={me.displayName ?? L('विद्यार्थी', 'Student')} initials={initialsOf(me.displayName)} target={nm(exam)} hasInstitute={Boolean(me.orgId)}>
         {content}
       </StudentShell>
     );
