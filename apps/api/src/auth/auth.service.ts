@@ -80,7 +80,7 @@ export class AuthService {
     ip?: string,
     userAgent?: string,
     referralCode?: string,
-  ): Promise<{ homeRoute: string }> {
+  ): Promise<{ homeRoute: string; accessToken: string; refreshToken: string; expiresIn: number }> {
     await this.otp.verify(phone, 'STUDENT_LOGIN', code);
 
     let user = await this.prisma.user.findFirst({ where: { kind: 'STUDENT', phone } });
@@ -121,10 +121,10 @@ export class AuthService {
       });
     }
 
-    await this.issue(res, user.id, 'STUDENT', 'AAL1', ip, userAgent);
+    const tokens = await this.issue(res, user.id, 'STUDENT', 'AAL1', ip, userAgent);
     await this.prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
     await this.audit.record({ actorUserId: user.id, action: 'auth.login', result: 'SUCCESS', ip, userAgent });
-    return { homeRoute: ROLE_HOME_ROUTE.STUDENT };
+    return { homeRoute: ROLE_HOME_ROUTE.STUDENT, ...tokens };
   }
 
   // ── Student email + password (signup verifies the email first, same trust
@@ -146,7 +146,7 @@ export class AuthService {
     ip?: string,
     userAgent?: string,
     referralCode?: string,
-  ): Promise<{ homeRoute: string }> {
+  ): Promise<{ homeRoute: string; accessToken: string; refreshToken: string; expiresIn: number }> {
     const normalized = email.toLowerCase();
     await this.otp.verify(normalized, 'EMAIL_VERIFY', code);
 
@@ -174,10 +174,10 @@ export class AuthService {
     });
     await this.recordReferralJoin(user.id, referredByOrgId);
 
-    await this.issue(res, user.id, 'STUDENT', 'AAL1', ip, userAgent);
+    const tokens = await this.issue(res, user.id, 'STUDENT', 'AAL1', ip, userAgent);
     await this.prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
     await this.audit.record({ actorUserId: user.id, action: 'auth.signup', result: 'SUCCESS', ip, userAgent });
-    return { homeRoute: ROLE_HOME_ROUTE.STUDENT };
+    return { homeRoute: ROLE_HOME_ROUTE.STUDENT, ...tokens };
   }
 
   /** Same shape as staffLogin, minus the MFA branch — no student MFA exists anywhere. */
@@ -219,7 +219,7 @@ export class AuthService {
     ip?: string,
     userAgent?: string,
     remember = false,
-  ): Promise<{ homeRoute: string }> {
+  ): Promise<{ homeRoute: string; accessToken: string; refreshToken: string; expiresIn: number }> {
     const normalized = email.toLowerCase();
     const user = await this.prisma.user.findFirst({ where: { kind: 'STUDENT', email: normalized, deletedAt: null } });
     if (!user || !user.passwordHash) {
@@ -248,10 +248,10 @@ export class AuthService {
 
     await this.clearDestinationFailures('STUDENT', normalized);
     await this.prisma.user.update({ where: { id: user.id }, data: { failedLogins: 0, lockedUntil: null } });
-    await this.issue(res, user.id, 'STUDENT', 'AAL1', ip, userAgent, remember);
+    const tokens = await this.issue(res, user.id, 'STUDENT', 'AAL1', ip, userAgent, remember);
     await this.prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
     await this.audit.record({ actorUserId: user.id, action: 'auth.login', result: 'SUCCESS', ip, userAgent });
-    return { homeRoute: ROLE_HOME_ROUTE.STUDENT };
+    return { homeRoute: ROLE_HOME_ROUTE.STUDENT, ...tokens };
   }
 
   /** Always resolves successfully to avoid leaking whether an account exists — same privacy stance as staff's. */
@@ -501,9 +501,18 @@ export class AuthService {
   }
 
   // ── Sessions ────────────────────────────────────────────────────────────────
-  async refresh(req: Request & { cookies?: Record<string, string> }, res: Response): Promise<{ ok: true }> {
+  async refresh(
+    req: Request & { cookies?: Record<string, string>; body?: { refreshToken?: string } },
+    res: Response,
+  ): Promise<{ ok: true; accessToken: string; refreshToken: string; expiresIn: number }> {
+    // Bearer-only clients (no cookie jar — the Flutter app) have nowhere to
+    // carry a refresh cookie, so they send it back in the body instead; the
+    // web app never populates this field and keeps using the cookie above.
     const raw =
-      req.cookies?.[refreshCookieName('STAFF')] ?? req.cookies?.[refreshCookieName('STUDENT')] ?? null;
+      req.cookies?.[refreshCookieName('STAFF')] ??
+      req.cookies?.[refreshCookieName('STUDENT')] ??
+      req.body?.refreshToken ??
+      null;
     if (!raw) throw AppError.sessionExpired();
 
     const ip = req.ip;
@@ -530,7 +539,7 @@ export class AuthService {
       assurance: result.assurance,
     });
     setAuthCookies(res, this.env, kind, access, result.issued.refreshToken, result.remembered);
-    return { ok: true };
+    return { ok: true, accessToken: access, refreshToken: result.issued.refreshToken, expiresIn: this.env.ACCESS_TOKEN_TTL };
   }
 
   async logout(req: Request & { auth?: { sub: string; sid: string; kind: 'STUDENT' | 'STAFF' } }, res: Response) {
@@ -776,7 +785,7 @@ export class AuthService {
     // keep the existing always-persistent behavior; only staff login threads
     // the checkbox value through explicitly.
     remember = true,
-  ): Promise<void> {
+  ): Promise<{ accessToken: string; refreshToken: string; expiresIn: number }> {
     const session = await this.sessions.create(userId, assurance, ip, userAgent, undefined, remember);
     const access = this.tokens.signAccess({
       sub: userId,
@@ -786,6 +795,10 @@ export class AuthService {
       assurance,
     });
     setAuthCookies(res, this.env, kind, access, session.refreshToken, remember);
+    // Cookies remain the only thing the web app reads; access/refresh are also
+    // handed back here so a Bearer-only client (no cookie jar — the Flutter
+    // app) can store them itself. AccessGuard already accepts either.
+    return { accessToken: access, refreshToken: session.refreshToken, expiresIn: this.env.ACCESS_TOKEN_TTL };
   }
 
   private homeRouteFor(roleKeys: RoleKey[]): string {
