@@ -504,7 +504,7 @@ export class AuthService {
   async refresh(
     req: Request & { cookies?: Record<string, string>; body?: { refreshToken?: string } },
     res: Response,
-  ): Promise<{ ok: true; accessToken: string; refreshToken: string; expiresIn: number }> {
+  ): Promise<{ ok: true; accessToken?: string; refreshToken?: string; expiresIn?: number }> {
     // Bearer-only clients (no cookie jar — the Flutter app) have nowhere to
     // carry a refresh cookie, so they send it back in the body instead; the
     // web app never populates this field and keeps using the cookie above.
@@ -539,6 +539,11 @@ export class AuthService {
       assurance: result.assurance,
     });
     setAuthCookies(res, this.env, kind, access, result.issued.refreshToken, result.remembered);
+    // Only echo tokens into the body for STUDENT (the Bearer-only mobile
+    // client) — STAFF sessions are AAL2/admin-privileged and rely on the
+    // cookie being httpOnly (JS-inaccessible even under XSS); re-exposing
+    // the same tokens here for staff would undermine exactly that.
+    if (kind !== 'STUDENT') return { ok: true };
     return { ok: true, accessToken: access, refreshToken: result.issued.refreshToken, expiresIn: this.env.ACCESS_TOKEN_TTL };
   }
 
