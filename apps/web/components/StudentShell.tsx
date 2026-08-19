@@ -79,6 +79,10 @@ export function StudentShell({
     { href: '/my-courses', label: L('मेरे कोर्स', 'My Courses'), icon: 'book' },
     { href: '/wishlist', label: L('विशलिस्ट', 'Wishlist'), icon: 'heart' },
     ...(hasInstitute ? [{ href: '/tests', label: L('टेस्ट और अभ्यास', 'Tests & Practice'), icon: 'clipboard' as const }] : []),
+    // Not gated on hasInstitute (unlike /tests) — real past exam papers are
+    // expected to often be platform-wide content useful to every student
+    // regardless of institute, not institute-private.
+    { href: '/pyq', label: L('पिछले वर्ष के प्रश्न', 'Previous Year Questions'), icon: 'newspaper' },
     { href: '/revision', label: L('रिवीज़न', 'Revision'), icon: 'bookmark' },
     { href: '/current-affairs', label: L('करंट अफेयर्स', 'Current Affairs'), icon: 'newspaper' },
   ];

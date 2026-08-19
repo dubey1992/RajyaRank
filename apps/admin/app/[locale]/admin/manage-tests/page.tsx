@@ -9,8 +9,9 @@ import { QuickQuestionForm } from '@/components/QuickQuestionForm';
 import { QuestionImport } from '@/components/QuestionImport';
 import { QuestionBankBrowser, type QuestionItem } from '@/components/QuestionBankBrowser';
 import { MockTestsManager } from '@/components/MockTestsManager';
+import { PreviousYearPapersManager } from '@/components/PreviousYearPapersManager';
 import { TabbedSections, type TabSection } from '@/components/TabbedSections';
-import type { TestListItem } from '@rajyarank/contracts';
+import type { TestListItem, PyqPaperView } from '@rajyarank/contracts';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,7 +26,8 @@ export default async function ManageTestsPage({ params }: { params: { locale: st
 
   const canQuestions = can(me, 'question.create');
   const canTests = can(me, 'test.create') || can(me, 'content.approve');
-  if (!canQuestions && !canTests) {
+  const canPyq = can(me, 'content.create');
+  if (!canQuestions && !canTests && !canPyq) {
     return (
       <Shell me={me} locale={locale} title={title}>
         <AccessDenied locale={locale} permission="question.create" />
@@ -34,9 +36,10 @@ export default async function ManageTestsPage({ params }: { params: { locale: st
   }
 
   const cookie = cookies().toString();
-  const [questions, tests] = await Promise.all([
+  const [questions, tests, pyqPapers] = await Promise.all([
     canQuestions ? apiFetchServer<QuestionItem[]>('/staff/questions', cookie) : Promise.resolve(null),
     canTests ? apiFetchServer<TestListItem[]>('/staff/tests', cookie) : Promise.resolve(null),
+    canPyq ? apiFetchServer<PyqPaperView[]>('/staff/pyq-papers', cookie) : Promise.resolve(null),
   ]);
 
   const sections: TabSection[] = [];
@@ -75,6 +78,23 @@ export default async function ManageTestsPage({ params }: { params: { locale: st
       key: 'mock-tests',
       label: hi ? 'मॉक टेस्ट' : 'Mock Tests',
       content: <MockTestsManager initialTests={tests ?? []} me={me} locale={locale} />,
+    });
+  }
+  if (canPyq) {
+    sections.push({
+      key: 'pyq-papers',
+      label: hi ? 'पिछले वर्ष के प्रश्न' : 'Previous Year Questions',
+      content: (
+        <PreviousYearPapersManager
+          papers={pyqPapers ?? []}
+          locale={locale}
+          canCreate={canPyq}
+          canSubmit={can(me, 'content.submit_review')}
+          canReview={can(me, 'content.review')}
+          canApprove={can(me, 'content.approve')}
+          canPublish={can(me, 'content.publish')}
+        />
+      ),
     });
   }
 
