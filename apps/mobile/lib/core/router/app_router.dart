@@ -5,9 +5,11 @@ import 'package:go_router/go_router.dart';
 import '../../features/auth/presentation/forgot_password_screen.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/signup_screen.dart';
-import '../../features/dashboard/presentation/dashboard_screen.dart';
+import '../../features/courses/presentation/course_detail_screen.dart';
+import '../../features/lesson/presentation/lesson_player_screen.dart';
 import '../../features/onboarding/presentation/onboarding_screen.dart';
 import '../auth/auth_repository.dart';
+import '../navigation/home_shell.dart';
 
 const _publicRoutes = {'/login', '/signup', '/forgot-password'};
 
@@ -41,7 +43,19 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/dashboard',
-        builder: (context, state) => const DashboardScreen(),
+        builder: (context, state) => const HomeShell(),
+      ),
+      GoRoute(
+        path: '/courses/:courseId',
+        builder: (context, state) => CourseDetailScreen(
+          courseId: state.pathParameters['courseId']!,
+        ),
+      ),
+      GoRoute(
+        path: '/learn/:lessonId',
+        builder: (context, state) => LessonPlayerScreen(
+          lessonId: state.pathParameters['lessonId']!,
+        ),
       ),
     ],
   );

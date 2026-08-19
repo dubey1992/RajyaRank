@@ -40,6 +40,10 @@ dependencies:
   dio: ^5.7.0
   flutter_secure_storage: ^9.2.2
   google_fonts: ^6.2.1
+  video_player: ^2.14.0
+  chewie: ^1.13.1
+  webview_flutter: ^4.14.1
+  pdfx: ^2.9.2
 
 dev_dependencies:
   flutter_test:

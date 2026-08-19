@@ -30,6 +30,20 @@ String apiErrorMessage(Object error) {
   return 'Something went wrong. Please try again.';
 }
 
+/// Extracts the API error envelope's machine-readable `code` (e.g.
+/// `LESSON_ENGAGEMENT_INSUFFICIENT`), for callers that need to branch on it
+/// rather than just display `apiErrorMessage`.
+String? apiErrorCode(Object error) {
+  if (error is DioException) {
+    final data = error.response?.data;
+    if (data is Map && data['error'] is Map) {
+      final code = (data['error'] as Map)['code'];
+      if (code is String) return code;
+    }
+  }
+  return null;
+}
+
 class AuthController extends StateNotifier<AuthState> {
   AuthController(this._tokenStore, this._apiClient)
     : super(const AuthState(AuthStatus.unknown)) {
