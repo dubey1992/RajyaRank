@@ -32,6 +32,7 @@ export const PERMISSION_CODES = [
   'audit.view',
   'org.manage',
   'marketing.manage',
+  'app.manage',
 ] as const;
 
 export type PermissionCode = (typeof PERMISSION_CODES)[number];
@@ -62,6 +63,7 @@ export const PERMISSION_CATEGORY: Record<PermissionCode, string> = {
   'audit.view': 'audit',
   'org.manage': 'org',
   'marketing.manage': 'marketing',
+  'app.manage': 'app',
 };
 
 /**
@@ -79,6 +81,7 @@ export const HIGH_RISK_PERMISSIONS: ReadonlySet<PermissionCode> = new Set<Permis
   'role.manage',
   'payment.manage',
   'org.manage',
+  'app.manage',
 ]);
 
 /**
@@ -147,16 +150,17 @@ export const ROLE_PERMISSIONS: Record<RoleKey, PermissionCode[]> = {
     'doubt.respond',
   ],
   // Super Admin is deliberately restricted to platform oversight only —
-  // exactly the seven sections its nav shows (Dashboard/Manage Institutions/
+  // the sections its nav shows (Dashboard/Manage Institutions/
   // Roles & Permissions/Manage Payments/Support/Recent Activities/Marketing
-  // Content). The policy engine no longer grants Super Admin a blanket
-  // capability bypass (see policy.engine.ts), so this list is the real,
-  // enforced ceiling — course/content/question/test/staff/student management
-  // are intentionally absent; an Academic Head or Content Admin must do those.
-  // Marketing content (homepage testimonials/FAQ/study-content teaser) is the
-  // one exception kept with Super Admin rather than Content Admin/Academic
-  // Head: it's platform-wide marketing copy, not scoped to any institution.
-  SUPER_ADMIN: ['org.manage', 'role.manage', 'payment.manage', 'support.manage', 'audit.view', 'marketing.manage'],
+  // Content/Mobile App). The policy engine no longer grants Super Admin a
+  // blanket capability bypass (see policy.engine.ts), so this list is the
+  // real, enforced ceiling — course/content/question/test/staff/student
+  // management are intentionally absent; an Academic Head or Content Admin
+  // must do those. Marketing content (homepage testimonials/FAQ/study-content
+  // teaser) and mobile app release management are the exceptions kept with
+  // Super Admin rather than Content Admin/Academic Head: both are
+  // platform-wide, not scoped to any institution.
+  SUPER_ADMIN: ['org.manage', 'role.manage', 'payment.manage', 'support.manage', 'audit.view', 'marketing.manage', 'app.manage'],
 };
 
 export function isHighRisk(code: string): boolean {

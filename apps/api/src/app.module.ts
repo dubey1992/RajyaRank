@@ -44,6 +44,7 @@ import { OfficialNoticesModule } from './official-notices/official-notices.modul
 import { PreviousYearPapersModule } from './previous-year-papers/previous-year-papers.module';
 import { S3Module } from './s3/s3.module';
 import { AnnouncementsModule } from './announcements/announcements.module';
+import { MobileReleasesModule } from './mobile-releases/mobile-releases.module';
 import { MonitoringModule } from './monitoring/monitoring.module';
 import { MetricsInterceptor } from './monitoring/metrics.interceptor';
 import { HealthModule } from './health/health.module';
@@ -106,6 +107,7 @@ import { CsrfGuard } from './authz/csrf.guard';
     OfficialNoticesModule,
     PreviousYearPapersModule,
     AnnouncementsModule,
+    MobileReleasesModule,
     MonitoringModule,
     HealthModule,
   ],

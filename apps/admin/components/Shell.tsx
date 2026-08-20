@@ -54,6 +54,7 @@ const NAV: NavItem[] = [
   { href: '/admin/marketing', label: { hi: 'मार्केटिंग सामग्री', en: 'Marketing Content' }, show: (me) => can(me, 'marketing.manage') },
   { href: '/admin/blog', label: { hi: 'ब्लॉग', en: 'Blog' }, show: (me) => can(me, 'marketing.manage') },
   { href: '/admin/announcements', label: { hi: 'घोषणाएँ', en: 'Announcements' }, show: (me) => can(me, 'marketing.manage') },
+  { href: '/admin/mobile-releases', label: { hi: 'मोबाइल ऐप', en: 'Mobile App' }, show: (me) => can(me, 'app.manage') },
   { href: '/admin/my-content', label: { hi: 'मेरा कंटेंट', en: 'My Content' }, show: (me) => can(me, 'content.create') },
   { href: '/admin/review-queue', label: { hi: 'समीक्षा क़तार', en: 'Review Queue' }, show: (me) => can(me, 'content.review') },
   { href: '/admin/current-affairs', label: { hi: 'करेंट अफेयर्स', en: 'Current Affairs' }, show: (me) => can(me, 'content.create') || can(me, 'content.review') },
@@ -100,6 +101,7 @@ const SUPER_ADMIN_NAV = new Set([
   '/admin/marketing',
   '/admin/blog',
   '/admin/announcements',
+  '/admin/mobile-releases',
 ]);
 
 /** Each merged nav entry hides its standalone halves for whoever qualifies

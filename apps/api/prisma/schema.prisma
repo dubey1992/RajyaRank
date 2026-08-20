@@ -2317,3 +2317,40 @@ model BlogPost {
   @@index([category])
   @@map("blog_posts")
 }
+
+enum MobileAppPlatform {
+  ANDROID
+  IOS
+}
+
+// UPLOADING (presigned PUT issued, S3 object not confirmed yet) → READY
+// (upload confirmed, not public) → PUBLISHED (the one students download) →
+// ARCHIVED (superseded or withdrawn). At most one PUBLISHED row per platform
+// at a time — enforced in MobileReleasesService.publish(), not the schema,
+// same "supersede, don't overwrite" approach as StudyPlan's ACTIVE/ABANDONED
+// history (see rajyarank-build-status memory) — old releases stay queryable.
+enum MobileAppReleaseStatus {
+  UPLOADING
+  READY
+  PUBLISHED
+  ARCHIVED
+}
+
+model MobileAppRelease {
+  id             String                 @id @default(uuid())
+  platform       MobileAppPlatform      @default(ANDROID)
+  versionName    String                 @map("version_name")
+  versionCode    Int                    @map("version_code")
+  releaseNotesHi String?                @map("release_notes_hi")
+  releaseNotesEn String?                @map("release_notes_en")
+  storageKey     String?                @map("storage_key")
+  sizeBytes      Int                    @map("size_bytes")
+  status         MobileAppReleaseStatus @default(UPLOADING)
+  publishedAt    DateTime?              @map("published_at")
+  createdBy      String                 @map("created_by")
+  createdAt      DateTime               @default(now()) @map("created_at")
+
+  @@unique([platform, versionCode])
+  @@index([platform, status])
+  @@map("mobile_app_releases")
+}

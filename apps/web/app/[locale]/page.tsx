@@ -9,7 +9,7 @@ import { CoursesFilterGrid } from '@/components/CoursesFilterGrid';
 import { toFilterableCourses, type CourseListItem } from '@/lib/courses';
 import { apiFetchServer } from '@/lib/api';
 import { getMe } from '@/lib/student';
-import type { ProductView, PartnerInstituteView, PlatformStatsView, State, Exam, TestimonialView, FaqView, StudyContentTeaserView } from '@rajyarank/contracts';
+import type { ProductView, PartnerInstituteView, PlatformStatsView, State, Exam, TestimonialView, FaqView, StudyContentTeaserView, MobileAppLatestReleaseView } from '@rajyarank/contracts';
 
 const TEASER_STYLE: Record<StudyContentTeaserView['kind'], { icon: string; color: string; fg: string }> = {
   VIDEO: { icon: '▶', color: 'edf4ff', fg: '2e69ba' },
@@ -31,7 +31,7 @@ export default async function LandingPage({ params }: { params: { locale: string
   const L = (h: string, e: string) => (hi ? h : e);
 
   const cookie = cookies().toString();
-  const [me, courseList, products, institutes, states, examList, testimonials, faqRows, teasers, platformStats] = await Promise.all([
+  const [me, courseList, products, institutes, states, examList, testimonials, faqRows, teasers, platformStats, androidRelease] = await Promise.all([
     getMe(cookie),
     apiFetchServer<CourseListItem[]>('/courses', ''),
     apiFetchServer<ProductView[]>('/products', ''),
@@ -42,6 +42,7 @@ export default async function LandingPage({ params }: { params: { locale: string
     apiFetchServer<FaqView[]>('/faqs', ''),
     apiFetchServer<StudyContentTeaserView[]>('/study-content-teasers', ''),
     apiFetchServer<PlatformStatsView>('/platform-stats', ''),
+    apiFetchServer<MobileAppLatestReleaseView | null>('/app-releases/android/latest', ''),
   ]);
   const isStudent = !!me && me.kind === 'STUDENT';
   const courses = toFilterableCourses(courseList ?? [], products ?? []).slice(0, 24);
@@ -491,6 +492,70 @@ export default async function LandingPage({ params }: { params: { locale: string
         </section>
       ) : null}
 
+      {/* Mobile app */}
+      <section id="app" className="border-y border-line bg-surface-soft">
+        <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-16 md:grid-cols-[1.1fr_0.9fr] md:py-20">
+          <div>
+            <span className="inline-flex items-center gap-2 rounded-full border border-orange-500/40 bg-orange-100 px-3 py-1.5 text-[13px] font-extrabold text-orange-600">
+              {L('अब Android पर उपलब्ध', 'Now available on Android')}
+            </span>
+            <h2 className="mt-3 text-3xl font-black tracking-tight text-navy-950 md:text-[40px]">
+              {L('जहाँ भी हों, वहीं पढ़ाई करें', 'Study anywhere with the RajyaRank app')}
+            </h2>
+            <p className="mt-3 max-w-md text-muted">
+              {L('डैशबोर्ड, कोर्स, टेस्ट और भुगतान — पूरा RajyaRank अनुभव अब आपके फ़ोन पर, वेबसाइट जैसी ही सुविधाओं के साथ।', 'Dashboard, courses, tests and payments — the full RajyaRank experience, now on your phone with the same features as the website.')}
+            </p>
+            <ul className="mt-5 grid gap-2.5 text-sm text-ink">
+              {[
+                L('कम डेटा में चलने वाला वीडियो प्लेयर', 'A low-data video player built for slow connections'),
+                L('रिवीज़न व टेस्ट रिमाइंडर की सूचनाएं', 'Notifications for revision and test reminders'),
+                L('वेबसाइट जितनी ही सुरक्षित भुगतान प्रक्रिया', 'The same secure checkout as the website'),
+              ].map((line) => (
+                <li key={line} className="flex items-start gap-2.5">
+                  <span aria-hidden className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-teal-100 text-[11px] font-black text-teal-600">✓</span>
+                  {line}
+                </li>
+              ))}
+            </ul>
+            <div className="mt-6 flex flex-wrap items-center gap-4">
+              {androidRelease ? (
+                <a href={androidRelease.downloadUrl} className={BTN_PRIMARY}>
+                  <span aria-hidden>⬇</span> {L('Android के लिए डाउनलोड करें', 'Download for Android')}
+                </a>
+              ) : (
+                <span className={`${BTN_PRIMARY} pointer-events-none opacity-60`}>
+                  {L('जल्द आ रहा है', 'Coming soon')}
+                </span>
+              )}
+              {androidRelease ? (
+                <span className="text-xs font-semibold text-muted">
+                  v{androidRelease.versionName} · {(androidRelease.sizeBytes / (1024 * 1024)).toFixed(0)} MB · {L('APK · Android 8.0+', 'APK · Android 8.0+')}
+                </span>
+              ) : null}
+            </div>
+            {androidRelease && (hi ? androidRelease.releaseNotesHi : androidRelease.releaseNotesEn) ? (
+              <p className="mt-3 max-w-md text-xs text-muted">{hi ? androidRelease.releaseNotesHi : androidRelease.releaseNotesEn}</p>
+            ) : null}
+          </div>
+          <div className="mx-auto w-full max-w-[220px]">
+            <div className="rounded-[32px] border-[6px] border-navy-950 bg-navy-950 p-2 shadow-[0_20px_50px_rgba(11,47,79,0.25)]">
+              <div className="grid gap-2 rounded-[22px] bg-white p-3">
+                <div className="flex items-center gap-2">
+                  <Logo size={20} />
+                </div>
+                <div className="h-16 rounded-lg bg-gradient-to-br from-teal-600 to-navy-900" />
+                <div className="h-3 w-2/3 rounded bg-line" />
+                <div className="h-3 w-1/2 rounded bg-line" />
+                <div className="mt-1 grid grid-cols-2 gap-2">
+                  <div className="h-12 rounded-lg bg-surface-soft" />
+                  <div className="h-12 rounded-lg bg-surface-soft" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* CTA */}
       <section className="mx-auto max-w-6xl px-4 py-14">
         <div
@@ -526,6 +591,7 @@ export default async function LandingPage({ params }: { params: { locale: string
             <ul className="grid gap-2 text-sm text-white/60">
               <li><a className="transition hover:text-white" href="#daily-quiz">{L('दैनिक क्विज़', 'Daily quiz')}</a></li>
               <li><a className="transition hover:text-white" href="#features">{t('nav.features')}</a></li>
+              <li><a className="transition hover:text-white" href="#app">{L('मोबाइल ऐप', 'Mobile app')}</a></li>
               <li><Link className="transition hover:text-white" href={`/${locale}/pricing`}>{t('nav.pricing')}</Link></li>
               <li><Link className="transition hover:text-white" href={`/${locale}/blog`}>{L('ब्लॉग', 'Blog')}</Link></li>
               <li><a className="transition hover:text-white" href="#faq">{t('nav.faq')}</a></li>
