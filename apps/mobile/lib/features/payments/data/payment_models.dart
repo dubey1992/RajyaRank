@@ -10,6 +10,7 @@ class ProductView {
     required this.currency,
     required this.validityDays,
     required this.accessType,
+    required this.audience,
   });
 
   factory ProductView.fromJson(Map<String, dynamic> json) {
@@ -23,6 +24,7 @@ class ProductView {
       currency: json['currency'] as String? ?? 'INR',
       validityDays: (json['validityDays'] as num?)?.toInt(),
       accessType: json['accessType'] as String? ?? '',
+      audience: json['audience'] as String? ?? 'PUBLIC',
     );
   }
 
@@ -35,9 +37,11 @@ class ProductView {
   final String currency;
   final int? validityDays;
   final String accessType;
+  final String audience;
 
   bool get isSubscription => kind == 'SUBSCRIPTION';
   bool get isFree => priceMinor == 0;
+  bool get isInstitute => audience == 'INSTITUTE';
   double get priceRupees => priceMinor / 100;
   double? get originalPriceRupees =>
       originalPriceMinor == null ? null : originalPriceMinor! / 100;

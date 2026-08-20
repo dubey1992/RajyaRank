@@ -10,20 +10,29 @@ import '../data/payment_repository.dart';
 
 /// Shared purchase flow for both courses and subscription plans — a Product
 /// is a Product either way (see PaymentRepository.createOrder doc comment).
-Future<bool?> showCheckoutSheet(BuildContext context, ProductView product) {
+/// [accessCode] carries an institute-price redemption code through to
+/// `createOrder` when the caller already verified one (see
+/// `catalogue.controller.ts`'s `verify-institute-code` doc comment: the
+/// preview is UX-only, purchase always re-validates the code server-side).
+Future<bool?> showCheckoutSheet(
+  BuildContext context,
+  ProductView product, {
+  String? accessCode,
+}) {
   return showModalBottomSheet<bool>(
     context: context,
     isScrollControlled: true,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
-    builder: (context) => _CheckoutSheet(product: product),
+    builder: (context) => _CheckoutSheet(product: product, accessCode: accessCode),
   );
 }
 
 class _CheckoutSheet extends ConsumerStatefulWidget {
-  const _CheckoutSheet({required this.product});
+  const _CheckoutSheet({required this.product, this.accessCode});
   final ProductView product;
+  final String? accessCode;
 
   @override
   ConsumerState<_CheckoutSheet> createState() => _CheckoutSheetState();
@@ -76,6 +85,7 @@ class _CheckoutSheetState extends ConsumerState<_CheckoutSheet> {
       final order = await repo.createOrder(
         productId: widget.product.id,
         couponCode: _coupon != null ? _couponController.text.trim() : null,
+        accessCode: widget.accessCode,
       );
 
       if (!order.alreadyPaid) {

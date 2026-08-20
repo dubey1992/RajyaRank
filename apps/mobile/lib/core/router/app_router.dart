@@ -6,6 +6,7 @@ import '../../features/account/presentation/account_screen.dart';
 import '../../features/auth/presentation/forgot_password_screen.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/signup_screen.dart';
+import '../../features/courses/presentation/course_catalogue_screen.dart';
 import '../../features/courses/presentation/course_detail_screen.dart';
 import '../../features/current_affairs/presentation/current_affairs_screen.dart';
 import '../../features/doubts/presentation/doubts_screen.dart';
@@ -26,18 +27,29 @@ import '../navigation/home_shell.dart';
 
 const _publicRoutes = {'/login', '/signup', '/forgot-password'};
 
+/// Matches web's `/courses` (catalogue) and `/courses/{id}` (detail) —
+/// publicly browsable there (search/filter/syllabus/pricing/ratings, no
+/// login wall; see `apps/api/src/catalogue/catalogue.controller.ts`'s
+/// `@Public()` routes), so the app mirrors that instead of forcing a login
+/// screen before a prospective student can see anything.
+bool _isCoursesBrowsing(String location) =>
+    location == '/courses' || location.startsWith('/courses/');
+
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: '/dashboard',
     refreshListenable: _AuthListenable(ref),
     redirect: (context, state) {
       final status = ref.read(authControllerProvider).status;
-      final onPublicRoute = _publicRoutes.contains(state.matchedLocation);
+      final loc = state.matchedLocation;
+      final onPublicRoute = _publicRoutes.contains(loc);
+      final browsingCourses = _isCoursesBrowsing(loc);
 
       if (status == AuthStatus.unknown) return null;
-      if (status == AuthStatus.signedOut && !onPublicRoute) return '/login';
-      if (status == AuthStatus.signedIn && state.matchedLocation == '/login')
-        return '/dashboard';
+      if (status == AuthStatus.signedOut && !onPublicRoute && !browsingCourses) {
+        return '/courses';
+      }
+      if (status == AuthStatus.signedIn && loc == '/login') return '/dashboard';
       return null;
     },
     routes: [
@@ -57,6 +69,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/dashboard',
         builder: (context, state) => const HomeShell(),
+      ),
+      GoRoute(
+        path: '/courses',
+        builder: (context, state) => const CourseCatalogueScreen(),
       ),
       GoRoute(
         path: '/courses/:courseId',

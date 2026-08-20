@@ -28,6 +28,40 @@ class AppColors {
   static const warning = Color(0xFFB45309);
 }
 
+/// Reusable gradients for the "hero" surfaces (dashboard readiness/streak
+/// cards, catalogue highlights) — layered on top of the flat brand palette
+/// above rather than replacing it, so the app stays recognizably the same
+/// product as web while reading as more dynamic in the spots that earn it.
+class AppGradients {
+  AppGradients._();
+
+  static const hero = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [AppColors.navy900, AppColors.navy950],
+  );
+
+  static const teal = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [AppColors.teal500, AppColors.teal600],
+  );
+
+  static const orange = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [AppColors.orange500, AppColors.orange600],
+  );
+
+  static List<BoxShadow> softShadow(Color color) => [
+    BoxShadow(
+      color: color.withValues(alpha: 0.18),
+      blurRadius: 20,
+      offset: const Offset(0, 8),
+    ),
+  ];
+}
+
 class AppTheme {
   AppTheme._();
 

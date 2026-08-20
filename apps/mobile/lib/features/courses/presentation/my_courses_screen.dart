@@ -16,7 +16,16 @@ class MyCoursesScreen extends ConsumerWidget {
     final institute = ref.watch(instituteCoursesProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('My Courses')),
+      appBar: AppBar(
+        title: const Text('My Courses'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.explore_outlined),
+            tooltip: 'Explore courses',
+            onPressed: () => context.push('/courses'),
+          ),
+        ],
+      ),
       body: RefreshIndicator(
         onRefresh: () async {
           ref.invalidate(myCoursesProvider);

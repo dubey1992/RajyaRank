@@ -7,9 +7,57 @@ import '../../../core/theme/app_theme.dart';
 import '../../wishlist/data/wishlist_repository.dart';
 import '../data/course_models.dart';
 import '../data/course_repository.dart';
+import 'course_marketing_detail.dart';
 
+/// Branches between web's two course-detail concepts, matched to whichever
+/// this app's single `/courses/:id` route needs: the progress-aware
+/// curriculum view (web's `/my-courses/{id}`) when the student already owns
+/// the course, else the public pre-purchase marketing view (web's
+/// `/courses/{id}`) — same content for anonymous and signed-in-not-yet-
+/// enrolled visitors, matching `_isCoursesBrowsing` in app_router.dart.
 class CourseDetailScreen extends ConsumerWidget {
   const CourseDetailScreen({super.key, required this.courseId});
+
+  final String courseId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final authStatus = ref.watch(authControllerProvider).status;
+    final signedIn = authStatus == AuthStatus.signedIn;
+
+    if (!signedIn) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Course')),
+        body: CourseMarketingDetail(courseId: courseId, signedIn: false),
+      );
+    }
+
+    final owned = ref.watch(myCoursesProvider);
+    return owned.when(
+      loading: () => Scaffold(
+        appBar: AppBar(title: const Text('Course')),
+        body: const Center(child: CircularProgressIndicator()),
+      ),
+      error: (error, _) => Scaffold(
+        appBar: AppBar(title: const Text('Course')),
+        body: CourseMarketingDetail(courseId: courseId, signedIn: true),
+      ),
+      data: (list) {
+        final isOwned = list.any((c) => c.courseId == courseId);
+        if (!isOwned) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('Course')),
+            body: CourseMarketingDetail(courseId: courseId, signedIn: true),
+          );
+        }
+        return _OwnedCourseDetail(courseId: courseId);
+      },
+    );
+  }
+}
+
+class _OwnedCourseDetail extends ConsumerWidget {
+  const _OwnedCourseDetail({required this.courseId});
 
   final String courseId;
 
