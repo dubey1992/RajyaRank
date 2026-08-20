@@ -17,7 +17,11 @@ enum _SortBy { newest, popular, rating }
 /// (apps/web/app/[locale]/courses/page.tsx): browsable and filterable
 /// without signing in first (see `_isCoursesBrowsing` in app_router.dart).
 /// Signed-in extras (wishlist heart, "Enrolled" badge) layer on top when
-/// available, same as web's `isStudent`-conditional rendering.
+/// available, same as web's `isStudent`-conditional rendering. Visual
+/// treatment (bordered filter bar, soft-shadow cards, heart overlay,
+/// validity pill) mirrors `CoursesFilterGrid.tsx`; filters open as bottom
+/// sheets rather than web's native `<select>`s — the more reliable pattern
+/// on a touch screen, and it gives room for a visible "Reset" action.
 class CourseCatalogueScreen extends ConsumerStatefulWidget {
   const CourseCatalogueScreen({super.key});
 
@@ -33,6 +37,18 @@ class _CourseCatalogueScreenState extends ConsumerState<CourseCatalogueScreen> {
   String? _stateId;
   _Audience _audience = _Audience.all;
   _SortBy _sort = _SortBy.newest;
+
+  bool get _hasActiveFilters =>
+      _examId != null || _stateId != null || _audience != _Audience.all || _sort != _SortBy.newest;
+
+  void _resetFilters() {
+    setState(() {
+      _examId = null;
+      _stateId = null;
+      _audience = _Audience.all;
+      _sort = _SortBy.newest;
+    });
+  }
 
   @override
   void dispose() {
@@ -70,6 +86,109 @@ class _CourseCatalogueScreenState extends ConsumerState<CourseCatalogueScreen> {
     return filtered;
   }
 
+  Future<void> _pickExam(List<ExamRef> exams) async {
+    final picked = await _showPicker<String?>(
+      title: 'Exam',
+      options: [
+        const _PickerOption(value: null, label: 'All exams'),
+        for (final exam in exams) _PickerOption(value: exam.id, label: exam.nameEn),
+      ],
+      selected: _examId,
+    );
+    if (picked != _Sentinel.none) setState(() => _examId = picked as String?);
+  }
+
+  Future<void> _pickState(List<StateRef> states) async {
+    final picked = await _showPicker<String?>(
+      title: 'State',
+      options: [
+        const _PickerOption(value: null, label: 'All states'),
+        for (final state in states) _PickerOption(value: state.id, label: state.nameEn),
+      ],
+      selected: _stateId,
+    );
+    if (picked != _Sentinel.none) setState(() => _stateId = picked as String?);
+  }
+
+  Future<void> _pickAudience() async {
+    final picked = await _showPicker<_Audience>(
+      title: 'Access type',
+      options: const [
+        _PickerOption(value: _Audience.all, label: 'All access types'),
+        _PickerOption(value: _Audience.public, label: 'Public'),
+        _PickerOption(value: _Audience.institute, label: 'Institute-affiliated'),
+      ],
+      selected: _audience,
+    );
+    if (picked != _Sentinel.none) setState(() => _audience = picked as _Audience);
+  }
+
+  Future<void> _pickSort() async {
+    final picked = await _showPicker<_SortBy>(
+      title: 'Sort by',
+      options: const [
+        _PickerOption(value: _SortBy.newest, label: 'Newest'),
+        _PickerOption(value: _SortBy.popular, label: 'Most popular'),
+        _PickerOption(value: _SortBy.rating, label: 'Highest rated'),
+      ],
+      selected: _sort,
+    );
+    if (picked != _Sentinel.none) setState(() => _sort = picked as _SortBy);
+  }
+
+  Future<Object?> _showPicker<T>({
+    required String title,
+    required List<_PickerOption<T>> options,
+    required T selected,
+  }) {
+    return showModalBottomSheet<Object?>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(title, style: Theme.of(context).textTheme.titleMedium),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.of(context).pop(_Sentinel.none),
+                    ),
+                  ],
+                ),
+              ),
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    for (final option in options)
+                      ListTile(
+                        title: Text(option.label),
+                        trailing: option.value == selected
+                            ? const Icon(Icons.check_circle, color: AppColors.teal500)
+                            : null,
+                        onTap: () => Navigator.of(context).pop(option.value),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final authStatus = ref.watch(authControllerProvider).status;
@@ -91,8 +210,9 @@ class _CourseCatalogueScreenState extends ConsumerState<CourseCatalogueScreen> {
         : const <String>{};
 
     return Scaffold(
+      backgroundColor: AppColors.surfaceSoft,
       appBar: AppBar(
-        title: const Text('Courses'),
+        title: const Text('RajyaRank'),
         actions: [
           if (!signedIn)
             TextButton(
@@ -120,57 +240,93 @@ class _CourseCatalogueScreenState extends ConsumerState<CourseCatalogueScreen> {
           ),
           data: (all) {
             final visible = _apply(all);
+            final examList = exams.maybeWhen(data: (l) => l, orElse: () => const <ExamRef>[]);
+            final stateList = states.maybeWhen(data: (l) => l, orElse: () => const <StateRef>[]);
             return ListView(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(20),
               children: [
-                TextField(
-                  controller: _searchController,
-                  onChanged: (v) => setState(() => _query = v),
-                  decoration: InputDecoration(
-                    hintText: 'Search courses',
-                    prefixIcon: const Icon(Icons.search),
-                    suffixIcon: _query.isEmpty
-                        ? null
-                        : IconButton(
-                            icon: const Icon(Icons.clear),
-                            onPressed: () {
-                              _searchController.clear();
-                              setState(() => _query = '');
-                            },
-                          ),
-                  ),
+                Text('All courses', style: Theme.of(context).textTheme.headlineSmall),
+                const SizedBox(height: 4),
+                const Text(
+                  'Browse all available courses, filter them, and buy right here.',
+                  style: TextStyle(color: AppColors.muted),
                 ),
-                const SizedBox(height: 12),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
+                const SizedBox(height: 18),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.line),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      exams.maybeWhen(
-                        data: (list) => _ExamFilterChip(
-                          exams: list,
-                          value: _examId,
-                          onChanged: (v) => setState(() => _examId = v),
+                      TextField(
+                        controller: _searchController,
+                        onChanged: (v) => setState(() => _query = v),
+                        decoration: InputDecoration(
+                          isDense: true,
+                          hintText: 'Search course, exam, or state',
+                          prefixIcon: const Icon(Icons.search, size: 20),
+                          suffixIcon: _query.isEmpty
+                              ? null
+                              : IconButton(
+                                  icon: const Icon(Icons.clear, size: 18),
+                                  onPressed: () {
+                                    _searchController.clear();
+                                    setState(() => _query = '');
+                                  },
+                                ),
                         ),
-                        orElse: () => const SizedBox.shrink(),
                       ),
-                      const SizedBox(width: 8),
-                      states.maybeWhen(
-                        data: (list) => _StateFilterChip(
-                          states: list,
-                          value: _stateId,
-                          onChanged: (v) => setState(() => _stateId = v),
-                        ),
-                        orElse: () => const SizedBox.shrink(),
-                      ),
-                      const SizedBox(width: 8),
-                      _AudienceFilterChip(
-                        value: _audience,
-                        onChanged: (v) => setState(() => _audience = v),
-                      ),
-                      const SizedBox(width: 8),
-                      _SortChip(
-                        value: _sort,
-                        onChanged: (v) => setState(() => _sort = v),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          _FilterChip(
+                            label: _examId == null
+                                ? 'Exam'
+                                : examList.firstWhere((e) => e.id == _examId).nameEn,
+                            active: _examId != null,
+                            onTap: () => _pickExam(examList),
+                          ),
+                          _FilterChip(
+                            label: _stateId == null
+                                ? 'State'
+                                : stateList.firstWhere((s) => s.id == _stateId).nameEn,
+                            active: _stateId != null,
+                            onTap: () => _pickState(stateList),
+                          ),
+                          _FilterChip(
+                            label: switch (_audience) {
+                              _Audience.all => 'Access type',
+                              _Audience.public => 'Public',
+                              _Audience.institute => 'Institute',
+                            },
+                            active: _audience != _Audience.all,
+                            onTap: _pickAudience,
+                          ),
+                          _FilterChip(
+                            icon: Icons.sort_rounded,
+                            label: switch (_sort) {
+                              _SortBy.newest => 'Newest',
+                              _SortBy.popular => 'Most popular',
+                              _SortBy.rating => 'Highest rated',
+                            },
+                            active: _sort != _SortBy.newest,
+                            onTap: _pickSort,
+                          ),
+                          if (_hasActiveFilters)
+                            ActionChip(
+                              avatar: const Icon(Icons.refresh_rounded, size: 16, color: AppColors.orange600),
+                              label: const Text('Reset', style: TextStyle(color: AppColors.orange600, fontWeight: FontWeight.w700)),
+                              backgroundColor: AppColors.orange100,
+                              side: BorderSide.none,
+                              onPressed: _resetFilters,
+                            ),
+                        ],
                       ),
                     ],
                   ),
@@ -198,16 +354,10 @@ class _CourseCatalogueScreenState extends ConsumerState<CourseCatalogueScreen> {
                       owned: ownedIds.contains(item.course.id),
                       wishlisted: wishlistIds.contains(item.course.id),
                       signedIn: signedIn,
-                      examName: exams.maybeWhen(
-                        data: (list) => list
-                            .cast<ExamRef?>()
-                            .firstWhere(
-                              (e) => e?.id == item.course.examId,
-                              orElse: () => null,
-                            )
-                            ?.nameEn,
-                        orElse: () => null,
-                      ),
+                      examName: examList
+                          .cast<ExamRef?>()
+                          .firstWhere((e) => e?.id == item.course.examId, orElse: () => null)
+                          ?.nameEn,
                     ),
               ],
             );
@@ -218,169 +368,69 @@ class _CourseCatalogueScreenState extends ConsumerState<CourseCatalogueScreen> {
   }
 }
 
-class _ExamFilterChip extends StatelessWidget {
-  const _ExamFilterChip({
-    required this.exams,
-    required this.value,
-    required this.onChanged,
-  });
+/// Sentinel distinguishing "picker closed with no selection" (dismissed via
+/// the X / tapping outside) from "explicitly picked null" (e.g. "All exams",
+/// a legitimate `T? == null` value) — both come back as `null` from
+/// `showModalBottomSheet` otherwise, and conflating them meant dismissing the
+/// sheet without choosing anything silently reset the filter.
+enum _Sentinel { none }
 
-  final List<ExamRef> exams;
-  final String? value;
-  final ValueChanged<String?> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return _DropdownChip<String?>(
-      label: value == null
-          ? 'Exam'
-          : exams.firstWhere((e) => e.id == value).nameEn,
-      selected: value != null,
-      items: [
-        const PopupMenuItem(value: null, child: Text('All exams')),
-        for (final exam in exams)
-          PopupMenuItem(value: exam.id, child: Text(exam.nameEn)),
-      ],
-      onSelected: onChanged,
-    );
-  }
+class _PickerOption<T> {
+  const _PickerOption({required this.value, required this.label});
+  final T value;
+  final String label;
 }
 
-class _StateFilterChip extends StatelessWidget {
-  const _StateFilterChip({
-    required this.states,
-    required this.value,
-    required this.onChanged,
-  });
-
-  final List<StateRef> states;
-  final String? value;
-  final ValueChanged<String?> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return _DropdownChip<String?>(
-      label: value == null
-          ? 'State'
-          : states.firstWhere((s) => s.id == value).nameEn,
-      selected: value != null,
-      items: [
-        const PopupMenuItem(value: null, child: Text('All states')),
-        for (final state in states)
-          PopupMenuItem(value: state.id, child: Text(state.nameEn)),
-      ],
-      onSelected: onChanged,
-    );
-  }
-}
-
-class _AudienceFilterChip extends StatelessWidget {
-  const _AudienceFilterChip({required this.value, required this.onChanged});
-
-  final _Audience value;
-  final ValueChanged<_Audience> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return _DropdownChip<_Audience>(
-      label: switch (value) {
-        _Audience.all => 'All courses',
-        _Audience.public => 'Public',
-        _Audience.institute => 'Institute',
-      },
-      selected: value != _Audience.all,
-      items: const [
-        PopupMenuItem(value: _Audience.all, child: Text('All courses')),
-        PopupMenuItem(value: _Audience.public, child: Text('Public')),
-        PopupMenuItem(value: _Audience.institute, child: Text('Institute')),
-      ],
-      onSelected: onChanged,
-    );
-  }
-}
-
-class _SortChip extends StatelessWidget {
-  const _SortChip({required this.value, required this.onChanged});
-
-  final _SortBy value;
-  final ValueChanged<_SortBy> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return _DropdownChip<_SortBy>(
-      icon: Icons.sort_rounded,
-      label: switch (value) {
-        _SortBy.newest => 'Newest',
-        _SortBy.popular => 'Most popular',
-        _SortBy.rating => 'Highest rated',
-      },
-      selected: value != _SortBy.newest,
-      items: const [
-        PopupMenuItem(value: _SortBy.newest, child: Text('Newest')),
-        PopupMenuItem(value: _SortBy.popular, child: Text('Most popular')),
-        PopupMenuItem(value: _SortBy.rating, child: Text('Highest rated')),
-      ],
-      onSelected: onChanged,
-    );
-  }
-}
-
-class _DropdownChip<T> extends StatelessWidget {
-  const _DropdownChip({
+class _FilterChip extends StatelessWidget {
+  const _FilterChip({
     required this.label,
-    required this.selected,
-    required this.items,
-    required this.onSelected,
+    required this.active,
+    required this.onTap,
     this.icon,
-    super.key,
   });
 
   final String label;
-  final bool selected;
-  final List<PopupMenuItem<T>> items;
-  final ValueChanged<T> onSelected;
+  final bool active;
+  final VoidCallback onTap;
   final IconData? icon;
 
   @override
   Widget build(BuildContext context) {
-    return PopupMenuButton<T>(
-      itemBuilder: (context) => items,
-      onSelected: onSelected,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-        decoration: BoxDecoration(
-          color: selected ? AppColors.navy900 : Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: selected ? AppColors.navy900 : AppColors.line,
+    return Material(
+      color: active ? AppColors.navy900 : Colors.white,
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: active ? AppColors.navy900 : AppColors.line),
           ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (icon != null) ...[
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon != null) ...[
+                Icon(icon, size: 15, color: active ? Colors.white : AppColors.muted),
+                const SizedBox(width: 6),
+              ],
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: active ? Colors.white : AppColors.ink,
+                ),
+              ),
+              const SizedBox(width: 4),
               Icon(
-                icon,
-                size: 15,
-                color: selected ? Colors.white : AppColors.muted,
+                Icons.expand_more_rounded,
+                size: 16,
+                color: active ? Colors.white : AppColors.muted,
               ),
-              const SizedBox(width: 6),
             ],
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: selected ? Colors.white : AppColors.ink,
-              ),
-            ),
-            const SizedBox(width: 4),
-            Icon(
-              Icons.expand_more_rounded,
-              size: 16,
-              color: selected ? Colors.white : AppColors.muted,
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -406,145 +456,160 @@ class _CourseCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final course = item.course;
     final product = item.product;
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: InkWell(
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
         borderRadius: BorderRadius.circular(14),
-        onTap: () => context.push('/courses/${course.id}'),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        border: Border.all(color: AppColors.line),
+        boxShadow: const [
+          BoxShadow(color: Color(0x0D0F172A), blurRadius: 28, offset: Offset(0, 10)),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(14),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => context.push('/courses/${course.id}'),
+          child: Stack(
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: [
-                        if (examName != null) _Pill(text: examName!),
-                        _Pill(
-                          text: course.isInstitute
-                              ? (course.orgName ?? 'Institute')
-                              : 'Public',
-                          color: course.isInstitute
-                              ? AppColors.orange100
-                              : AppColors.teal100,
-                          textColor: course.isInstitute
-                              ? AppColors.orange600
-                              : AppColors.teal600,
-                        ),
-                        if (course.isNew)
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: EdgeInsets.only(right: signedIn ? 36 : 0),
+                      child: Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          if (examName != null) _Pill(text: examName!),
                           _Pill(
-                            text: 'New',
-                            color: AppColors.navy100,
-                            textColor: AppColors.navy800,
+                            text: course.isInstitute ? (course.orgName ?? 'Institute') : 'Public',
+                            color: course.isInstitute ? AppColors.orange100 : AppColors.teal100,
+                            textColor: course.isInstitute ? AppColors.orange600 : AppColors.teal600,
+                          ),
+                          if (course.isNew)
+                            _Pill(text: 'New', color: AppColors.navy100, textColor: AppColors.navy800),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(course.titleEn, style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        if (course.ratingCount > 0) ...[
+                          const Icon(Icons.star_rounded, size: 15, color: AppColors.orange500),
+                          const SizedBox(width: 3),
+                          Text(
+                            '${course.avgRating.toStringAsFixed(1)} (${course.ratingCount})',
+                            style: const TextStyle(color: AppColors.muted, fontSize: 12),
+                          ),
+                          const SizedBox(width: 10),
+                        ],
+                        if (course.enrollmentCount > 0)
+                          Text(
+                            '${course.enrollmentCount} enrolled',
+                            style: const TextStyle(color: AppColors.muted, fontSize: 12),
                           ),
                       ],
                     ),
-                  ),
-                  if (signedIn)
-                    InkWell(
-                      borderRadius: BorderRadius.circular(20),
+                    const SizedBox(height: 14),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.only(top: 12),
+                      decoration: const BoxDecoration(
+                        border: Border(top: BorderSide(color: AppColors.line)),
+                      ),
+                      child: owned
+                          ? Row(
+                              children: [
+                                const Icon(Icons.check_circle, size: 16, color: AppColors.success),
+                                const SizedBox(width: 6),
+                                const Text(
+                                  'Enrolled',
+                                  style: TextStyle(color: AppColors.success, fontWeight: FontWeight.w600, fontSize: 13),
+                                ),
+                                const Spacer(),
+                                const Text(
+                                  'Continue learning →',
+                                  style: TextStyle(color: AppColors.navy900, fontWeight: FontWeight.w600, fontSize: 13),
+                                ),
+                              ],
+                            )
+                          : Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    Text(
+                                      product.isFree ? 'Free' : '₹${product.priceRupees.toStringAsFixed(0)}',
+                                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.navy900),
+                                    ),
+                                    if (product.originalPriceRupees != null) ...[
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        '₹${product.originalPriceRupees!.toStringAsFixed(0)}',
+                                        style: const TextStyle(
+                                          color: AppColors.muted,
+                                          fontSize: 13,
+                                          decoration: TextDecoration.lineThrough,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                Row(
+                                  children: [
+                                    _Pill(
+                                      text: product.validityDays == null
+                                          ? 'Lifetime'
+                                          : '${product.validityDays} days validity',
+                                      color: AppColors.surfaceSoft,
+                                      textColor: AppColors.muted,
+                                    ),
+                                    const Spacer(),
+                                    const Text(
+                                      'View syllabus →',
+                                      style: TextStyle(color: AppColors.navy900, fontWeight: FontWeight.w600, fontSize: 13),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+              if (signedIn)
+                Positioned(
+                  top: 12,
+                  right: 12,
+                  child: Material(
+                    color: Colors.white.withValues(alpha: 0.92),
+                    shape: const CircleBorder(),
+                    elevation: 1,
+                    child: InkWell(
+                      customBorder: const CircleBorder(),
                       onTap: () async {
                         await ref.read(wishlistRepositoryProvider).toggle(course.id);
                         ref.invalidate(wishlistCourseIdsProvider);
                       },
                       child: Padding(
-                        padding: const EdgeInsets.all(4),
+                        padding: const EdgeInsets.all(7),
                         child: Icon(
                           wishlisted ? Icons.favorite : Icons.favorite_border,
-                          size: 20,
-                          color: wishlisted
-                              ? AppColors.orange500
-                              : AppColors.muted,
+                          size: 18,
+                          color: wishlisted ? AppColors.orange500 : AppColors.muted,
                         ),
                       ),
                     ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Text(course.titleEn, style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 6),
-              Row(
-                children: [
-                  if (course.ratingCount > 0) ...[
-                    const Icon(Icons.star_rounded, size: 15, color: AppColors.orange500),
-                    const SizedBox(width: 3),
-                    Text(
-                      '${course.avgRating.toStringAsFixed(1)} (${course.ratingCount})',
-                      style: const TextStyle(color: AppColors.muted, fontSize: 12),
-                    ),
-                    const SizedBox(width: 10),
-                  ],
-                  if (course.enrollmentCount > 0)
-                    Text(
-                      '${course.enrollmentCount} enrolled',
-                      style: const TextStyle(color: AppColors.muted, fontSize: 12),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              if (owned)
-                Row(
-                  children: [
-                    const Icon(Icons.check_circle, size: 16, color: AppColors.success),
-                    const SizedBox(width: 6),
-                    const Text(
-                      'Enrolled',
-                      style: TextStyle(
-                        color: AppColors.success,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
-                      ),
-                    ),
-                    const Spacer(),
-                    Text(
-                      'Continue learning →',
-                      style: const TextStyle(
-                        color: AppColors.navy900,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-                )
-              else
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      product.isFree
-                          ? 'Free'
-                          : '₹${product.priceRupees.toStringAsFixed(0)}',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.navy900,
-                      ),
-                    ),
-                    if (product.originalPriceRupees != null) ...[
-                      const SizedBox(width: 6),
-                      Text(
-                        '₹${product.originalPriceRupees!.toStringAsFixed(0)}',
-                        style: const TextStyle(
-                          color: AppColors.muted,
-                          fontSize: 13,
-                          decoration: TextDecoration.lineThrough,
-                        ),
-                      ),
-                    ],
-                    const Spacer(),
-                    const Text(
-                      'View syllabus →',
-                      style: TextStyle(
-                        color: AppColors.navy900,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
             ],
           ),

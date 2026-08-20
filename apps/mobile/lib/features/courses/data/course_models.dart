@@ -34,6 +34,7 @@ class InstituteCourseSummary {
   InstituteCourseSummary({
     required this.courseId,
     required this.titleEn,
+    required this.visibility,
     required this.entitled,
   });
 
@@ -41,13 +42,20 @@ class InstituteCourseSummary {
     return InstituteCourseSummary(
       courseId: json['courseId'] as String,
       titleEn: json['titleEn'] as String? ?? '',
+      visibility: json['visibility'] as String? ?? 'PUBLIC',
       entitled: json['entitled'] as bool? ?? false,
     );
   }
 
   final String courseId;
   final String titleEn;
+  final String visibility;
   final bool entitled;
+
+  /// Institute-only courses never appear in the public catalogue, so
+  /// `/courses/{id}` (outline/detail) 404s for them — only a PUBLIC course
+  /// can be linked out to, matching web's `my-courses/page.tsx`.
+  bool get isPubliclyLinkable => visibility == 'PUBLIC';
 }
 
 /// One of NONE / IN_PROGRESS / COMPLETED, as sent by the API.
