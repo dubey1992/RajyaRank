@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "776431327498",
+    "project_id": "rajyarank-7a88d",
+    "storage_bucket": "rajyarank-7a88d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:776431327498:android:c843f2bdbd2c9a70fac2f3",
+        "android_client_info": {
+          "package_name": "com.rajyarank.rajyarank_student"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCaBLdo797hnJZlREFpV6Cb-e_L-6B3IJI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,5 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Runtime-requested on Android 13+ (see fcm_service.dart) — without the
+         manifest entry the runtime prompt never appears at all. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application
         android:label="RajyaRank"
         android:name="${applicationName}"
