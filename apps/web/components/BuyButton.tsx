@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Alert, Button } from '@rajyarank/ui';
+import { Alert, Button, ConfirmDialog } from '@rajyarank/ui';
 import { apiFetch, type ApiError } from '@/lib/api';
 import type { CreateOrderResponse, PreviewCouponResponse } from '@rajyarank/contracts';
 
@@ -51,6 +51,7 @@ export function BuyButton({
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [needsPlan, setNeedsPlan] = useState(false);
   const [couponOpen, setCouponOpen] = useState(false);
   const [couponCode, setCouponCode] = useState('');
   const [applying, setApplying] = useState(false);
@@ -164,6 +165,7 @@ export function BuyButton({
       if (err.code === 'AUTH_INVALID_CREDENTIALS' || err.code === 'PERMISSION_DENIED') {
         router.push(`/${locale}/login${next ? `?next=${encodeURIComponent(next)}` : ''}`);
       }
+      else if (err.code === 'SUBSCRIPTION_REQUIRED') setNeedsPlan(true);
       else setMsg(err.message);
     } finally {
       setBusy(false);
@@ -220,6 +222,19 @@ export function BuyButton({
         {hi ? 'खरीदें' : 'Buy now'}
       </Button>
       {msg ? <div className="mt-2"><Alert tone="info">{msg}</Alert></div> : null}
+      <ConfirmDialog
+        open={needsPlan}
+        title={hi ? 'सदस्यता योजना चाहिए' : 'A subscription plan is needed'}
+        message={
+          hi
+            ? 'यह मुफ़्त कोर्स केवल सक्रिय सदस्यता योजना वाले छात्रों के लिए है। क्या आप योजना खरीदने के लिए आगे बढ़ना चाहते हैं?'
+            : 'This free course is only available to students with an active subscription plan. Do you want to continue to purchase a plan?'
+        }
+        confirmLabel={hi ? 'योजनाएं देखें' : 'View plans'}
+        cancelLabel={hi ? 'रद्द करें' : 'Cancel'}
+        onCancel={() => setNeedsPlan(false)}
+        onConfirm={() => router.push(`/${locale}/pricing`)}
+      />
     </div>
   );
 }

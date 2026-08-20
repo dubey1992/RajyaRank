@@ -21,7 +21,7 @@ class RazorpayCheckout {
     razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, (PaymentFailureResponse response) {
       if (!completer.isCompleted) {
         completer.completeError(
-          RazorpayCheckoutException(response.message ?? 'Payment failed'),
+          RazorpayCheckoutException(_describeFailure(response)),
         );
       }
     });
@@ -41,6 +41,20 @@ class RazorpayCheckout {
     _razorpay?.clear();
     _razorpay = null;
   }
+}
+
+/// razorpay_flutter's native bridge sometimes hands back the literal string
+/// "undefined" (not null) as `message` — most reliably when the user cancels
+/// by pressing back rather than triggering a real payment error — so a plain
+/// `response.message ?? fallback` lets that literal string leak straight into
+/// the UI. Checked case-insensitively and trimmed for the same reason.
+String _describeFailure(PaymentFailureResponse response) {
+  if (response.code == Razorpay.PAYMENT_CANCELLED) return 'Payment cancelled.';
+  final message = response.message?.trim();
+  if (message == null || message.isEmpty || message.toLowerCase() == 'undefined') {
+    return 'Payment failed. Please try again.';
+  }
+  return message;
 }
 
 class RazorpayCheckoutException implements Exception {

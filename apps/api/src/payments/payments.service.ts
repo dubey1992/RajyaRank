@@ -140,7 +140,7 @@ export class PaymentsService {
     if (product.kind === 'COURSE' && product.accessType === 'FREE') {
       const hasActivePlan = await this.entitlements.hasAnyActiveSubscription(principal.userId);
       if (!hasActivePlan) {
-        throw AppError.conflict('An active Subscription Plan is required to enroll in this free course.');
+        throw AppError.subscriptionRequired('An active Subscription Plan is required to enroll in this free course.');
       }
     }
 

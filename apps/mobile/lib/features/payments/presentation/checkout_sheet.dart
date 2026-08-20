@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/auth_repository.dart';
 import '../../../core/payments/razorpay_checkout.dart';
@@ -113,14 +114,48 @@ class _CheckoutSheetState extends ConsumerState<_CheckoutSheet> {
       if (mounted) Navigator.of(context).pop(true);
     } catch (error) {
       if (mounted) {
-        setState(
-          () => _error = error is RazorpayCheckoutException
-              ? error.message
-              : apiErrorMessage(error),
-        );
+        if (apiErrorCode(error) == 'SUBSCRIPTION_REQUIRED') {
+          await _promptSubscriptionRequired();
+        } else {
+          setState(
+            () => _error = error is RazorpayCheckoutException
+                ? error.message
+                : apiErrorMessage(error),
+          );
+        }
       }
     } finally {
       if (mounted) setState(() => _purchasing = false);
+    }
+  }
+
+  /// This free course is a subscriber perk (see `payments.service.ts`'s
+  /// SUBSCRIPTION_REQUIRED check) — instead of surfacing the raw server error
+  /// inline, offer to take the student straight to the plans screen.
+  Future<void> _promptSubscriptionRequired() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('A subscription plan is needed'),
+        content: const Text(
+          'This free course is only available to students with an active '
+          'subscription plan. Do you want to continue to purchase a plan?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('View plans'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      Navigator.of(context).pop();
+      context.push('/pricing');
     }
   }
 

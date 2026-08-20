@@ -73,6 +73,11 @@ export class AppError extends HttpException {
   static couponInvalid(message = 'This coupon cannot be applied.') {
     return new AppError('COUPON_INVALID', HttpStatus.CONFLICT, message);
   }
+  /** Distinct from the generic conflict() so clients can reliably branch on
+   *  `code` (e.g. offer a "go buy a plan" prompt) instead of matching text. */
+  static subscriptionRequired(message = 'An active Subscription Plan is required for this.') {
+    return new AppError('SUBSCRIPTION_REQUIRED', HttpStatus.CONFLICT, message);
+  }
   static conflict(message = 'Conflict.') {
     return new AppError('CONFLICT', HttpStatus.CONFLICT, message);
   }
