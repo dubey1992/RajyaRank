@@ -96,7 +96,11 @@ class _CourseCatalogueScreenState extends ConsumerState<CourseCatalogueScreen> {
         actions: [
           if (!signedIn)
             TextButton(
-              onPressed: () => context.push('/login'),
+              // go, not push: pushing '/login' on top of '/courses' leaves it
+              // stacked, and the post-login redirect to '/dashboard' doesn't
+              // cleanly unwind that — login would succeed server-side (every
+              // time) but the screen would never actually advance.
+              onPressed: () => context.go('/login'),
               style: TextButton.styleFrom(foregroundColor: Colors.white),
               child: const Text('Log in'),
             ),

@@ -298,7 +298,9 @@ class _BuyBox extends StatelessWidget {
                     ? null
                     : () {
                         if (!signedIn) {
-                          context.push('/login');
+                          // go, not push — see course_catalogue_screen.dart's
+                          // "Log in" button for why.
+                          context.go('/login');
                           return;
                         }
                         showCheckoutSheet(
