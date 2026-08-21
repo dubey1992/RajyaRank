@@ -280,6 +280,7 @@ export class AuthController {
 
   // ── Session lifecycle ──
   @Public()
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @Post('refresh')
   async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     return this.auth.refresh(req, res);

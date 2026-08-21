@@ -38,7 +38,11 @@ export class NotifierService {
   ) {}
 
   async sendOtpSms(phone: string, code: string): Promise<void> {
-    if (this.env.SMS_PROVIDER === 'log') {
+    // Gated on APP_ENV, not just SMS_PROVIDER — matches otp.service.ts's own
+    // dev-bypass gate (`APP_ENV === 'local'`). SMS_PROVIDER=log left set by
+    // mistake in a real environment must never put a live OTP in plaintext
+    // into CloudWatch.
+    if (this.env.SMS_PROVIDER === 'log' && this.env.APP_ENV === 'local') {
       this.logger.log(`[dev SMS] OTP for ${maskPhone(phone)} → ${code}`);
     }
     await this.redis.client.lpush(
