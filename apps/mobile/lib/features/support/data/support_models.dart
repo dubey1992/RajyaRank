@@ -7,6 +7,7 @@ enum TicketCategory {
   contentCorrection,
   refund,
   account,
+  accountDeletion,
   other,
 }
 
@@ -20,6 +21,7 @@ extension TicketCategoryLabel on TicketCategory {
     TicketCategory.contentCorrection => 'CONTENT_CORRECTION',
     TicketCategory.refund => 'REFUND',
     TicketCategory.account => 'ACCOUNT',
+    TicketCategory.accountDeletion => 'ACCOUNT_DELETION',
     TicketCategory.other => 'OTHER',
   };
 
@@ -32,6 +34,7 @@ extension TicketCategoryLabel on TicketCategory {
     TicketCategory.contentCorrection => 'Content correction',
     TicketCategory.refund => 'Refund',
     TicketCategory.account => 'Account',
+    TicketCategory.accountDeletion => 'Account deletion',
     TicketCategory.other => 'Other',
   };
 }

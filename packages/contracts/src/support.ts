@@ -46,6 +46,7 @@ export const ticketCategorySchema = z.enum([
   'CONTENT_CORRECTION',
   'REFUND',
   'ACCOUNT',
+  'ACCOUNT_DELETION',
   'OTHER',
 ]);
 

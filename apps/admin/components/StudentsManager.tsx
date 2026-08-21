@@ -141,6 +141,30 @@ export function StudentsManager({
     });
   }
 
+  // Fulfils an ACCOUNT_DELETION support ticket (or a direct staff decision) —
+  // scrubs the student's identifying info server-side and marks the row
+  // deleted here too, so it's clear in the UI this isn't just a status flip.
+  function confirmDeleteAccount(id: string) {
+    setPending({
+      id,
+      title: L('खाता स्थायी रूप से हटाएं?', 'Permanently delete this account?'),
+      message: L(
+        'यह छात्र का ईमेल, फ़ोन और नाम स्थायी रूप से हटा देगा और उसे लॉग आउट कर देगा। ऑर्डर व भुगतान रिकॉर्ड कानूनी/लेखा कारणों से बने रहेंगे। यह वापस नहीं किया जा सकता।',
+        "This permanently removes the student's email, phone, and name, and signs them out. Order and payment records are kept for legal/accounting reasons. This cannot be undone.",
+      ),
+      danger: true,
+      run: async () => {
+        await apiFetch(`/admin/students/${id}/delete`, { method: 'POST' });
+        setRows((r) =>
+          r.map((row) =>
+            row.id === id ? { ...row, status: 'DISABLED', fullName: L('हटाया गया उपयोगकर्ता', 'Deleted user'), email: null, phone: '' } : row,
+          ),
+        );
+        setToast(L('खाता हटा दिया गया।', 'Account deleted.'));
+      },
+    });
+  }
+
   async function confirmRun() {
     if (!pending) return;
     setBusyId(pending.id);
@@ -235,6 +259,15 @@ export function StudentsManager({
                                 true,
                               ),
                           },
+                          ...(canDisable
+                            ? [{
+                                key: 'delete-account',
+                                label: L('खाता स्थायी रूप से हटाएं', 'Delete account permanently'),
+                                disabled: busyId === s.id,
+                                tone: 'danger' as const,
+                                onClick: () => confirmDeleteAccount(s.id),
+                              }]
+                            : []),
                         ]}
                       />
                     </td>

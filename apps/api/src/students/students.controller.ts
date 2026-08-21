@@ -62,4 +62,14 @@ export class StudentsController {
   revokeSessions(@CurrentPrincipal() principal: Principal, @Param('id') id: string) {
     return this.students.revokeSessions(principal, id);
   }
+
+  @Post(':id/delete')
+  @RequirePermission('user.disable', { assurance: 'AAL2' })
+  deleteAccount(
+    @CurrentPrincipal() principal: Principal,
+    @Param('id') id: string,
+    @Body() body: { reason?: string },
+  ) {
+    return this.students.deleteAccount(principal, id, body?.reason);
+  }
 }

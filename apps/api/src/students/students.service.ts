@@ -277,6 +277,46 @@ export class StudentsService {
     return { id };
   }
 
+  /** Fulfils a student's account-deletion request (see the ACCOUNT_DELETION
+   *  support-ticket category — students request this themselves; staff
+   *  verify and action it here, matching the "delete from your profile
+   *  page, or via Contact" process promised in the public privacy policy).
+   *  Scrubs identifying PII and revokes access, but deliberately does NOT
+   *  touch orders/entitlements/payment records — the same policy explicitly
+   *  retains those "as required for legal/accounting purposes". `deletedAt`
+   *  follows the same soft-delete convention already used elsewhere in this
+   *  schema (e.g. SavedPaymentMethod), so every `deletedAt: null` read guard
+   *  already in place (requireStudent above included) excludes this row
+   *  without any further code changes. */
+  async deleteAccount(actor: Principal, id: string, reason?: string) {
+    const student = await this.requireStudent(actor, id);
+    await this.sessions.revokeAll(id);
+    await this.prisma.user.update({
+      where: { id },
+      data: {
+        status: 'DISABLED',
+        deletedAt: new Date(),
+        email: null,
+        phone: null,
+        emailVerified: false,
+        phoneVerified: false,
+        passwordHash: null,
+        displayName: 'Deleted user',
+      },
+    });
+    await this.authz.invalidate(id);
+    await this.audit.record({
+      actorUserId: actor.userId,
+      action: 'student.account_deleted',
+      targetType: 'User',
+      targetId: id,
+      result: 'SUCCESS',
+      before: { email: student.email, phone: student.phone },
+      after: { reason: reason ?? null },
+    });
+    return { id };
+  }
+
   /** Not private: also reused by CustomerLookupService for the same
    *  org-scoped ownership check before assembling a customer's full detail
    *  view. */

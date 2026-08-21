@@ -6,6 +6,8 @@ import '../../../core/auth/auth_repository.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/confirm_logout.dart';
 import '../../onboarding/data/onboarding_repository.dart';
+import '../../support/data/support_models.dart';
+import '../../support/data/support_repository.dart';
 import '../data/account_models.dart';
 import '../data/account_repository.dart';
 import 'change_password_screen.dart';
@@ -177,10 +179,90 @@ class AccountScreen extends ConsumerWidget {
               style: OutlinedButton.styleFrom(foregroundColor: AppColors.danger),
               child: const Text('Sign out'),
             ),
+            const SizedBox(height: 24),
+            const Divider(),
+            const SizedBox(height: 12),
+            const Text(
+              'Danger zone',
+              style: TextStyle(fontWeight: FontWeight.w700, color: AppColors.danger),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Deleting your account removes your name, email, and phone number '
+              'permanently and signs you out everywhere. Order and payment '
+              'records are kept for legal/accounting reasons.',
+              style: TextStyle(color: AppColors.muted, fontSize: 12.5),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton(
+              onPressed: () => _requestAccountDeletion(context, ref),
+              style: OutlinedButton.styleFrom(foregroundColor: AppColors.danger),
+              child: const Text('Delete my account'),
+            ),
           ],
         ),
       ),
     );
+  }
+}
+
+/// Doesn't delete anything itself — files an ACCOUNT_DELETION support ticket
+/// (same infra every other ticket category uses) so staff can verify and
+/// action it via `StudentsService.deleteAccount`. Matches the "delete from
+/// your profile page, or via our Contact page" process the public privacy
+/// policy already promises.
+Future<void> _requestAccountDeletion(BuildContext context, WidgetRef ref) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Delete your account?'),
+      content: const Text(
+        'This permanently removes your name, email, and phone number, and '
+        "signs you out of every device. It can't be undone. We'll process "
+        'the request within a few business days.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(true),
+          child: const Text(
+            'Delete my account',
+            style: TextStyle(color: AppColors.danger),
+          ),
+        ),
+      ],
+    ),
+  );
+  if (confirmed != true) return;
+
+  try {
+    await ref
+        .read(supportRepositoryProvider)
+        .createTicket(
+          category: TicketCategory.accountDeletion,
+          subject: 'Account deletion request',
+          bodyText:
+              'I would like to permanently delete my RajyaRank account and '
+              'all associated personal data.',
+        );
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "Request received — we'll process it within a few business days.",
+          ),
+        ),
+      );
+    }
+  } catch (error) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(apiErrorMessage(error))));
+    }
   }
 }
 

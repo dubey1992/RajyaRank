@@ -9,6 +9,7 @@ import { ProfileForm } from '@/components/ProfileForm';
 import { StudyGoalsForm } from '@/components/StudyGoalsForm';
 import { JoinInstitutionForm } from '@/components/JoinInstitutionForm';
 import { ChangePasswordForm } from '@/components/ChangePasswordForm';
+import { DeleteAccountSection } from '@/components/DeleteAccountSection';
 import { PaymentMethodsManager } from '@/components/PaymentMethodsManager';
 import type { EntitlementView, ProfileResponse, StudyGoals, SavedPaymentMethodView } from '@rajyarank/contracts';
 
@@ -155,6 +156,8 @@ export default async function AccountPage({ params }: { params: { locale: string
               </ul>
             )}
           </section>
+
+          <DeleteAccountSection locale={locale} />
         </div>
       </div>
     </StudentShell>

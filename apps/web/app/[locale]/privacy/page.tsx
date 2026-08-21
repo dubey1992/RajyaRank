@@ -33,8 +33,14 @@ export default function PrivacyPage({ params }: { params: { locale: string } }) 
           <h2>5. डेटा प्रतिधारण</h2>
           <p>हम आपका डेटा तब तक रखते हैं जब तक आपका खाता सक्रिय है, या कानूनी/लेखा आवश्यकताओं के लिए आवश्यक हो। आप खाता हटाने का अनुरोध कर सकते हैं।</p>
 
-          <h2>6. आपके अधिकार</h2>
-          <p>आप अपनी जानकारी तक पहुँच, उसे सही करने, या हटाने का अनुरोध कर सकते हैं — अपने प्रोफ़ाइल पेज से या हमारे संपर्क पृष्ठ के माध्यम से।</p>
+          <h2 id="account-deletion">6. आपके अधिकार व खाता हटाना</h2>
+          <p>आप अपनी जानकारी तक पहुँच, उसे सही करने, या हटाने का अनुरोध कर सकते हैं। खाता हटाने के लिए:</p>
+          <ul>
+            <li>वेब पर: अपने <strong>प्रोफ़ाइल व सेटिंग्स</strong> पेज पर जाएं → "डेंजर ज़ोन" सेक्शन → "मेरा खाता हटाएं"।</li>
+            <li>मोबाइल ऐप पर: <strong>Account</strong> स्क्रीन पर जाएं → "Delete my account"।</li>
+            <li>या हमारे <strong>संपर्क पृष्ठ</strong> के माध्यम से सीधे अनुरोध भेजें।</li>
+          </ul>
+          <p>अनुरोध मिलने के कुछ कार्य दिवसों में, हमारी टीम आपका नाम, ईमेल और फ़ोन नंबर स्थायी रूप से हटा देती है और आपको हर डिवाइस से लॉग आउट कर देती है। ऑर्डर व भुगतान रिकॉर्ड कानूनी/लेखा आवश्यकताओं के लिए बने रहते हैं (ऊपर देखें §5) — इनमें कोई भी जानकारी नहीं होती जो सीधे आपसे संपर्क करने के लिए उपयोग की जा सके।</p>
 
           <h2>7. नाबालिगों की गोपनीयता</h2>
           <p>18 वर्ष से कम आयु के उपयोगकर्ताओं का डेटा अभिभावक की सहमति से ही एकत्र किया जाता है।</p>
@@ -69,8 +75,14 @@ export default function PrivacyPage({ params }: { params: { locale: string } }) 
           <h2>5. Data Retention</h2>
           <p>We retain your data for as long as your account is active, or as required for legal/accounting purposes. You may request account deletion.</p>
 
-          <h2>6. Your Rights</h2>
-          <p>You may request access to, correction of, or deletion of your information — from your profile page, or via our Contact page.</p>
+          <h2 id="account-deletion">6. Your Rights &amp; Account Deletion</h2>
+          <p>You may request access to, correction of, or deletion of your information. To delete your account:</p>
+          <ul>
+            <li>On the web: go to your <strong>Profile &amp; Settings</strong> page → the &quot;Danger zone&quot; section → &quot;Delete my account&quot;.</li>
+            <li>In the mobile app: go to the <strong>Account</strong> screen → &quot;Delete my account&quot;.</li>
+            <li>Or send a request directly via our <strong>Contact page</strong>.</li>
+          </ul>
+          <p>Within a few business days of receiving the request, our team permanently removes your name, email, and phone number, and signs you out of every device. Order and payment records are kept for legal/accounting requirements (see §5 above) — none of that retained data can be used to contact you directly.</p>
 
           <h2>7. Children&apos;s Privacy</h2>
           <p>Data for users under 18 is collected only with a parent or guardian&apos;s consent.</p>
