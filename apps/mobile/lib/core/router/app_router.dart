@@ -10,6 +10,7 @@ import '../../features/courses/presentation/course_catalogue_screen.dart';
 import '../../features/courses/presentation/course_detail_screen.dart';
 import '../../features/current_affairs/presentation/current_affairs_screen.dart';
 import '../../features/doubts/presentation/doubts_screen.dart';
+import '../../features/explore/presentation/explore_screen.dart';
 import '../../features/lesson/presentation/lesson_player_screen.dart';
 import '../../features/notifications/presentation/notifications_screen.dart';
 import '../../features/onboarding/presentation/onboarding_screen.dart';
@@ -25,7 +26,7 @@ import '../../features/wishlist/presentation/wishlist_screen.dart';
 import '../auth/auth_repository.dart';
 import '../navigation/home_shell.dart';
 
-const _publicRoutes = {'/login', '/signup', '/forgot-password'};
+const _publicRoutes = {'/login', '/signup', '/forgot-password', '/explore'};
 
 /// Matches web's `/courses` (catalogue) and `/courses/{id}` (detail) —
 /// publicly browsable there (search/filter/syllabus/pricing/ratings, no
@@ -47,12 +48,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       if (status == AuthStatus.unknown) return null;
       if (status == AuthStatus.signedOut && !onPublicRoute && !browsingCourses) {
-        return '/courses';
+        return '/explore';
       }
       if (status == AuthStatus.signedIn && loc == '/login') return '/dashboard';
       return null;
     },
     routes: [
+      GoRoute(
+        path: '/explore',
+        builder: (context, state) => const ExploreScreen(),
+      ),
       GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
       GoRoute(
         path: '/signup',

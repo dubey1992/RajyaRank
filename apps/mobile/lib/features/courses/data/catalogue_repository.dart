@@ -36,6 +36,16 @@ final statesProvider = FutureProvider.autoDispose<List<StateRef>>((ref) async {
       .toList();
 });
 
+/// GET /platform-stats — public, unauthenticated (catalogue.controller.ts
+/// `platformStats()`). Real counts, not a page-view estimate.
+final platformStatsProvider = FutureProvider.autoDispose<PlatformStats>((
+  ref,
+) async {
+  final api = ref.watch(apiClientProvider);
+  final response = await api.dio.get('/platform-stats');
+  return PlatformStats.fromJson(response.data['data'] as Map<String, dynamic>);
+});
+
 /// GET /courses/:id/outline — public pre-purchase syllabus.
 final courseOutlineProvider = FutureProvider.autoDispose
     .family<CourseOutline?, String>((ref, courseId) async {

@@ -245,6 +245,24 @@ class CourseRatings {
   final List<CourseRatingItem> ratings;
 }
 
+/// Hand-ported from `PlatformStatsView` in packages/contracts/src/catalogue.ts
+/// — real, live counts (no page-view/visitor tracking exists in this
+/// codebase), backing the Explore screen's trust strip the same way it
+/// backs web's marketing page.
+class PlatformStats {
+  PlatformStats({required this.students, required this.institutes});
+
+  factory PlatformStats.fromJson(Map<String, dynamic> json) {
+    return PlatformStats(
+      students: (json['students'] as num?)?.toInt() ?? 0,
+      institutes: (json['institutes'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  final int students;
+  final int institutes;
+}
+
 class VerifyInstituteCodeResult {
   VerifyInstituteCodeResult({
     required this.valid,
