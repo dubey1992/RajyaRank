@@ -72,12 +72,24 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           controller: _controller,
           autofocus: true,
           onChanged: _onChanged,
-          style: const TextStyle(color: Colors.white),
-          cursorColor: Colors.white,
-          decoration: const InputDecoration(
+          // The app's global InputDecorationTheme (app_theme.dart) fills every
+          // text field white by default — this field never overrode that, so
+          // white-on-white made typed text invisible even though it was being
+          // entered correctly. Explicit dark text/cursor here, plus a rounded
+          // shape so it reads as a search pill rather than a stray white box.
+          style: const TextStyle(color: AppColors.ink),
+          cursorColor: AppColors.ink,
+          decoration: InputDecoration(
             hintText: 'Search exams and courses…',
-            hintStyle: TextStyle(color: Colors.white70),
-            border: InputBorder.none,
+            hintStyle: const TextStyle(color: AppColors.muted),
+            prefixIcon: const Icon(Icons.search, color: AppColors.muted, size: 20),
+            filled: true,
+            fillColor: Colors.white,
+            contentPadding: const EdgeInsets.symmetric(vertical: 12),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide.none,
+            ),
           ),
         ),
       ),
