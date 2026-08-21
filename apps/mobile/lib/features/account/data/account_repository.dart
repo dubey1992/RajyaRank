@@ -26,8 +26,8 @@ class AccountRepository {
     await api.dio.patch(
       '/auth/me/profile',
       data: {
-        if (displayName != null) 'displayName': displayName,
-        if (fullName != null) 'fullName': fullName,
+        'displayName': ?displayName,
+        'fullName': ?fullName,
       },
     );
   }
@@ -46,9 +46,9 @@ class AccountRepository {
     await api.dio.patch(
       '/student/profile/goals',
       data: {
-        if (targetExamId != null) 'targetExamId': targetExamId,
-        if (qualification != null) 'qualification': qualification,
-        if (dailyStudyMinutes != null) 'dailyStudyMinutes': dailyStudyMinutes,
+        'targetExamId': ?targetExamId,
+        'qualification': ?qualification,
+        'dailyStudyMinutes': ?dailyStudyMinutes,
         if (clearTargetDate) 'targetDate': null,
         if (!clearTargetDate && targetDate != null)
           'targetDate': targetDate.toUtc().toIso8601String(),

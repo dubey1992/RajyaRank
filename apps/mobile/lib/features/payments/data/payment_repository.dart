@@ -89,8 +89,8 @@ class PaymentRepository {
       '/orders',
       data: {
         'productId': productId,
-        if (couponCode != null) 'couponCode': couponCode,
-        if (accessCode != null) 'accessCode': accessCode,
+        'couponCode': ?couponCode,
+        'accessCode': ?accessCode,
       },
     );
     return CreateOrderResult.fromJson(

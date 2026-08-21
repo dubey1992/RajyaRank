@@ -41,10 +41,9 @@ class LessonRepository {
     await api.dio.patch(
       '/student/lessons/$lessonId/progress',
       data: {
-        if (status != null) 'status': status,
-        if (videoPositionSeconds != null)
-          'videoPositionSeconds': videoPositionSeconds,
-        if (percentComplete != null) 'percentComplete': percentComplete,
+        'status': ?status,
+        'videoPositionSeconds': ?videoPositionSeconds,
+        'percentComplete': ?percentComplete,
       },
     );
   }

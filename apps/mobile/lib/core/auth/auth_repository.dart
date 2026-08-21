@@ -92,7 +92,7 @@ class AuthController extends StateNotifier<AuthState> {
       data: {
         'phone': phone,
         'code': code,
-        if (referralCode != null) 'referralCode': referralCode,
+        'referralCode': ?referralCode,
       },
     );
     await _signIn(response.data['data'] as Map<String, dynamic>);
@@ -119,7 +119,7 @@ class AuthController extends StateNotifier<AuthState> {
         'email': email,
         'code': code,
         'password': password,
-        if (referralCode != null) 'referralCode': referralCode,
+        'referralCode': ?referralCode,
       },
     );
     await _signIn(response.data['data'] as Map<String, dynamic>);
