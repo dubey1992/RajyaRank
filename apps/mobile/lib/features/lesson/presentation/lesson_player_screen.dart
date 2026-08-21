@@ -88,6 +88,9 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
         case PlaybackKind.embed:
           _webViewController = WebViewController()
             ..setJavaScriptMode(JavaScriptMode.unrestricted)
+            ..setNavigationDelegate(
+              NavigationDelegate(onNavigationRequest: _guardEmbedNavigation),
+            )
             ..loadRequest(Uri.parse(token.url));
           unawaited(_markStarted());
         case PlaybackKind.document:
@@ -113,6 +116,31 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
         _loadingToken = false;
       });
     }
+  }
+
+  /// Embed lessons are YouTube-only today (see `toEmbeddableUrl` in
+  /// assets.service.ts) but the WebView had no navigation restriction at
+  /// all — a compromised admin account, a malicious lesson entry, or a
+  /// compromised embed page could otherwise redirect it anywhere with full
+  /// JS execution, indistinguishable from the real embed (phishing risk).
+  /// Allows YouTube's own related domains (needed for the player itself to
+  /// work — video segments, thumbnails, consent redirects) and blocks
+  /// everything else as a top-level navigation.
+  static const _allowedEmbedHosts = [
+    'youtube.com',
+    'youtube-nocookie.com',
+    'googlevideo.com',
+    'ytimg.com',
+    'google.com',
+    'gstatic.com',
+  ];
+
+  NavigationDecision _guardEmbedNavigation(NavigationRequest request) {
+    final host = Uri.tryParse(request.url)?.host ?? '';
+    final allowed = _allowedEmbedHosts.any(
+      (h) => host == h || host.endsWith('.$h'),
+    );
+    return allowed ? NavigationDecision.navigate : NavigationDecision.prevent;
   }
 
   Future<Uint8List> _downloadPdf(String url) async {

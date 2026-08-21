@@ -58,13 +58,24 @@ bool _tapHandlingAttached = false;
 /// though individual messages don't carry a deep-link target yet. Called from
 /// the app root's build(), which reruns on every rebuild — guarded so the
 /// listener/getInitialMessage lookup only ever happens once per app launch.
+/// Wrapped defensively like registerFcmToken above: this must never crash
+/// app startup if Firebase isn't ready for any reason (also what makes the
+/// widget test runnable without a full Firebase platform mock).
 void setupNotificationTapHandling(GoRouter router) {
   if (_tapHandlingAttached) return;
   _tapHandlingAttached = true;
-  FirebaseMessaging.onMessageOpenedApp.listen((message) {
-    router.go('/notifications');
-  });
-  FirebaseMessaging.instance.getInitialMessage().then((message) {
-    if (message != null) router.go('/notifications');
-  });
+  try {
+    FirebaseMessaging.onMessageOpenedApp.listen(
+      (message) => router.go('/notifications'),
+      onError: (_) {},
+    );
+    FirebaseMessaging.instance
+        .getInitialMessage()
+        .then((message) {
+          if (message != null) router.go('/notifications');
+        })
+        .catchError((_) {});
+  } catch (_) {
+    // Non-fatal — matches registerFcmToken's contract above.
+  }
 }
