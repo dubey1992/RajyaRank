@@ -29,7 +29,15 @@ class ApiClient {
     _dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
-          final token = await _tokenStore.readAccessToken();
+          // [TokenStore] already times out internally, but a request should
+          // never be blocked by a token lookup either way — worst case it
+          // goes out unauthenticated and the API responds 401 normally.
+          String? token;
+          try {
+            token = await _tokenStore.readAccessToken();
+          } catch (_) {
+            token = null;
+          }
           if (token != null) options.headers['Authorization'] = 'Bearer $token';
           handler.next(options);
         },

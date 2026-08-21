@@ -54,10 +54,19 @@ class AuthController extends StateNotifier<AuthState> {
   final ApiClient _apiClient;
 
   Future<void> _restore() async {
-    final token = await _tokenStore.readRefreshToken();
-    state = AuthState(
-      token == null ? AuthStatus.signedOut : AuthStatus.signedIn,
-    );
+    // [TokenStore]'s own read methods already time out and resolve to null
+    // rather than hang — this catch is the second line of defense, for a
+    // genuine thrown PlatformException (e.g. a corrupted Keystore entry) so
+    // AuthStatus.unknown can never persist forever either way; the app
+    // would otherwise sit unresolved at its initial route indefinitely.
+    AuthStatus status;
+    try {
+      final token = await _tokenStore.readRefreshToken();
+      status = token == null ? AuthStatus.signedOut : AuthStatus.signedIn;
+    } catch (_) {
+      status = AuthStatus.signedOut;
+    }
+    state = AuthState(status);
   }
 
   /// Mirrors POST auth/student/login (apps/api/src/auth/auth.controller.ts) —
