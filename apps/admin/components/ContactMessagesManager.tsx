@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { apiFetch, type ApiError } from '@/lib/api';
 import type { ContactMessageView } from '@rajyarank/contracts';
+import { formatLeadSource } from '@/lib/leadSource';
 
 const CATEGORY_LABEL: Record<string, { hi: string; en: string }> = {
   GENERAL: { hi: 'सामान्य प्रश्न', en: 'General enquiry' },
@@ -63,7 +64,10 @@ export function ContactMessagesManager({ initial, locale }: { initial: ContactMe
             </div>
           </div>
           <p className="whitespace-pre-wrap text-sm text-ink">{m.message}</p>
-          <p className="mt-2 text-xs text-muted">{new Date(m.createdAt).toLocaleString(hi ? 'hi-IN' : 'en-IN')}</p>
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
+            <span className="rounded-full bg-surface-soft px-2 py-0.5 font-bold text-navy-700">{formatLeadSource(m, hi)}</span>
+            <span>{new Date(m.createdAt).toLocaleString(hi ? 'hi-IN' : 'en-IN')}</span>
+          </div>
         </div>
       ))}
     </div>

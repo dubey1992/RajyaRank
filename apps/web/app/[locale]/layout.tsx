@@ -5,6 +5,7 @@ import NextTopLoader from 'nextjs-toploader';
 import { resolveLocale, getT } from '@/lib/i18n';
 import { RegisterSW } from '@/components/RegisterSW';
 import { GoogleAnalytics } from '@/components/GoogleAnalytics';
+import { AttributionCapture } from '@/components/AttributionCapture';
 import '@rajyarank/ui/styles.css';
 import './globals.css';
 
@@ -77,6 +78,7 @@ export default function LocaleLayout({
         {children}
         <RegisterSW />
         <GoogleAnalytics />
+        <AttributionCapture />
       </body>
     </html>
   );

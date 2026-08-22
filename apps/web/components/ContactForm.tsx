@@ -5,6 +5,7 @@ import { submitContactSchema, type ContactCategory } from '@rajyarank/contracts'
 import { apiFetch, type ApiError } from '@/lib/api';
 import { serverFieldErrors, validate } from '@/lib/form';
 import { trackEvent } from '@/lib/analytics';
+import { getStoredAttribution } from '@/lib/attribution';
 
 const CATEGORIES: { value: ContactCategory; hi: string; en: string }[] = [
   { value: 'GENERAL', hi: 'सामान्य प्रश्न', en: 'General enquiry' },
@@ -28,7 +29,7 @@ export function ContactForm({ locale }: { locale: 'hi' | 'en' }) {
   const [done, setDone] = useState(false);
 
   async function submit() {
-    const payload = { name: name.trim(), email: email.trim(), phone: phone.trim() || undefined, category, message: message.trim(), hp };
+    const payload = { name: name.trim(), email: email.trim(), phone: phone.trim() || undefined, category, message: message.trim(), ...getStoredAttribution(), hp };
     const errs = validate(submitContactSchema, payload);
     setErrors(errs);
     if (Object.keys(errs).length) return;

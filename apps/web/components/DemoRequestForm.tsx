@@ -5,6 +5,7 @@ import { submitDemoRequestSchema } from '@rajyarank/contracts';
 import { apiFetch, type ApiError } from '@/lib/api';
 import { serverFieldErrors, validate } from '@/lib/form';
 import { trackEvent } from '@/lib/analytics';
+import { getStoredAttribution } from '@/lib/attribution';
 
 export function DemoRequestForm({ locale }: { locale: 'hi' | 'en' }) {
   const hi = locale === 'hi';
@@ -32,6 +33,7 @@ export function DemoRequestForm({ locale }: { locale: 'hi' | 'en' }) {
       city: city.trim() || undefined,
       studentCount: studentCount.trim() || undefined,
       message: message.trim() || undefined,
+      ...getStoredAttribution(),
       hp,
     };
     const errs = validate(submitDemoRequestSchema, payload);

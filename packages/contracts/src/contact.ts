@@ -15,6 +15,13 @@ export const submitContactSchema = z.object({
   phone: z.string().max(20).optional(),
   category: contactCategorySchema.default('GENERAL'),
   message: z.string().min(10).max(4000),
+  // First-touch marketing attribution — see apps/web/lib/attribution.ts.
+  // All optional: a direct/bookmarked visit has none of these.
+  utmSource: z.string().max(120).optional(),
+  utmMedium: z.string().max(120).optional(),
+  utmCampaign: z.string().max(120).optional(),
+  referrerHost: z.string().max(200).optional(),
+  landingPath: z.string().max(300).optional(),
   // Honeypot — real visitors never see or fill this field. Deliberately NOT
   // constrained to empty here: a validation rejection would tell a bot the
   // trick exists. A non-empty value is instead silently no-op'd in the
@@ -33,4 +40,9 @@ export interface ContactMessageView {
   status: 'NEW' | 'RESOLVED';
   createdAt: string;
   resolvedAt: string | null;
+  utmSource: string | null;
+  utmMedium: string | null;
+  utmCampaign: string | null;
+  referrerHost: string | null;
+  landingPath: string | null;
 }

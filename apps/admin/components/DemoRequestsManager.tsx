@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { apiFetch, type ApiError } from '@/lib/api';
 import type { DemoRequestView } from '@rajyarank/contracts';
+import { formatLeadSource } from '@/lib/leadSource';
 
 export function DemoRequestsManager({ initial, locale }: { initial: DemoRequestView[]; locale: 'hi' | 'en' }) {
   const hi = locale === 'hi';
@@ -61,7 +62,10 @@ export function DemoRequestsManager({ initial, locale }: { initial: DemoRequestV
             </div>
           </div>
           {r.message ? <p className="whitespace-pre-wrap text-sm text-ink">{r.message}</p> : null}
-          <p className="mt-2 text-xs text-muted">{new Date(r.createdAt).toLocaleString(hi ? 'hi-IN' : 'en-IN')}</p>
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
+            <span className="rounded-full bg-surface-soft px-2 py-0.5 font-bold text-navy-700">{formatLeadSource(r, hi)}</span>
+            <span>{new Date(r.createdAt).toLocaleString(hi ? 'hi-IN' : 'en-IN')}</span>
+          </div>
         </div>
       ))}
     </div>

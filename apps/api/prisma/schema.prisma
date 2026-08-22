@@ -1461,17 +1461,27 @@ enum ContactStatus {
 // always requires an existing studentId): this is for prospective visitors
 // (institutions, press, general enquiries), not enrolled students.
 model ContactMessage {
-  id         String          @id @default(uuid())
-  name       String
-  email      String
-  phone      String?
-  category   ContactCategory @default(GENERAL)
-  message    String
-  status     ContactStatus   @default(NEW)
-  resolvedBy String?         @map("resolved_by")
-  resolvedAt DateTime?       @map("resolved_at")
-  createdAt  DateTime        @default(now()) @map("created_at")
-  updatedAt  DateTime        @updatedAt @map("updated_at")
+  id           String          @id @default(uuid())
+  name         String
+  email        String
+  phone        String?
+  category     ContactCategory @default(GENERAL)
+  message      String
+  status       ContactStatus   @default(NEW)
+  resolvedBy   String?         @map("resolved_by")
+  resolvedAt   DateTime?       @map("resolved_at")
+  createdAt    DateTime        @default(now()) @map("created_at")
+  updatedAt    DateTime        @updatedAt @map("updated_at")
+  // First-touch marketing attribution, captured client-side on the visitor's
+  // first-ever page view (see apps/web/lib/attribution.ts) and passed through
+  // unchanged at submission time — lets staff see which channel produced a
+  // given lead, not just aggregate GA4 counts. All optional: a visitor may
+  // arrive with no UTM params and no external referrer (direct/bookmark).
+  utmSource    String?         @map("utm_source")
+  utmMedium    String?         @map("utm_medium")
+  utmCampaign  String?         @map("utm_campaign")
+  referrerHost String?         @map("referrer_host")
+  landingPath  String?         @map("landing_path")
 
   @@index([status, createdAt])
   @@map("contact_messages")
@@ -1488,20 +1498,27 @@ enum DemoRequestStatus {
 // (institution-specific fields below, no category picker). Same public,
 // anonymous, honeypot-guarded submission pattern as ContactMessage.
 model DemoRequest {
-  id             String            @id @default(uuid())
-  institutionName String           @map("institution_name")
-  contactName    String            @map("contact_name")
-  email          String
-  phone          String
-  role           String?
-  city           String?
-  studentCount   Int?              @map("student_count")
-  message        String?
-  status         DemoRequestStatus @default(NEW)
-  resolvedBy     String?           @map("resolved_by")
-  resolvedAt     DateTime?         @map("resolved_at")
-  createdAt      DateTime          @default(now()) @map("created_at")
-  updatedAt      DateTime          @updatedAt @map("updated_at")
+  id              String            @id @default(uuid())
+  institutionName String            @map("institution_name")
+  contactName     String            @map("contact_name")
+  email           String
+  phone           String
+  role            String?
+  city            String?
+  studentCount    Int?              @map("student_count")
+  message         String?
+  status          DemoRequestStatus @default(NEW)
+  resolvedBy      String?           @map("resolved_by")
+  resolvedAt      DateTime?         @map("resolved_at")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+  // See ContactMessage's identical fields for why these exist and how
+  // they're captured — same attribution helper, same first-touch model.
+  utmSource       String?           @map("utm_source")
+  utmMedium       String?           @map("utm_medium")
+  utmCampaign     String?           @map("utm_campaign")
+  referrerHost    String?           @map("referrer_host")
+  landingPath     String?           @map("landing_path")
 
   @@index([status, createdAt])
   @@map("demo_requests")

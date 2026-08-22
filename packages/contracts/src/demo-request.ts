@@ -9,6 +9,13 @@ export const submitDemoRequestSchema = z.object({
   city: z.string().max(80).optional(),
   studentCount: z.coerce.number().int().positive().max(1_000_000).optional(),
   message: z.string().max(4000).optional(),
+  // First-touch marketing attribution — see apps/web/lib/attribution.ts.
+  // All optional: a direct/bookmarked visit has none of these.
+  utmSource: z.string().max(120).optional(),
+  utmMedium: z.string().max(120).optional(),
+  utmCampaign: z.string().max(120).optional(),
+  referrerHost: z.string().max(200).optional(),
+  landingPath: z.string().max(300).optional(),
   // Honeypot — see submitContactSchema's identical field for why this is
   // deliberately unconstrained here rather than rejected at validation time.
   hp: z.string().max(500).optional(),
@@ -28,4 +35,9 @@ export interface DemoRequestView {
   status: 'NEW' | 'RESOLVED';
   createdAt: string;
   resolvedAt: string | null;
+  utmSource: string | null;
+  utmMedium: string | null;
+  utmCampaign: string | null;
+  referrerHost: string | null;
+  landingPath: string | null;
 }

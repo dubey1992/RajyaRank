@@ -31,6 +31,11 @@ export class DemoRequestsService {
     status: string;
     createdAt: Date;
     resolvedAt: Date | null;
+    utmSource: string | null;
+    utmMedium: string | null;
+    utmCampaign: string | null;
+    referrerHost: string | null;
+    landingPath: string | null;
   }): DemoRequestView {
     return {
       id: row.id,
@@ -45,6 +50,11 @@ export class DemoRequestsService {
       status: row.status as DemoRequestView['status'],
       createdAt: row.createdAt.toISOString(),
       resolvedAt: row.resolvedAt?.toISOString() ?? null,
+      utmSource: row.utmSource,
+      utmMedium: row.utmMedium,
+      utmCampaign: row.utmCampaign,
+      referrerHost: row.referrerHost,
+      landingPath: row.landingPath,
     };
   }
 
@@ -63,6 +73,11 @@ export class DemoRequestsService {
         city: dto.city?.trim() || null,
         studentCount: dto.studentCount ?? null,
         message: dto.message?.trim() || null,
+        utmSource: dto.utmSource?.trim() || null,
+        utmMedium: dto.utmMedium?.trim() || null,
+        utmCampaign: dto.utmCampaign?.trim() || null,
+        referrerHost: dto.referrerHost?.trim() || null,
+        landingPath: dto.landingPath?.trim() || null,
       },
     });
 

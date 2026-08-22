@@ -28,6 +28,11 @@ export class ContactService {
     status: string;
     createdAt: Date;
     resolvedAt: Date | null;
+    utmSource: string | null;
+    utmMedium: string | null;
+    utmCampaign: string | null;
+    referrerHost: string | null;
+    landingPath: string | null;
   }): ContactMessageView {
     return {
       id: row.id,
@@ -39,6 +44,11 @@ export class ContactService {
       status: row.status as ContactMessageView['status'],
       createdAt: row.createdAt.toISOString(),
       resolvedAt: row.resolvedAt?.toISOString() ?? null,
+      utmSource: row.utmSource,
+      utmMedium: row.utmMedium,
+      utmCampaign: row.utmCampaign,
+      referrerHost: row.referrerHost,
+      landingPath: row.landingPath,
     };
   }
 
@@ -54,6 +64,11 @@ export class ContactService {
         phone: dto.phone?.trim() || null,
         category: dto.category,
         message: dto.message.trim(),
+        utmSource: dto.utmSource?.trim() || null,
+        utmMedium: dto.utmMedium?.trim() || null,
+        utmCampaign: dto.utmCampaign?.trim() || null,
+        referrerHost: dto.referrerHost?.trim() || null,
+        landingPath: dto.landingPath?.trim() || null,
       },
     });
 
