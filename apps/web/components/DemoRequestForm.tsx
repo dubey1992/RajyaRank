@@ -4,6 +4,7 @@ import { Alert, Button, Field } from '@rajyarank/ui';
 import { submitDemoRequestSchema } from '@rajyarank/contracts';
 import { apiFetch, type ApiError } from '@/lib/api';
 import { serverFieldErrors, validate } from '@/lib/form';
+import { trackEvent } from '@/lib/analytics';
 
 export function DemoRequestForm({ locale }: { locale: 'hi' | 'en' }) {
   const hi = locale === 'hi';
@@ -39,6 +40,9 @@ export function DemoRequestForm({ locale }: { locale: 'hi' | 'en' }) {
     setBusy(true);
     try {
       await apiFetch('/demo-requests', { method: 'POST', body: JSON.stringify(payload) });
+      // GA4 conversion event — deliberately no institutionName/email/phone/message
+      // in params (PII), just enough to see which channel produces real leads.
+      trackEvent('generate_lead', { method: 'request_demo_form', has_student_count: Boolean(studentCount.trim()) });
       setDone(true);
     } catch (e) {
       setErrors(serverFieldErrors(e as ApiError));

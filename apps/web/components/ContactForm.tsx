@@ -4,6 +4,7 @@ import { Alert, Button, Field } from '@rajyarank/ui';
 import { submitContactSchema, type ContactCategory } from '@rajyarank/contracts';
 import { apiFetch, type ApiError } from '@/lib/api';
 import { serverFieldErrors, validate } from '@/lib/form';
+import { trackEvent } from '@/lib/analytics';
 
 const CATEGORIES: { value: ContactCategory; hi: string; en: string }[] = [
   { value: 'GENERAL', hi: 'सामान्य प्रश्न', en: 'General enquiry' },
@@ -34,6 +35,7 @@ export function ContactForm({ locale }: { locale: 'hi' | 'en' }) {
     setBusy(true);
     try {
       await apiFetch('/contact', { method: 'POST', body: JSON.stringify(payload) });
+      if (category === 'INSTITUTION_PARTNERSHIP') trackEvent('generate_lead', { method: 'contact_form' });
       setDone(true);
     } catch (e) {
       setErrors(serverFieldErrors(e as ApiError));
