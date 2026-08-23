@@ -106,6 +106,19 @@ export const updateProfileSchema = z.object({
 });
 export type UpdateProfile = z.infer<typeof updateProfileSchema>;
 
+// Changing your own phone number is OTP-verified (the number logs a student
+// in — a bare text-field update would let anyone set someone else's real
+// number and receive their future login codes), mirroring the
+// request/verify shape of student OTP login above.
+export const requestPhoneChangeSchema = z.object({ phone: phoneSchema });
+export type RequestPhoneChange = z.infer<typeof requestPhoneChangeSchema>;
+
+export const confirmPhoneChangeSchema = z.object({
+  phone: phoneSchema,
+  code: z.string().regex(/^\d{6}$/, 'Enter the 6-digit code'),
+});
+export type ConfirmPhoneChange = z.infer<typeof confirmPhoneChangeSchema>;
+
 /** Institution's active subscription plan + its benefits — populated for
  *  STAFF (Academic Head) profiles only, never for students. */
 export interface ProfileInstitutionPlan {

@@ -28,8 +28,31 @@ export function CoursesManager({
 
   const [rows, setRows] = useState<CourseRow[]>(initial);
   const [busy, setBusy] = useState(false);
+  const [toggleBusyId, setToggleBusyId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [del, setDel] = useState<CourseRow | null>(null);
+
+  /** Only ACTIVE/INACTIVE are toggled here — DRAFT (never published) and
+   *  ARCHIVED (a deliberate end state) are left to Course Studio, not this
+   *  quick list-view control. Deactivating only removes the course from
+   *  student browsing/discovery (catalogue.controller.ts filters on
+   *  status: 'ACTIVE'); students already enrolled keep their access, since
+   *  entitlement checks never look at course status. */
+  async function toggleActive(row: CourseRow) {
+    if (row.status !== 'ACTIVE' && row.status !== 'INACTIVE') return;
+    const nextStatus = row.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+    setToggleBusyId(row.id);
+    try {
+      await apiFetch(`/admin/courses/${row.id}`, { method: 'PATCH', body: JSON.stringify({ status: nextStatus }) });
+      setRows((r) => r.map((c) => (c.id === row.id ? { ...c, status: nextStatus } : c)));
+      setToast(nextStatus === 'ACTIVE' ? L('कोर्स सक्रिय किया गया।', 'Course activated.') : L('कोर्स निष्क्रिय किया गया।', 'Course deactivated.'));
+    } catch {
+      setToast(L('स्थिति बदलना विफल रहा।', 'Could not change status.'));
+    } finally {
+      setToggleBusyId(null);
+      router.refresh();
+    }
+  }
 
   async function removeCourse() {
     if (!del) return;
@@ -67,6 +90,16 @@ export function CoursesManager({
                   <Link href={`/${locale}/admin/courses/studio/${c.id}`} className="rounded-md border border-line px-2 py-1 text-xs font-bold text-navy-900 hover:bg-surface-soft">
                     {L('प्रबंधन', 'Manage')}
                   </Link>
+                  {c.status === 'ACTIVE' || c.status === 'INACTIVE' ? (
+                    <button
+                      type="button"
+                      disabled={toggleBusyId === c.id}
+                      onClick={() => void toggleActive(c)}
+                      className="rounded-md border border-line px-2 py-1 text-xs font-bold text-navy-900 hover:bg-surface-soft disabled:opacity-50"
+                    >
+                      {c.status === 'ACTIVE' ? L('निष्क्रिय करें', 'Deactivate') : L('सक्रिय करें', 'Activate')}
+                    </button>
+                  ) : null}
                   <button type="button" onClick={() => setDel(c)} className="rounded-md border border-line px-2 py-1 text-xs font-bold text-danger hover:bg-orange-100/50">
                     {L('हटाएँ', 'Delete')}
                   </button>

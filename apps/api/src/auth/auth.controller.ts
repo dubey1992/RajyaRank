@@ -19,8 +19,12 @@ import {
   studentSignupVerifySchema,
   updateLocaleSchema,
   updateProfileSchema,
+  requestPhoneChangeSchema,
+  confirmPhoneChangeSchema,
   type ChangePassword,
   type UpdateProfile,
+  type RequestPhoneChange,
+  type ConfirmPhoneChange,
 } from '@rajyarank/contracts';
 import { ENV } from '../config/config.module';
 import { Public } from '../common/decorators/public.decorator';
@@ -353,6 +357,25 @@ export class AuthController {
     @Body(new ZodValidationPipe(updateProfileSchema)) body: UpdateProfile,
   ) {
     return this.auth.updateProfile(principal.userId, body);
+  }
+
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Post('me/phone/request-otp')
+  requestPhoneChange(
+    @CurrentPrincipal() principal: Principal,
+    @Body(new ZodValidationPipe(requestPhoneChangeSchema)) body: RequestPhoneChange,
+    @Req() req: Request,
+  ) {
+    return this.auth.requestPhoneChange(principal.userId, body.phone, req.ip);
+  }
+
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Post('me/phone/confirm')
+  confirmPhoneChange(
+    @CurrentPrincipal() principal: Principal,
+    @Body(new ZodValidationPipe(confirmPhoneChangeSchema)) body: ConfirmPhoneChange,
+  ) {
+    return this.auth.confirmPhoneChange(principal.userId, body.phone, body.code);
   }
 
   @Patch('me/password')

@@ -61,6 +61,7 @@ enum OtpPurpose {
   EMAIL_VERIFY
   PASSWORD_RESET
   STEP_UP
+  PHONE_CHANGE
 }
 
 enum MfaType {

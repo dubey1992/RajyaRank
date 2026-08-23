@@ -6,6 +6,7 @@ import { apiFetchServer } from '@/lib/api';
 import { getMe, initialsOf } from '@/lib/student';
 import { StudentShell } from '@/components/StudentShell';
 import { ProfileForm } from '@/components/ProfileForm';
+import { ChangePhoneForm } from '@/components/ChangePhoneForm';
 import { StudyGoalsForm } from '@/components/StudyGoalsForm';
 import { JoinInstitutionForm } from '@/components/JoinInstitutionForm';
 import { ChangePasswordForm } from '@/components/ChangePasswordForm';
@@ -89,6 +90,12 @@ export default async function AccountPage({ params }: { params: { locale: string
           <section className="rounded-[18px] border border-line bg-white p-5 shadow-[0_7px_22px_rgba(6,29,49,0.04)]">
             <h2 className="mb-4 text-base font-black tracking-tight text-navy-950">{L('व्यक्तिगत जानकारी', 'Personal information')}</h2>
             {profile ? <ProfileForm initial={profile} locale={locale} /> : <p className="text-sm text-muted">{L('प्रोफ़ाइल लोड नहीं हो सकी।', 'Could not load your profile.')}</p>}
+          </section>
+
+          <section className="rounded-[18px] border border-line bg-white p-5 shadow-[0_7px_22px_rgba(6,29,49,0.04)]">
+            <h2 className="mb-1 text-base font-black tracking-tight text-navy-950">{L('फ़ोन नंबर', 'Phone number')}</h2>
+            <p className="mb-4 text-xs text-muted">{L('OTP के ज़रिए सत्यापित करके अपना फ़ोन नंबर बदलें।', 'Change your phone number, verified via OTP.')}</p>
+            <ChangePhoneForm currentPhone={profile?.phone ?? null} locale={locale} />
           </section>
 
           <section className="rounded-[18px] border border-line bg-white p-5 shadow-[0_7px_22px_rgba(6,29,49,0.04)]">

@@ -28,7 +28,7 @@ export const studentListItemSchema = z.object({
 });
 export type StudentListItem = z.infer<typeof studentListItemSchema>;
 
-// ── Independent students (support.manage, read-only) ─────────────────────────
+// ── Independent students (support.manage, read-only + link action) ──────────
 // Students who signed up directly ("Create new account") and have never
 // joined an institute via an access code — orgId stays null until they do.
 // See apps/api/src/students/students.service.ts#listIndependent.
@@ -46,6 +46,15 @@ export const independentStudentListItemSchema = z.object({
   referredByOrgName: z.string().nullable(),
 });
 export type IndependentStudentListItem = z.infer<typeof independentStudentListItemSchema>;
+
+// Super Admin manually linking an independent student to an institute — the
+// same accessCode a student would type into "Join institution" themselves
+// (see StudentService.joinInstitution), just admin-initiated for a student
+// who never did it on their own.
+export const linkStudentToInstitutionSchema = z.object({
+  accessCode: z.string().trim().min(1).max(40),
+});
+export type LinkStudentToInstitution = z.infer<typeof linkStudentToInstitutionSchema>;
 
 export const staffStatusSchema = z.enum(['ACTIVE', 'SUSPENDED', 'DISABLED']);
 

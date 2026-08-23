@@ -1,6 +1,12 @@
 import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import type { Principal } from '@rajyarank/auth';
-import { enrollStudentSchema, patchStaffStatusSchema, type EnrollStudent } from '@rajyarank/contracts';
+import {
+  enrollStudentSchema,
+  patchStaffStatusSchema,
+  linkStudentToInstitutionSchema,
+  type EnrollStudent,
+  type LinkStudentToInstitution,
+} from '@rajyarank/contracts';
 import { CurrentPrincipal } from '../common/decorators/current-principal.decorator';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 import { RequirePermission } from '../authz/decorators';
@@ -29,6 +35,18 @@ export class StudentsController {
     @Query('to') to?: string,
   ) {
     return this.students.listIndependent(principal, search, from, to);
+  }
+
+  // Same gate as listIndependent above (support.manage + service-level
+  // isSuperAdmin check) — this is the write counterpart to that read-only list.
+  @Post(':id/link-institute')
+  @RequirePermission('support.manage')
+  linkToInstitution(
+    @CurrentPrincipal() principal: Principal,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(linkStudentToInstitutionSchema)) body: LinkStudentToInstitution,
+  ) {
+    return this.students.linkToInstitution(principal, id, body.accessCode);
   }
 
   @Post()

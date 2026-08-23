@@ -669,6 +669,29 @@ export class AuthService {
     return this.getProfile(userId);
   }
 
+  /** Step one of a self-service phone number change — sends an OTP to the
+   *  NEW number. Never touches the account until confirmPhoneChange()
+   *  verifies it; a bare text-field update would let someone set another
+   *  real person's number and receive that person's future OTP logins. */
+  async requestPhoneChange(userId: string, phone: string, ip?: string): Promise<{ expiresInSeconds: number }> {
+    const clash = await this.prisma.user.findFirst({ where: { phone, NOT: { id: userId } } });
+    if (clash) throw AppError.conflict('This phone number is already in use by another account.');
+    await this.otp.request(phone, 'SMS', 'PHONE_CHANGE', ip);
+    return { expiresInSeconds: this.env.OTP_TTL };
+  }
+
+  /** Step two — verifies the OTP sent above and commits the new number.
+   *  Re-checks the uniqueness clash (another account could have claimed the
+   *  number in the gap between request and confirm). */
+  async confirmPhoneChange(userId: string, phone: string, code: string) {
+    await this.otp.verify(phone, 'PHONE_CHANGE', code);
+    const clash = await this.prisma.user.findFirst({ where: { phone, NOT: { id: userId } } });
+    if (clash) throw AppError.conflict('This phone number is already in use by another account.');
+    await this.prisma.user.update({ where: { id: userId }, data: { phone } });
+    await this.audit.record({ actorUserId: userId, action: 'profile.phone_change', result: 'SUCCESS' });
+    return this.getProfile(userId);
+  }
+
   // ── Self-service password reset (staff) ──────────────────────────────────────
   /** Always resolves successfully to avoid leaking whether an account exists. */
   async passwordForgot(workEmail: string, ip?: string): Promise<void> {

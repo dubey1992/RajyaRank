@@ -11,6 +11,7 @@ import { SessionService } from '../auth/session.service';
 import { NotifierService } from '../notifications/notifier.service';
 import { NotificationService } from '../notifications/notification.service';
 import { studentAccountStatusChangedEmail, studentForcedPasswordResetEmail } from '../notifications/email-templates/auth';
+import { institutionJoinedEmail } from '../notifications/email-templates/engagement';
 import { AppError } from '../common/errors/app-error';
 
 /**
@@ -109,6 +110,49 @@ export class StudentsService {
       lastLoginAt: u.lastLoginAt?.toISOString() ?? null,
       referredByOrgName: u.referredByOrg?.name ?? null,
     }));
+  }
+
+  /** Super Admin manually links an independent student to an institute —
+   *  the same effect as the student themselves entering an access code (see
+   *  StudentService.joinInstitution), for a student who signed up directly
+   *  and never did it on their own. Same gate as listIndependent(): Super
+   *  Admin only, this is oversight over students no institute owns yet. */
+  async linkToInstitution(actor: Principal, studentId: string, accessCode: string) {
+    if (!actor.isSuperAdmin) throw AppError.permissionDenied('Super Admin only.');
+
+    const org = await this.prisma.organization.findFirst({ where: { accessCode, status: 'ACTIVE' } });
+    if (!org) throw AppError.notFound('Invalid institution code.');
+
+    const student = await this.prisma.user.findFirst({ where: { id: studentId, kind: 'STUDENT', deletedAt: null } });
+    if (!student) throw AppError.notFound('Student not found.');
+    if (student.orgId === org.id) return { orgId: org.id, orgName: org.name }; // idempotent re-submit
+    if (student.orgId && student.orgId !== org.id) {
+      throw AppError.conflict('This student already belongs to another institution. They (or the institution) must leave it first.');
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.user.update({ where: { id: studentId }, data: { orgId: org.id } }),
+      this.prisma.orgMembershipEvent.create({ data: { userId: studentId, orgId: org.id, action: 'JOINED', method: 'ACCESS_CODE' } }),
+    ]);
+    await this.authz.invalidate(studentId);
+    await this.audit.record({
+      actorUserId: actor.userId,
+      action: 'student.institution_link',
+      targetType: 'Organization',
+      targetId: org.id,
+      result: 'SUCCESS',
+      after: { studentId },
+    });
+    await this.notifications.emit({
+      userId: studentId,
+      category: 'COURSE_ACCESS',
+      titleHi: `आप अब ${org.name} के सदस्य हैं`,
+      titleEn: `You're now a member of ${org.name}`,
+      bodyHi: 'आपके संस्थान के कोर्स व मूल्य अब स्वतः लागू होंगे।',
+      bodyEn: "Your institute's courses and pricing now apply automatically.",
+      email: (locale) => institutionJoinedEmail(locale, org.name),
+    });
+    return { orgId: org.id, orgName: org.name };
   }
 
   async enroll(actor: Principal, dto: EnrollStudent): Promise<StudentListItem> {

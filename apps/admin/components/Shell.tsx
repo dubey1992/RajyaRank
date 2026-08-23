@@ -112,7 +112,13 @@ const SUPER_ADMIN_NAV = new Set([
  *  showsMergedStudents already requires user.manage — Intervention Radar's
  *  own permission — so nothing is hidden that the merge doesn't also grant. */
 const MERGE_GROUPS: { standaloneHrefs: string[]; applies: (me: MeResponse) => boolean }[] = [
-  { standaloneHrefs: ['/admin/students', '/admin/student-payments', '/admin/at-risk-students'], applies: showsMergedStudents },
+  // Referrals rides along the same way Intervention Radar does (see the doc
+  // comment above): showsMergedStudents already requires course.manage +
+  // orgId, which is Referrals' own standalone gate, so nothing is hidden
+  // that the merge doesn't also grant. A role with course.manage + orgId but
+  // NOT user.manage (so showsMergedStudents is false) still sees the
+  // standalone Referrals link — see /admin/referrals/page.tsx, unchanged.
+  { standaloneHrefs: ['/admin/students', '/admin/student-payments', '/admin/at-risk-students', '/admin/referrals'], applies: showsMergedStudents },
   { standaloneHrefs: ['/admin/content', '/admin/my-content'], applies: showsMergedContent },
   { standaloneHrefs: ['/admin/exams', '/admin/official-notices'], applies: showsMergedExams },
   { standaloneHrefs: ['/admin/question-bank', '/admin/mock-tests'], applies: showsMergedTests },

@@ -8,7 +8,7 @@ import { otpCodeEmail } from '../notifications/email-templates/auth';
 import { numericOtp, safeEqualHex, sha256 } from '../common/crypto.util';
 import { AppError } from '../common/errors/app-error';
 
-type Purpose = 'STUDENT_LOGIN' | 'STAFF_LOGIN' | 'EMAIL_VERIFY' | 'PASSWORD_RESET' | 'STEP_UP';
+type Purpose = 'STUDENT_LOGIN' | 'STAFF_LOGIN' | 'EMAIL_VERIFY' | 'PASSWORD_RESET' | 'STEP_UP' | 'PHONE_CHANGE';
 
 @Injectable()
 export class OtpService {

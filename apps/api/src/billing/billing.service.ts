@@ -202,7 +202,12 @@ export class BillingService {
           basePlanMinor: amountMinor,
           totalMinor: amountMinor,
           status: 'PAID',
-          dueAt: now,
+          // This invoice is recorded PAID at creation (see the doc comment on
+          // subscribeOrganization below) — "due" here can't mean "pay by",
+          // since payment already happened. It's the plan's validity end /
+          // next-renewal date instead — subscription.currentPeriodEnd is the
+          // periodEnd just computed above, now persisted on the row.
+          dueAt: subscription.currentPeriodEnd ?? now,
           paidAt: now,
         },
       });
@@ -427,7 +432,9 @@ export class BillingService {
         basePlanMinor: amountMinor,
         totalMinor: amountMinor,
         status: 'PAID',
-        dueAt: now,
+        // See the identical comment in provisionSubscription above — dueAt is
+        // the plan's validity end / next-renewal date, not a payment deadline.
+        dueAt: periodEnd,
         paidAt: now,
       },
     });

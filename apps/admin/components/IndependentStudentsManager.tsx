@@ -1,6 +1,6 @@
 'use client';
-import { useState } from 'react';
-import { Alert } from '@rajyarank/ui';
+import { Fragment, useState } from 'react';
+import { Alert, Button } from '@rajyarank/ui';
 import { apiFetch, type ApiError } from '@/lib/api';
 import { SearchInput } from './SearchInput';
 import type { IndependentStudentListItem } from '@rajyarank/contracts';
@@ -30,6 +30,43 @@ export function IndependentStudentsManager({
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [error, setError] = useState<string | null>(null);
+
+  // Which row's "Link to Institute" input is open, plus its own code/error/busy
+  // state — one at a time, keyed by student id, so opening a second row's
+  // form quietly closes the first rather than stacking multiple inline forms.
+  const [linkingId, setLinkingId] = useState<string | null>(null);
+  const [accessCode, setAccessCode] = useState('');
+  const [linkBusy, setLinkBusy] = useState(false);
+  const [linkError, setLinkError] = useState<string | null>(null);
+
+  function startLinking(id: string) {
+    setLinkingId(id);
+    setAccessCode('');
+    setLinkError(null);
+  }
+
+  async function confirmLink(id: string) {
+    if (!accessCode.trim()) {
+      setLinkError(L('कृपया संस्थान कोड दर्ज करें।', 'Please enter an institution code.'));
+      return;
+    }
+    setLinkBusy(true);
+    setLinkError(null);
+    try {
+      await apiFetch(`/admin/students/${id}/link-institute`, {
+        method: 'POST',
+        body: JSON.stringify({ accessCode: accessCode.trim() }),
+      });
+      // Linked students no longer belong on this list (orgId is no longer
+      // null) — drop the row locally instead of a full reload round-trip.
+      setRows((r) => r.filter((s) => s.id !== id));
+      setLinkingId(null);
+    } catch (e) {
+      setLinkError((e as ApiError).message ?? L('लिंक करना विफल रहा।', 'Linking failed.'));
+    } finally {
+      setLinkBusy(false);
+    }
+  }
 
   async function reload(next: { search?: string; from?: string; to?: string }) {
     const s = next.search ?? search;
@@ -102,23 +139,66 @@ export function IndependentStudentsManager({
                 <th className="px-3 py-2">{L('साइन अप', 'Signed up')}</th>
                 <th className="px-3 py-2">{L('अंतिम लॉगिन', 'Last login')}</th>
                 <th className="px-3 py-2">{L('रेफ़र किया', 'Referred by')}</th>
+                <th className="px-3 py-2">{L('कार्रवाई', 'Actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
               {rows.map((s) => (
-                <tr key={s.id}>
-                  <td className="px-3 py-2 font-bold text-ink">{s.fullName || '—'}</td>
-                  <td className="px-3 py-2 text-muted">{s.email ?? '—'}</td>
-                  <td className="px-3 py-2 text-muted">{s.phone || '—'}</td>
-                  <td className="px-3 py-2">
-                    <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-extrabold ${STATUS_TONE[s.status] ?? 'bg-line text-muted'}`}>
-                      {s.status}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2 text-xs text-muted">{fmtDate(s.createdAt, hi)}</td>
-                  <td className="px-3 py-2 text-xs text-muted">{s.lastLoginAt ? fmtDate(s.lastLoginAt, hi) : L('कभी नहीं', 'Never')}</td>
-                  <td className="px-3 py-2 text-xs text-muted">{s.referredByOrgName ?? '—'}</td>
-                </tr>
+                <Fragment key={s.id}>
+                  <tr>
+                    <td className="px-3 py-2 font-bold text-ink">{s.fullName || '—'}</td>
+                    <td className="px-3 py-2 text-muted">{s.email ?? '—'}</td>
+                    <td className="px-3 py-2 text-muted">{s.phone || '—'}</td>
+                    <td className="px-3 py-2">
+                      <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-extrabold ${STATUS_TONE[s.status] ?? 'bg-line text-muted'}`}>
+                        {s.status}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-xs text-muted">{fmtDate(s.createdAt, hi)}</td>
+                    <td className="px-3 py-2 text-xs text-muted">{s.lastLoginAt ? fmtDate(s.lastLoginAt, hi) : L('कभी नहीं', 'Never')}</td>
+                    <td className="px-3 py-2 text-xs text-muted">{s.referredByOrgName ?? '—'}</td>
+                    <td className="px-3 py-2">
+                      <button
+                        type="button"
+                        onClick={() => (linkingId === s.id ? setLinkingId(null) : startLinking(s.id))}
+                        className="whitespace-nowrap rounded-md border border-line px-2 py-1 text-xs font-bold text-navy-900 hover:bg-surface-soft"
+                      >
+                        {L('संस्थान से लिंक करें', 'Link to Institute')}
+                      </button>
+                    </td>
+                  </tr>
+                  {linkingId === s.id ? (
+                    <tr className="bg-surface-soft">
+                      <td colSpan={8} className="px-3 py-3">
+                        <div className="flex flex-wrap items-end gap-2">
+                          <label className="grid gap-1 text-xs font-bold text-muted">
+                            {L('संस्थान का पहुँच कोड', 'Institute access code')}
+                            <input
+                              type="text"
+                              autoFocus
+                              value={accessCode}
+                              onChange={(e) => setAccessCode(e.target.value)}
+                              onKeyDown={(e) => { if (e.key === 'Enter') void confirmLink(s.id); }}
+                              placeholder={L('जैसे GREENVALLEY24', 'e.g. GREENVALLEY24')}
+                              className="w-56 rounded-md border border-line px-2 py-1.5 text-sm text-ink outline-none focus:border-orange-500"
+                            />
+                          </label>
+                          <Button loading={linkBusy} onClick={() => void confirmLink(s.id)} className="text-sm">
+                            {L('पुष्टि करें', 'Confirm')}
+                          </Button>
+                          <button
+                            type="button"
+                            onClick={() => setLinkingId(null)}
+                            className="rounded-md border border-line px-3 py-1.5 text-sm font-bold text-ink hover:bg-white"
+                          >
+                            {L('रद्द करें', 'Cancel')}
+                          </button>
+                        </div>
+                        {linkError ? <p className="mt-2 text-sm text-danger">{linkError}</p> : null}
+                      </td>
+                    </tr>
+                  ) : null}
+                </Fragment>
               ))}
             </tbody>
           </table>
