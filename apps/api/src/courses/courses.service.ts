@@ -59,6 +59,19 @@ export class CoursesService {
     if (!decision.allow) throw AppError.permissionDenied('Resource is outside your assigned scope.');
   }
 
+  /** list()/courseDetail() are read-only course pickers reused by every staff
+   *  content-authoring form (question bank, mock tests, lessons) — not just
+   *  course.manage holders (Content Admin/Head). Without this, a Teacher or
+   *  Question Setter's course dropdown fell back to the PUBLIC catalogue
+   *  endpoint, which filters to ACTIVE+PUBLIC only, so institute-private
+   *  courses silently never appeared. @RequirePermission only takes one code,
+   *  so this check lives here instead of the controller decorator — same
+   *  pattern as TestBuilderService.authorizeAny(). */
+  private authorizeAny(principal: Principal, permissions: string[]) {
+    const allowed = permissions.some((code) => this.authz.check(principal, code, undefined).allow);
+    if (!allowed) throw AppError.permissionDenied();
+  }
+
   private async courseScope(courseId: string): Promise<Scope & { courseId: string }> {
     const course = await this.prisma.course.findFirst({ where: { id: courseId, deletedAt: null } });
     if (!course) throw AppError.notFound('Course not found.');
@@ -148,6 +161,7 @@ export class CoursesService {
   }
 
   async listCourses(actor: Principal) {
+    this.authorizeAny(actor, ['course.manage', 'question.create', 'test.create', 'content.create']);
     return this.prisma.course.findMany({
       // Institution-scoped actors see their own org's courses PLUS
       // platform-wide ones (orgId null, e.g. Content Admin's) — an exact
@@ -282,6 +296,7 @@ export class CoursesService {
 
   /** Full hierarchy for the admin course editor (any status, unlike the public outline). */
   async courseDetail(actor: Principal, id: string) {
+    this.authorizeAny(actor, ['course.manage', 'question.create', 'test.create', 'content.create']);
     return this.prisma.course.findFirst({
       where: { id, deletedAt: null, ...this.orgVisibility(actor) },
       include: {

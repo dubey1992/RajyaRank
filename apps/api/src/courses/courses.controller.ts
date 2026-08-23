@@ -23,8 +23,11 @@ import { CoursesService } from './courses.service';
 export class CoursesController {
   constructor(private readonly courses: CoursesService) {}
 
+  // No @RequirePermission here — reused as the course picker by every staff
+  // content-authoring form (question bank, mock tests, lessons), not just
+  // course.manage holders. See CoursesService.listCourses()'s own
+  // authorizeAny() check (same visibility as courseDetail() below).
   @Get()
-  @RequirePermission('course.manage')
   list(@CurrentPrincipal() principal: Principal) {
     return this.courses.listCourses(principal);
   }
@@ -37,8 +40,9 @@ export class CoursesController {
     return this.courses.howItWorksVideoUrl();
   }
 
+  // No @RequirePermission — same broadened read visibility as list() above;
+  // see CoursesService.courseDetail()'s own authorizeAny() check.
   @Get(':id')
-  @RequirePermission('course.manage')
   detail(@CurrentPrincipal() principal: Principal, @Param('id') id: string) {
     return this.courses.courseDetail(principal, id);
   }

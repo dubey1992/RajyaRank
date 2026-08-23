@@ -262,14 +262,16 @@ export function CreateContentWizard({
 
   useEffect(() => {
     if (!open || context) return; // pre-seeded — no picker to populate
-    apiFetch<CourseRef[]>('/courses').then(setCourses).catch(() => setCourses([]));
+    // /admin/courses (not the public /courses catalogue) — that one filters
+    // to ACTIVE+PUBLIC only, which silently hid every institute-private course.
+    apiFetch<CourseRef[]>('/admin/courses').then(setCourses).catch(() => setCourses([]));
   }, [open, context]);
 
   useEffect(() => {
     if (context) return; // pre-seeded — never clear the context-provided ids
     setOutline(null); setSubjectId(''); setChapterId(''); setTopicId('');
     if (!courseId) return;
-    apiFetch<Outline>(`/courses/${courseId}/outline`).then(setOutline).catch(() => setOutline(null));
+    apiFetch<Outline>(`/admin/courses/${courseId}`).then(setOutline).catch(() => setOutline(null));
   }, [courseId, context]);
 
   // Pre-fill from context every time the wizard (re)opens.

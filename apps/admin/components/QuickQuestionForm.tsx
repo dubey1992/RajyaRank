@@ -36,13 +36,15 @@ export function QuickQuestionForm({ locale = 'en' }: { locale?: string }) {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    apiFetch<CourseRef[]>('/courses').then(setCourses).catch(() => setCourses([]));
+    // /admin/courses (not the public /courses catalogue) — that one filters
+    // to ACTIVE+PUBLIC only, which silently hid every institute-private course.
+    apiFetch<CourseRef[]>('/admin/courses').then(setCourses).catch(() => setCourses([]));
   }, []);
   useEffect(() => {
     setOutline(null);
     setSubjectId('');
     if (!courseId) return;
-    apiFetch<Outline>(`/courses/${courseId}/outline`).then(setOutline).catch(() => setOutline(null));
+    apiFetch<Outline>(`/admin/courses/${courseId}`).then(setOutline).catch(() => setOutline(null));
   }, [courseId]);
 
   const subjects = outline?.subjects ?? [];
@@ -127,7 +129,7 @@ export function QuickQuestionForm({ locale = 'en' }: { locale?: string }) {
           {subjects.map((s) => <option key={s.id} value={s.id}>{hi ? s.nameHi : s.nameEn}</option>)}
         </select>
         {errors.subjectId ? <p role="alert" className="mt-1 text-sm text-danger">{errors.subjectId}</p> : null}
-        {courses.length === 0 ? <p className="mt-1 text-xs text-muted">{L('कोई प्रकाशित कोर्स नहीं मिला। पहले एक कोर्स + विषय बनाएँ।', 'No published courses found. Create a course + subject first.')}</p> : null}
+        {courses.length === 0 ? <p className="mt-1 text-xs text-muted">{L('कोई कोर्स नहीं मिला। पहले एक कोर्स + विषय बनाएँ।', 'No courses found. Create a course + subject first.')}</p> : null}
 
         <label className="mb-1 mt-3 block text-sm font-extrabold text-ink" htmlFor="q-type">{L('प्रश्न प्रकार', 'Question type')}</label>
         <select
