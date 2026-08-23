@@ -141,7 +141,7 @@ export function AssignmentsEditor({
                   onChange={(e) =>
                     update(r.uid, r.scope === 'COURSE' ? { courseId: e.target.value } : r.scope === 'SUBJECT' ? { subjectId: e.target.value } : { batchId: e.target.value })
                   }
-                  placeholder={L(`${r.scope} आईडी (UUID)`, `${r.scope} ID (UUID)`)}
+                  placeholder={L(`${r.scope} का नाम या ID`, `${r.scope} name or ID`)}
                   className="min-w-48 flex-1 rounded-md border border-line px-2 py-1 text-sm"
                 />
               )}

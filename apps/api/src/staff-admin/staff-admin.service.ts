@@ -11,6 +11,7 @@ import { NotifierService } from '../notifications/notifier.service';
 import { NotificationService } from '../notifications/notification.service';
 import { staffForcedPasswordResetEmail, staffAccountStatusChangedEmail } from '../notifications/email-templates/staff';
 import { AppError } from '../common/errors/app-error';
+import { resolveByIdOrName } from '../common/resolve-by-id-or-name.util';
 
 export interface AuditEventFilters {
   action?: string;
@@ -179,22 +180,68 @@ export class StaffAdminService {
     return { id, status };
   }
 
+  /** Course/Subject/Batch assignment fields accept either a real ID or the
+   *  exact name (case-insensitive) — the Assignments editor's own input for
+   *  these three is a bare text field (State/Exam get proper dropdowns; a
+   *  platform-wide Course/Subject/Batch picker would need real search UI,
+   *  not built yet), so a Super Admin naturally types "Fundamental of
+   *  Computers" rather than hunting down its UUID. */
+  private resolveCourseId(idOrName: string) {
+    return resolveByIdOrName(
+      idOrName,
+      'Course',
+      (id) => this.prisma.course.findUnique({ where: { id }, select: { id: true } }),
+      (name) =>
+        this.prisma.course.findMany({
+          where: { OR: [{ code: { equals: name, mode: 'insensitive' } }, { titleEn: { equals: name, mode: 'insensitive' } }, { titleHi: { equals: name, mode: 'insensitive' } }] },
+          select: { id: true },
+        }),
+    );
+  }
+
+  private resolveSubjectId(idOrName: string) {
+    return resolveByIdOrName(
+      idOrName,
+      'Subject',
+      (id) => this.prisma.subject.findFirst({ where: { id, deletedAt: null }, select: { id: true } }),
+      (name) =>
+        this.prisma.subject.findMany({
+          where: { deletedAt: null, OR: [{ nameEn: { equals: name, mode: 'insensitive' } }, { nameHi: { equals: name, mode: 'insensitive' } }] },
+          select: { id: true },
+        }),
+    );
+  }
+
+  private resolveBatchId(idOrName: string) {
+    return resolveByIdOrName(
+      idOrName,
+      'Batch',
+      (id) => this.prisma.batch.findFirst({ where: { id, deletedAt: null }, select: { id: true } }),
+      (name) =>
+        this.prisma.batch.findMany({
+          where: { deletedAt: null, OR: [{ nameEn: { equals: name, mode: 'insensitive' } }, { nameHi: { equals: name, mode: 'insensitive' } }] },
+          select: { id: true },
+        }),
+    );
+  }
+
   async setAssignments(actor: Principal, id: string, assignments: AssignmentInput[]) {
     await this.requireStaff(actor, id);
+    const resolved = await Promise.all(
+      assignments.map(async (a) => ({
+        scope: a.scope,
+        stateId: a.stateId ?? null,
+        examId: a.examId ?? null,
+        courseId: a.courseId ? await this.resolveCourseId(a.courseId) : null,
+        subjectId: a.subjectId ? await this.resolveSubjectId(a.subjectId) : null,
+        batchId: a.batchId ? await this.resolveBatchId(a.batchId) : null,
+      })),
+    );
     await this.prisma.$transaction(async (tx) => {
       await tx.staffAssignment.updateMany({ where: { userId: id, deletedAt: null }, data: { deletedAt: new Date() } });
-      if (assignments.length) {
+      if (resolved.length) {
         await tx.staffAssignment.createMany({
-          data: assignments.map((a) => ({
-            userId: id,
-            scope: a.scope,
-            stateId: a.stateId ?? null,
-            examId: a.examId ?? null,
-            courseId: a.courseId ?? null,
-            subjectId: a.subjectId ?? null,
-            batchId: a.batchId ?? null,
-            createdBy: actor.userId,
-          })),
+          data: resolved.map((a) => ({ ...a, userId: id, createdBy: actor.userId })),
         });
       }
     });

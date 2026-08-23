@@ -12,6 +12,7 @@ import { NotificationService } from '../notifications/notification.service';
 import { staffInvitedEmail, staffInviteResentEmail, staffInviteAcceptedEmail, staffInviteRevokedEmail } from '../notifications/email-templates/staff';
 import { randomToken, sha256 } from '../common/crypto.util';
 import { AppError } from '../common/errors/app-error';
+import { resolveByIdOrName } from '../common/resolve-by-id-or-name.util';
 
 interface AssignmentPayload {
   scope: 'ORG' | 'STATE' | 'EXAM' | 'COURSE' | 'SUBJECT' | 'BATCH';
@@ -170,10 +171,64 @@ export class InvitationsService {
     return result;
   }
 
+  // Course/Subject/Batch may have been typed as a name, not an ID — same
+  // reason and same resolve-or-clear-error pattern as
+  // StaffAdminService.setAssignments (which handles this for an already-
+  // existing staff member's assignments; this is the equivalent for
+  // assignments captured at invite time, resolved once the invite is
+  // accepted rather than at invite-creation, since nothing is persisted to
+  // StaffAssignment until then).
+  private resolveCourseId(idOrName: string) {
+    return resolveByIdOrName(
+      idOrName,
+      'Course',
+      (id) => this.prisma.course.findUnique({ where: { id }, select: { id: true } }),
+      (name) =>
+        this.prisma.course.findMany({
+          where: { OR: [{ code: { equals: name, mode: 'insensitive' } }, { titleEn: { equals: name, mode: 'insensitive' } }, { titleHi: { equals: name, mode: 'insensitive' } }] },
+          select: { id: true },
+        }),
+    );
+  }
+
+  private resolveSubjectId(idOrName: string) {
+    return resolveByIdOrName(
+      idOrName,
+      'Subject',
+      (id) => this.prisma.subject.findFirst({ where: { id, deletedAt: null }, select: { id: true } }),
+      (name) =>
+        this.prisma.subject.findMany({
+          where: { deletedAt: null, OR: [{ nameEn: { equals: name, mode: 'insensitive' } }, { nameHi: { equals: name, mode: 'insensitive' } }] },
+          select: { id: true },
+        }),
+    );
+  }
+
+  private resolveBatchId(idOrName: string) {
+    return resolveByIdOrName(
+      idOrName,
+      'Batch',
+      (id) => this.prisma.batch.findFirst({ where: { id, deletedAt: null }, select: { id: true } }),
+      (name) =>
+        this.prisma.batch.findMany({
+          where: { deletedAt: null, OR: [{ nameEn: { equals: name, mode: 'insensitive' } }, { nameHi: { equals: name, mode: 'insensitive' } }] },
+          select: { id: true },
+        }),
+    );
+  }
+
   private async createFromInvitation(inv: StaffInvitation, password: string): Promise<{ userId: string; mfaSetupRequired: boolean }> {
     const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
     const role = await this.prisma.role.findUniqueOrThrow({ where: { key: inv.roleKey } });
-    const assignments = (inv.assignments as unknown as AssignmentPayload[]) ?? [];
+    const rawAssignments = (inv.assignments as unknown as AssignmentPayload[]) ?? [];
+    const assignments = await Promise.all(
+      rawAssignments.map(async (a) => ({
+        ...a,
+        courseId: a.courseId ? await this.resolveCourseId(a.courseId) : undefined,
+        subjectId: a.subjectId ? await this.resolveSubjectId(a.subjectId) : undefined,
+        batchId: a.batchId ? await this.resolveBatchId(a.batchId) : undefined,
+      })),
+    );
     const highRiskRole = inv.roleKey === 'SUPER_ADMIN' || inv.roleKey === 'CONTENT_ADMIN' || inv.roleKey === 'ACADEMIC_HEAD';
 
     const user = await this.prisma.$transaction(async (tx) => {

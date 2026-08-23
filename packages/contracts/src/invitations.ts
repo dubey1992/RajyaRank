@@ -13,11 +13,16 @@ export const roleKeySchema = z.enum([
 
 export const assignmentInputSchema = z.object({
   scope: z.enum(['ORG', 'STATE', 'EXAM', 'COURSE', 'SUBJECT', 'BATCH']),
+  // State/Exam are always chosen from a real dropdown (AssignmentsEditor.tsx)
+  // — genuine UUIDs only. Course/Subject/Batch have no such picker yet, just
+  // a bare text field, so a plain trimmed string is accepted here and
+  // resolved (ID or exact name) server-side — see StaffAdminService's
+  // resolveCourseId/resolveSubjectId/resolveBatchId.
   stateId: z.string().uuid().optional(),
   examId: z.string().uuid().optional(),
-  courseId: z.string().uuid().optional(),
-  subjectId: z.string().uuid().optional(),
-  batchId: z.string().uuid().optional(),
+  courseId: z.string().trim().min(1).max(200).optional(),
+  subjectId: z.string().trim().min(1).max(200).optional(),
+  batchId: z.string().trim().min(1).max(200).optional(),
 });
 export type AssignmentInput = z.infer<typeof assignmentInputSchema>;
 
