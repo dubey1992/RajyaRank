@@ -3,7 +3,13 @@ import { useEffect, useState } from 'react';
 import { Alert, Button, Field, Toast } from '@rajyarank/ui';
 import { apiFetch, type ApiError } from '@/lib/api';
 import { serverFieldErrors } from '@/lib/form';
-import type { ConceptLessonLink, ConceptQuestionLink, ConceptView } from '@rajyarank/contracts';
+import type {
+  ConceptLessonLink,
+  ConceptLessonSearchResult,
+  ConceptQuestionLink,
+  ConceptQuestionSearchResult,
+  ConceptView,
+} from '@rajyarank/contracts';
 
 interface Ref { id: string; code: string; nameHi: string; nameEn: string }
 
@@ -108,14 +114,49 @@ export function ConceptsManager({
     }
   }
 
-  // ── Attach/detach lessons & questions by id ──
+  // ── Attach/detach lessons & questions — searched by title/text, not by a
+  // raw id, since lesson/question UUIDs are never otherwise shown anywhere
+  // in the admin UI (that's exactly what made this "Lesson not found" /
+  // "Question not found" before: there was nowhere to copy a valid id from).
   const [attachConceptId, setAttachConceptId] = useState('');
-  const [lessonId, setLessonId] = useState('');
-  const [questionId, setQuestionId] = useState('');
+  const [lessonQuery, setLessonQuery] = useState('');
+  const [lessonResults, setLessonResults] = useState<ConceptLessonSearchResult[]>([]);
+  const [lessonSearching, setLessonSearching] = useState(false);
+  const [selectedLesson, setSelectedLesson] = useState<ConceptLessonSearchResult | null>(null);
+  const [questionQuery, setQuestionQuery] = useState('');
+  const [questionResults, setQuestionResults] = useState<ConceptQuestionSearchResult[]>([]);
+  const [questionSearching, setQuestionSearching] = useState(false);
+  const [selectedQuestion, setSelectedQuestion] = useState<ConceptQuestionSearchResult | null>(null);
   const [attachBusy, setAttachBusy] = useState(false);
   const [linkedLessons, setLinkedLessons] = useState<ConceptLessonLink[]>([]);
   const [linkedQuestions, setLinkedQuestions] = useState<ConceptQuestionLink[]>([]);
   const [linksLoading, setLinksLoading] = useState(false);
+
+  useEffect(() => {
+    setSelectedLesson(null);
+    if (lessonQuery.trim().length < 2) { setLessonResults([]); return; }
+    setLessonSearching(true);
+    const t = setTimeout(() => {
+      apiFetch<ConceptLessonSearchResult[]>(`/admin/concepts/lessons/search?examId=${examId}&q=${encodeURIComponent(lessonQuery.trim())}`)
+        .then(setLessonResults)
+        .catch(() => setLessonResults([]))
+        .finally(() => setLessonSearching(false));
+    }, 300);
+    return () => clearTimeout(t);
+  }, [lessonQuery, examId]);
+
+  useEffect(() => {
+    setSelectedQuestion(null);
+    if (questionQuery.trim().length < 2) { setQuestionResults([]); return; }
+    setQuestionSearching(true);
+    const t = setTimeout(() => {
+      apiFetch<ConceptQuestionSearchResult[]>(`/admin/concepts/questions/search?examId=${examId}&q=${encodeURIComponent(questionQuery.trim())}`)
+        .then(setQuestionResults)
+        .catch(() => setQuestionResults([]))
+        .finally(() => setQuestionSearching(false));
+    }, 300);
+    return () => clearTimeout(t);
+  }, [questionQuery, examId]);
 
   useEffect(() => {
     if (!attachConceptId) { setLinkedLessons([]); setLinkedQuestions([]); return; }
@@ -139,12 +180,12 @@ export function ConceptsManager({
   }
 
   async function attachLesson() {
-    if (!attachConceptId || !lessonId.trim()) return;
+    if (!attachConceptId || !selectedLesson) return;
     setAttachBusy(true);
     setActionError(null);
     try {
-      await apiFetch(`/admin/concepts/${attachConceptId}/lessons/${lessonId.trim()}`, { method: 'POST' });
-      setLessonId('');
+      await apiFetch(`/admin/concepts/${attachConceptId}/lessons/${selectedLesson.id}`, { method: 'POST' });
+      setLessonQuery(''); setLessonResults([]); setSelectedLesson(null);
       await Promise.all([refreshConcepts(), refreshLinks()]);
       setToast(L('पाठ जोड़ा गया।', 'Lesson linked.'));
     } catch (e) {
@@ -166,12 +207,12 @@ export function ConceptsManager({
   }
 
   async function attachQuestion() {
-    if (!attachConceptId || !questionId.trim()) return;
+    if (!attachConceptId || !selectedQuestion) return;
     setAttachBusy(true);
     setActionError(null);
     try {
-      await apiFetch(`/admin/concepts/${attachConceptId}/questions/${questionId.trim()}`, { method: 'POST' });
-      setQuestionId('');
+      await apiFetch(`/admin/concepts/${attachConceptId}/questions/${selectedQuestion.id}`, { method: 'POST' });
+      setQuestionQuery(''); setQuestionResults([]); setSelectedQuestion(null);
       await Promise.all([refreshConcepts(), refreshLinks()]);
       setToast(L('प्रश्न जोड़ा गया।', 'Question linked.'));
     } catch (e) {
@@ -260,9 +301,47 @@ export function ConceptsManager({
                           ))}
                         </ul>
                       )}
+                      {selectedLesson ? (
+                        <div className="mb-1.5 flex items-center justify-between gap-2 rounded-md border border-navy-900/20 bg-[#eaf3f8] px-2 py-1.5 text-xs">
+                          <span className="min-w-0 truncate">
+                            {hi ? selectedLesson.titleHi : selectedLesson.titleEn}
+                            <span className="text-muted"> · {hi ? selectedLesson.courseTitleHi : selectedLesson.courseTitleEn}</span>
+                          </span>
+                          <button type="button" onClick={() => { setSelectedLesson(null); setLessonQuery(''); }} className="shrink-0 text-[10px] font-extrabold text-muted hover:underline">{L('बदलें', 'Change')}</button>
+                        </div>
+                      ) : (
+                        <div className="relative">
+                          <input
+                            value={lessonQuery}
+                            onChange={(e) => setLessonQuery(e.target.value)}
+                            placeholder={L('पाठ खोजें (शीर्षक से)…', 'Search lessons by title…')}
+                            className="mb-1.5 w-full rounded-md border border-line px-2 py-1.5 text-xs"
+                          />
+                          {lessonQuery.trim().length >= 2 ? (
+                            <ul className="mb-1.5 max-h-40 overflow-y-auto rounded-md border border-line bg-white">
+                              {lessonSearching ? (
+                                <li className="px-2 py-1.5 text-xs text-muted">{L('खोज रहे हैं…', 'Searching…')}</li>
+                              ) : lessonResults.length === 0 ? (
+                                <li className="px-2 py-1.5 text-xs text-muted">{L('कोई पाठ नहीं मिला।', 'No lessons found.')}</li>
+                              ) : (
+                                lessonResults.map((l) => (
+                                  <li key={l.id}>
+                                    <button
+                                      type="button"
+                                      onClick={() => { setSelectedLesson(l); setLessonResults([]); }}
+                                      className="block w-full truncate px-2 py-1.5 text-left text-xs hover:bg-surface-soft"
+                                    >
+                                      {hi ? l.titleHi : l.titleEn} <span className="text-muted">· {hi ? l.courseTitleHi : l.courseTitleEn}</span>
+                                    </button>
+                                  </li>
+                                ))
+                              )}
+                            </ul>
+                          ) : null}
+                        </div>
+                      )}
                       <div className="flex gap-1.5">
-                        <input value={lessonId} onChange={(e) => setLessonId(e.target.value)} placeholder={L('पाठ आईडी', 'Lesson ID')} className="min-w-0 flex-1 rounded-md border border-line px-2 py-1.5 text-xs" />
-                        <Button onClick={() => void attachLesson()} loading={attachBusy} className="!min-h-0 px-3 py-1.5 text-xs">{L('जोड़ें', 'Link')}</Button>
+                        <Button onClick={() => void attachLesson()} disabled={!selectedLesson} loading={attachBusy} className="!min-h-0 w-full px-3 py-1.5 text-xs">{L('जोड़ें', 'Link')}</Button>
                       </div>
                     </div>
                     <div>
@@ -281,9 +360,44 @@ export function ConceptsManager({
                           ))}
                         </ul>
                       )}
+                      {selectedQuestion ? (
+                        <div className="mb-1.5 flex items-center justify-between gap-2 rounded-md border border-navy-900/20 bg-[#eaf3f8] px-2 py-1.5 text-xs">
+                          <span className="min-w-0 truncate">{(hi ? selectedQuestion.textHi : selectedQuestion.textEn) ?? selectedQuestion.id}</span>
+                          <button type="button" onClick={() => { setSelectedQuestion(null); setQuestionQuery(''); }} className="shrink-0 text-[10px] font-extrabold text-muted hover:underline">{L('बदलें', 'Change')}</button>
+                        </div>
+                      ) : (
+                        <div className="relative">
+                          <input
+                            value={questionQuery}
+                            onChange={(e) => setQuestionQuery(e.target.value)}
+                            placeholder={L('प्रश्न खोजें (टेक्स्ट से)…', 'Search questions by text…')}
+                            className="mb-1.5 w-full rounded-md border border-line px-2 py-1.5 text-xs"
+                          />
+                          {questionQuery.trim().length >= 2 ? (
+                            <ul className="mb-1.5 max-h-40 overflow-y-auto rounded-md border border-line bg-white">
+                              {questionSearching ? (
+                                <li className="px-2 py-1.5 text-xs text-muted">{L('खोज रहे हैं…', 'Searching…')}</li>
+                              ) : questionResults.length === 0 ? (
+                                <li className="px-2 py-1.5 text-xs text-muted">{L('कोई प्रश्न नहीं मिला।', 'No questions found.')}</li>
+                              ) : (
+                                questionResults.map((q) => (
+                                  <li key={q.id}>
+                                    <button
+                                      type="button"
+                                      onClick={() => { setSelectedQuestion(q); setQuestionResults([]); }}
+                                      className="block w-full truncate px-2 py-1.5 text-left text-xs hover:bg-surface-soft"
+                                    >
+                                      {(hi ? q.textHi : q.textEn) ?? q.id}
+                                    </button>
+                                  </li>
+                                ))
+                              )}
+                            </ul>
+                          ) : null}
+                        </div>
+                      )}
                       <div className="flex gap-1.5">
-                        <input value={questionId} onChange={(e) => setQuestionId(e.target.value)} placeholder={L('प्रश्न आईडी', 'Question ID')} className="min-w-0 flex-1 rounded-md border border-line px-2 py-1.5 text-xs" />
-                        <Button onClick={() => void attachQuestion()} loading={attachBusy} className="!min-h-0 px-3 py-1.5 text-xs">{L('जोड़ें', 'Link')}</Button>
+                        <Button onClick={() => void attachQuestion()} disabled={!selectedQuestion} loading={attachBusy} className="!min-h-0 w-full px-3 py-1.5 text-xs">{L('जोड़ें', 'Link')}</Button>
                       </div>
                     </div>
                   </div>

@@ -49,3 +49,20 @@ export interface ConceptQuestionLink {
   textHi: string | null;
   textEn: string | null;
 }
+
+/** Typeahead search results for the Concept Graph's Link-lesson/Link-question
+ *  pickers — lesson/question ids are raw UUIDs never otherwise surfaced in the
+ *  admin UI, so staff search by title/text instead of needing to already know one. */
+export interface ConceptLessonSearchResult {
+  id: string;
+  titleHi: string;
+  titleEn: string;
+  courseTitleHi: string;
+  courseTitleEn: string;
+}
+
+export interface ConceptQuestionSearchResult {
+  id: string;
+  textHi: string | null;
+  textEn: string | null;
+}

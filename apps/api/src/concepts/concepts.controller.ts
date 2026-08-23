@@ -40,6 +40,21 @@ export class ConceptsController {
     return this.concepts.remove(p, id);
   }
 
+  // Typeahead search backing the Link-lesson/Link-question pickers — see
+  // ConceptsService.searchLessons()/searchQuestions() for why these exist:
+  // lesson/question ids are raw UUIDs never otherwise surfaced in the admin UI.
+  @Get('lessons/search')
+  @RequirePermission('course.manage')
+  searchLessons(@Query('examId') examId: string, @Query('q') q: string) {
+    return this.concepts.searchLessons(examId, q ?? '');
+  }
+
+  @Get('questions/search')
+  @RequirePermission('course.manage')
+  searchQuestions(@Query('examId') examId: string, @Query('q') q: string) {
+    return this.concepts.searchQuestions(examId, q ?? '');
+  }
+
   @Get(':id/lessons')
   @RequirePermission('course.manage')
   listLessons(@Param('id') id: string) {

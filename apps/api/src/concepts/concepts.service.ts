@@ -1,6 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import type { Principal } from '@rajyarank/auth';
-import type { ConceptLessonLink, ConceptQuestionLink, ConceptView, UpsertConcept } from '@rajyarank/contracts';
+import type {
+  ConceptLessonLink,
+  ConceptLessonSearchResult,
+  ConceptQuestionLink,
+  ConceptQuestionSearchResult,
+  ConceptView,
+  UpsertConcept,
+} from '@rajyarank/contracts';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { AppError } from '../common/errors/app-error';
@@ -100,6 +107,51 @@ export class ConceptsService {
       textHi: l.question.currentVersion?.textHi ?? null,
       textEn: l.question.currentVersion?.textEn ?? null,
     }));
+  }
+
+  /** Typeahead search backing the Link-lesson picker — lesson ids are raw
+   *  UUIDs never otherwise shown anywhere in the admin UI, so staff search by
+   *  title instead of needing to already have one. Scoped to the concept's
+   *  exam via topic -> chapter -> subject -> course. */
+  async searchLessons(examId: string, q: string): Promise<ConceptLessonSearchResult[]> {
+    const query = q.trim();
+    if (!examId || query.length < 2) return [];
+    const rows = await this.prisma.lesson.findMany({
+      where: {
+        deletedAt: null,
+        topic: { chapter: { subject: { course: { examId } } } },
+        currentVersion: { OR: [{ titleHi: { contains: query, mode: 'insensitive' } }, { titleEn: { contains: query, mode: 'insensitive' } }] },
+      },
+      take: 20,
+      include: { currentVersion: true, topic: { include: { chapter: { include: { subject: { include: { course: true } } } } } } },
+    });
+    return rows
+      .filter((l) => l.currentVersion)
+      .map((l) => ({
+        id: l.id,
+        titleHi: l.currentVersion!.titleHi,
+        titleEn: l.currentVersion!.titleEn,
+        courseTitleHi: l.topic.chapter.subject.course.titleHi,
+        courseTitleEn: l.topic.chapter.subject.course.titleEn,
+      }));
+  }
+
+  /** Same idea as searchLessons() but for questions — scoped via subject -> course. */
+  async searchQuestions(examId: string, q: string): Promise<ConceptQuestionSearchResult[]> {
+    const query = q.trim();
+    if (!examId || query.length < 2) return [];
+    const rows = await this.prisma.question.findMany({
+      where: {
+        deletedAt: null,
+        subject: { course: { examId } },
+        currentVersion: { OR: [{ textHi: { contains: query, mode: 'insensitive' } }, { textEn: { contains: query, mode: 'insensitive' } }] },
+      },
+      take: 20,
+      include: { currentVersion: true },
+    });
+    return rows
+      .filter((row) => row.currentVersion)
+      .map((row) => ({ id: row.id, textHi: row.currentVersion!.textHi, textEn: row.currentVersion!.textEn }));
   }
 
   async attachLesson(principal: Principal, conceptId: string, lessonId: string): Promise<{ ok: true }> {
