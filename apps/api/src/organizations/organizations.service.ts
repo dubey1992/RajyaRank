@@ -5,6 +5,9 @@ import type { RegisterOrganization } from '@rajyarank/contracts';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { InvitationsService } from '../invitations/invitations.service';
+import { AuthorizationService } from '../authz/authorization.service';
+import { SessionService } from '../auth/session.service';
+import { NotificationService } from '../notifications/notification.service';
 import { AppError } from '../common/errors/app-error';
 
 // Avoids visually ambiguous characters (0/O, 1/I/L) since staff read this
@@ -23,6 +26,9 @@ export class OrganizationsService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly invitations: InvitationsService,
+    private readonly authz: AuthorizationService,
+    private readonly sessions: SessionService,
+    private readonly notifications: NotificationService,
   ) {}
 
   async list() {
@@ -189,25 +195,55 @@ export class OrganizationsService {
     return { accessCode: org?.accessCode ?? null, totalReferredSignups, convertedSignups };
   }
 
-  /** Delete an institution: detach members/courses, drop pending invites, remove the org. */
+  /** Delete an institution: detach students/courses, deactivate + log out
+   *  staff, drop pending invites, remove the org.
+   *
+   *  Students keep their account (just unlinked, orgId: null) — same as
+   *  self-serve leaveInstitution, since a student can keep using the platform
+   *  independently of any institution. Staff are different: their entire
+   *  reason for holding institution-management permissions (ACADEMIC_HEAD,
+   *  or any role invited into this org specifically) no longer applies once
+   *  the institution is gone, so they're disabled outright — previously they
+   *  were only unlinked (orgId: null) with no status change, which left them
+   *  fully logged in and, worse, past the subscription gate entirely (that
+   *  check only applies when orgId is set), a live bug this closes. */
   async remove(actor: Principal, orgId: string) {
     const org = await this.prisma.organization.findUnique({ where: { id: orgId } });
     if (!org) throw AppError.notFound('Institution not found.');
+    const staffIds = (await this.prisma.user.findMany({ where: { orgId, kind: 'STAFF' }, select: { id: true } })).map((u) => u.id);
+
     await this.prisma.$transaction(async (tx) => {
-      await tx.user.updateMany({ where: { orgId }, data: { orgId: null } });
+      await tx.user.updateMany({ where: { orgId, kind: 'STUDENT' }, data: { orgId: null } });
+      await tx.user.updateMany({ where: { orgId, kind: 'STAFF' }, data: { orgId: null, status: 'DISABLED' } });
       await tx.course.updateMany({ where: { orgId }, data: { orgId: null } });
       await tx.staffAssignment.deleteMany({ where: { orgId } });
       await tx.staffInvitation.deleteMany({ where: { orgId } });
       await tx.organization.update({ where: { id: orgId }, data: { headUserId: null } });
       await tx.organization.delete({ where: { id: orgId } });
     });
+
+    // Outside the transaction like patchStatus's equivalent calls — Redis/
+    // session-store writes aren't part of the DB transaction anyway.
+    for (const id of staffIds) {
+      await this.authz.invalidate(id);
+      await this.sessions.revokeAll(id);
+      await this.notifications.emit({
+        userId: id,
+        category: 'SECURITY',
+        titleHi: 'खाता निष्क्रिय कर दिया गया',
+        titleEn: 'Account deactivated',
+        bodyHi: `${org.name} को RajyaRank से हटा दिया गया है, इसलिए आपका स्टाफ़ खाता निष्क्रिय कर दिया गया है।`,
+        bodyEn: `${org.name} has been removed from RajyaRank, so your staff account has been deactivated.`,
+      });
+    }
+
     await this.audit.record({
       actorUserId: actor.userId,
       action: 'org.deleted',
       targetType: 'Organization',
       targetId: orgId,
       result: 'SUCCESS',
-      after: { code: org.code },
+      after: { code: org.code, staffDeactivated: staffIds.length },
     });
     return { ok: true };
   }
