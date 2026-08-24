@@ -448,6 +448,20 @@ export class StudentService {
     const userId = this.studentId(p);
     const course = await this.prisma.course.findFirst({ where: { id: courseId, deletedAt: null } });
     if (!course) throw AppError.notFound('Course not found.');
+    // A PRIVATE/UNLISTED institute-owned course's curriculum outline
+    // (subject/chapter/topic/lesson titles, structure, estimated minutes)
+    // must stay invisible to a student outside the owning institute — same
+    // as courseId never being surfaced to them in the first place
+    // (catalogue.controller.ts's public list excludes non-PUBLIC courses;
+    // instituteCourses() only returns the caller's own org's). PUBLIC
+    // institute-owned courses (dual-priced, meant for everyone) stay
+    // reachable by design, matching the public catalogue's own filter.
+    // Without this check, anyone who obtained the id by any other means (a
+    // shared link, browser history) could still read the full outline while
+    // only lesson CONTENT stayed gated behind accessAll below.
+    if (course.orgId && course.visibility !== 'PUBLIC' && course.orgId !== p.orgId) {
+      throw AppError.notFound('Course not found.');
+    }
     const accessAll = await this.entitlements.hasCourseAccess(userId, courseId);
 
     const subjects = await this.prisma.subject.findMany({
