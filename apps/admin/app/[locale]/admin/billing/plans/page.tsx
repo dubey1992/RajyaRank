@@ -46,11 +46,18 @@ export default async function ManagePlansPage({ params }: { params: { locale: st
     apiFetchServer<Exam[]>('/exams', cookie),
   ]);
 
-  const subscribedOrgIds = new Set((subscriptions ?? []).map((s) => s.orgId));
+  // Matches BillingService.provisionSubscription's actual conflict rule —
+  // only ACTIVE and TRIALING (checkout already pending) block a fresh
+  // subscribe call. A TRIAL org still needs to appear here so Super Admin can
+  // grant it a paid plan directly (e.g. a Head paying by bank transfer who
+  // wants to skip the rest of their trial) — every institution auto-starts a
+  // TRIAL subscription on Head acceptance now, so this would otherwise go
+  // permanently empty for every institution that's ever had one.
+  const blockedOrgIds = new Set((subscriptions ?? []).filter((s) => s.status === 'ACTIVE' || s.status === 'TRIALING').map((s) => s.orgId));
   // Only institutions whose invited Academic Head has actually accepted — a
   // still-pending invite means there's no one to run the institution yet.
   const unsubscribedOrgs = (orgs ?? [])
-    .filter((o) => !subscribedOrgIds.has(o.id) && o.headName)
+    .filter((o) => !blockedOrgIds.has(o.id) && o.headName)
     .map((o) => ({ id: o.id, name: o.name }));
   const activePlans = (plans ?? []).filter((p) => p.active);
 

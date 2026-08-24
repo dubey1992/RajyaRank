@@ -11,6 +11,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { AuditService } from '../audit/audit.service';
+import { isSubscriptionUsable } from '../common/subscription-status.util';
 
 /**
  * The one place authorization decisions are made. Builds the Principal from
@@ -39,7 +40,7 @@ export class AuthorizationService {
         // Only staff ever reach a permission-gated route (see policy.engine's
         // subscription check), but this join is cheap either way — one extra
         // hop off a row we already fetched, not a separate query.
-        org: { select: { subscription: { select: { status: true } } } },
+        org: { select: { subscription: { select: { status: true, currentPeriodEnd: true } } } },
       },
     });
     if (!user) return null;
@@ -74,7 +75,9 @@ export class AuthorizationService {
       assignments,
       assurance,
       orgId: user.orgId ?? undefined,
-      orgSubscriptionActive: user.org?.subscription?.status === 'ACTIVE',
+      orgSubscriptionActive: user.org?.subscription
+        ? isSubscriptionUsable(user.org.subscription.status, user.org.subscription.currentPeriodEnd)
+        : false,
     });
 
     await this.redis.client.set(cacheKey, serialize(principal), 'EX', 300);

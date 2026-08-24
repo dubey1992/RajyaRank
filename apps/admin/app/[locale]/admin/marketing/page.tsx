@@ -9,7 +9,8 @@ import { TestimonialsManager } from '@/components/TestimonialsManager';
 import { FaqManager } from '@/components/FaqManager';
 import { StudyContentTeaserManager } from '@/components/StudyContentTeaserManager';
 import { BroadcastEmailManager } from '@/components/BroadcastEmailManager';
-import type { TestimonialView, FaqView, StudyContentTeaserView } from '@rajyarank/contracts';
+import { BannerManager } from '@/components/BannerManager';
+import type { TestimonialView, FaqView, StudyContentTeaserView, MarketingBannerView } from '@rajyarank/contracts';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,7 +29,8 @@ export default async function MarketingPage({ params }: { params: { locale: stri
   }
 
   const cookie = cookies().toString();
-  const [testimonials, faqs, teasers] = await Promise.all([
+  const [banner, testimonials, faqs, teasers] = await Promise.all([
+    apiFetchServer<MarketingBannerView | null>('/admin/marketing/banner', cookie),
     apiFetchServer<TestimonialView[]>('/admin/marketing/testimonials', cookie),
     apiFetchServer<FaqView[]>('/admin/marketing/faqs', cookie),
     apiFetchServer<StudyContentTeaserView[]>('/admin/marketing/study-content-teasers', cookie),
@@ -42,6 +44,7 @@ export default async function MarketingPage({ params }: { params: { locale: stri
           : 'Manage content shown on the public marketing homepage. Only "published" items are shown publicly.'}
       </p>
       <div className="grid gap-6">
+        <BannerManager initial={banner ?? null} locale={locale} />
         <TestimonialsManager initial={testimonials ?? []} locale={locale} />
         <FaqManager initial={faqs ?? []} locale={locale} />
         <StudyContentTeaserManager initial={teasers ?? []} locale={locale} />

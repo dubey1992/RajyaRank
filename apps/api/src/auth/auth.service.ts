@@ -571,6 +571,21 @@ export class AuthService {
     orgSubscriptionActive: boolean | null,
   ): Promise<MeResponse> {
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    // Cheap, one indexed lookup, only for org-scoped staff — /auth/me is a
+    // page-load endpoint, not a per-action hot path, so a second query here
+    // (rather than threading this through the cached Principal) keeps the
+    // sensitive Principal/policy-engine contract untouched.
+    let orgTrialDaysLeft: number | null = null;
+    if (user.orgId) {
+      const sub = await this.prisma.organizationSubscription.findUnique({
+        where: { orgId: user.orgId },
+        select: { status: true, currentPeriodEnd: true },
+      });
+      if (sub?.status === 'TRIAL' && sub.currentPeriodEnd) {
+        const daysLeft = Math.ceil((sub.currentPeriodEnd.getTime() - Date.now()) / 86_400_000);
+        if (daysLeft <= 7) orgTrialDaysLeft = Math.max(0, daysLeft);
+      }
+    }
     return {
       userId: user.id,
       kind: user.kind,
@@ -582,6 +597,7 @@ export class AuthService {
       homeRoute: this.homeRouteFor(principalRoleKeys as RoleKey[]),
       orgId: user.orgId,
       orgSubscriptionActive,
+      orgTrialDaysLeft,
     };
   }
 

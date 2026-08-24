@@ -93,3 +93,24 @@ export interface BroadcastEmailResult {
   skippedMuted: number;
   truncated: boolean;
 }
+
+/** Singleton — the public homepage's animated top announcement bar. See
+ *  MarketingService.getBanner()/updateBanner(). */
+export interface MarketingBannerView {
+  enabled: boolean;
+  messageHi: string;
+  messageEn: string;
+  ctaLabelHi: string | null;
+  ctaLabelEn: string | null;
+  ctaHref: string | null;
+}
+
+export const upsertMarketingBannerSchema = z.object({
+  enabled: z.boolean(),
+  messageHi: z.string().min(1).max(300),
+  messageEn: z.string().min(1).max(300),
+  ctaLabelHi: z.string().max(60).optional(),
+  ctaLabelEn: z.string().max(60).optional(),
+  ctaHref: z.string().max(500).optional(),
+});
+export type UpsertMarketingBanner = z.infer<typeof upsertMarketingBannerSchema>;

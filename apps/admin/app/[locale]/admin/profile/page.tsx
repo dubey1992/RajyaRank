@@ -22,9 +22,11 @@ function initialsOf(name: string | null): string {
 
 const PLAN_STATUS_TONE: Record<string, string> = {
   ACTIVE: 'bg-teal-100 text-success',
+  TRIAL: 'bg-blue-100 text-blue-700',
   TRIALING: 'bg-blue-100 text-blue-700',
   PAST_DUE: 'bg-orange-100 text-danger',
   CANCELED: 'bg-line text-muted',
+  EXPIRED: 'bg-orange-100 text-danger',
 };
 
 export default async function ProfilePage({
@@ -130,9 +132,13 @@ export default async function ProfilePage({
                       {plan.billingCycle === 'MONTHLY' ? L('मासिक बिलिंग', 'Billed monthly') : L('वार्षिक बिलिंग', 'Billed annually')}
                       {plan.currentPeriodEnd ? ` · ${L('अगली अवधि', 'renews')} ${plan.currentPeriodEnd.slice(0, 10)}` : ''}
                     </span>
-                    {plan.status !== 'ACTIVE' ? (
+                    {plan.status !== 'ACTIVE' && plan.status !== 'TRIAL' ? (
                       <Link href={`/${locale}/admin/billing`} className="text-xs font-bold text-navy-900 underline">
                         {plan.status === 'TRIALING' ? L('भुगतान पूरा करें →', 'Complete payment →') : L('नवीनीकृत करें →', 'Renew →')}
+                      </Link>
+                    ) : plan.status === 'TRIAL' ? (
+                      <Link href={`/${locale}/admin/billing`} className="text-xs font-bold text-navy-900 underline">
+                        {L('योजना चुनें →', 'Choose a plan →')}
                       </Link>
                     ) : null}
                   </div>

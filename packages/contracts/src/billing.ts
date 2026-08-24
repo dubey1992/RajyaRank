@@ -56,6 +56,13 @@ export interface SelfServeSubscribeResult {
   razorpayCustomerId?: string | null;
 }
 
+/** Super Admin manually extending/ending an institution's free trial from the
+ *  Institutions screen — see BillingService.extendTrial/endTrialNow. */
+export const extendTrialSchema = z.object({
+  extraDays: z.number().int().min(1).max(90),
+});
+export type ExtendTrial = z.infer<typeof extendTrialSchema>;
+
 export const confirmSelfServePaymentSchema = z.object({
   subscriptionId: z.string().min(1),
   razorpayPaymentId: z.string().min(1),

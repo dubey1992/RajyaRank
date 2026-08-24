@@ -13,6 +13,7 @@ import { NotificationService } from '../notifications/notification.service';
 import { studentAccountStatusChangedEmail, studentForcedPasswordResetEmail } from '../notifications/email-templates/auth';
 import { institutionJoinedEmail } from '../notifications/email-templates/engagement';
 import { AppError } from '../common/errors/app-error';
+import { isSubscriptionUsable } from '../common/subscription-status.util';
 
 /**
  * Institution-scoped student roster. An Institution Head enrolls students
@@ -175,7 +176,7 @@ export class StudentsService {
     const consumesNewSeat = orgId && (!existing || !existing.orgId);
     if (consumesNewSeat) {
       const subscription = await this.prisma.organizationSubscription.findUnique({ where: { orgId }, include: { plan: true } });
-      if (!subscription || subscription.status !== 'ACTIVE') {
+      if (!subscription || !isSubscriptionUsable(subscription.status, subscription.currentPeriodEnd)) {
         throw AppError.conflict("This institution's subscription is not active.");
       }
       const activeCount = await this.prisma.user.count({ where: { kind: 'STUDENT', orgId, status: 'ACTIVE' } });

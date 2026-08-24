@@ -269,6 +269,59 @@ export class BillingService {
     return updated;
   }
 
+  /** Super Admin manually extends an institution's free trial from the
+   *  Institutions screen. Works on a currently-TRIAL subscription (pushes
+   *  currentPeriodEnd out) and also on an already-EXPIRED one (reopens it as
+   *  TRIAL from today) — a Head who churned out mid-conversation with sales
+   *  shouldn't need a brand-new invite cycle just to get more time. */
+  async extendTrial(actor: Principal, orgId: string, extraDays: number) {
+    const subscription = await this.prisma.organizationSubscription.findUnique({ where: { orgId } });
+    if (!subscription) throw AppError.notFound('This institution has no subscription — its Head must accept their invite first.');
+    if (subscription.status !== 'TRIAL' && subscription.status !== 'EXPIRED') {
+      throw AppError.conflict(`This institution's subscription is ${subscription.status}, not a trial — nothing to extend.`);
+    }
+    const now = new Date();
+    const base = subscription.status === 'TRIAL' && subscription.currentPeriodEnd && subscription.currentPeriodEnd > now ? subscription.currentPeriodEnd : now;
+    const currentPeriodEnd = new Date(base.getTime() + extraDays * 86_400_000);
+    const updated = await this.prisma.organizationSubscription.update({
+      where: { orgId },
+      data: { status: 'TRIAL', currentPeriodStart: subscription.currentPeriodStart ?? now, currentPeriodEnd },
+    });
+    await this.authz.invalidateOrg(orgId);
+    await this.audit.record({
+      actorUserId: actor.userId,
+      action: 'billing.trial_extended',
+      targetType: 'Organization',
+      targetId: orgId,
+      result: 'SUCCESS',
+      before: { status: subscription.status, currentPeriodEnd: subscription.currentPeriodEnd?.toISOString() ?? null },
+      after: { status: 'TRIAL', currentPeriodEnd: currentPeriodEnd.toISOString(), extraDays },
+    });
+    return updated;
+  }
+
+  /** Super Admin manually ends an institution's trial early — e.g. it's
+   *  clearly being abused, or the Head is ready to buy today and doesn't need
+   *  the remaining runway. Blocks institution-staff actions on their next
+   *  request the same way natural trial expiry does. */
+  async endTrialNow(actor: Principal, orgId: string) {
+    const subscription = await this.prisma.organizationSubscription.findUnique({ where: { orgId } });
+    if (!subscription) throw AppError.notFound('This institution has no subscription to end.');
+    if (subscription.status !== 'TRIAL') throw AppError.conflict(`This institution's subscription is ${subscription.status}, not an active trial.`);
+    const updated = await this.prisma.organizationSubscription.update({ where: { orgId }, data: { status: 'EXPIRED' } });
+    await this.authz.invalidateOrg(orgId);
+    await this.audit.record({
+      actorUserId: actor.userId,
+      action: 'billing.trial_ended_early',
+      targetType: 'Organization',
+      targetId: orgId,
+      result: 'SUCCESS',
+      before: { status: 'TRIAL' },
+      after: { status: 'EXPIRED' },
+    });
+    return updated;
+  }
+
   /** Academic Head self-serve purchase/renewal for their own institution —
    *  gated on KYC verification so a Head can't unlock paid features before
    *  the institution is confirmed real. Returns a checkoutUrl the frontend

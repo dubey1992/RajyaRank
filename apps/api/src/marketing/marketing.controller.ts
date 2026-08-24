@@ -6,11 +6,13 @@ import {
   upsertStudyContentTeaserSchema,
   sendBroadcastEmailSchema,
   broadcastAudienceSchema,
+  upsertMarketingBannerSchema,
   type UpsertTestimonial,
   type UpsertFaq,
   type UpsertStudyContentTeaser,
   type SendBroadcastEmail,
   type BroadcastAudienceValue,
+  type UpsertMarketingBanner,
 } from '@rajyarank/contracts';
 import { Public } from '../common/decorators/public.decorator';
 import { CurrentPrincipal } from '../common/decorators/current-principal.decorator';
@@ -39,6 +41,12 @@ export class MarketingController {
   @Get('study-content-teasers')
   studyContentTeasers() {
     return this.marketing.publicStudyContentTeasers();
+  }
+
+  @Public()
+  @Get('marketing-banner')
+  banner() {
+    return this.marketing.getBanner();
   }
 }
 
@@ -137,6 +145,21 @@ export class MarketingAdminController {
   @RequirePermission('marketing.manage')
   deleteStudyContentTeaser(@Param('id') id: string) {
     return this.marketing.deleteStudyContentTeaser(id);
+  }
+
+  @Get('banner')
+  @RequirePermission('marketing.manage')
+  adminBanner() {
+    return this.marketing.adminGetBanner();
+  }
+
+  @Patch('banner')
+  @RequirePermission('marketing.manage')
+  updateBanner(
+    @CurrentPrincipal() principal: Principal,
+    @Body(new ZodValidationPipe(upsertMarketingBannerSchema)) body: UpsertMarketingBanner,
+  ) {
+    return this.marketing.updateBanner(principal.userId, body);
   }
 
   @Get('broadcast-email/audience-count')

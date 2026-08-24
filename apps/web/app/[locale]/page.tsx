@@ -6,10 +6,11 @@ import { PublicHeader } from '@/components/PublicHeader';
 import { BackToTopButton } from '@/components/BackToTopButton';
 import { DemoQuiz } from '@/components/DemoQuiz';
 import { CoursesFilterGrid } from '@/components/CoursesFilterGrid';
+import { AnnouncementBanner } from '@/components/AnnouncementBanner';
 import { toFilterableCourses, type CourseListItem } from '@/lib/courses';
 import { apiFetchServer } from '@/lib/api';
 import { getMe } from '@/lib/student';
-import type { ProductView, PartnerInstituteView, PlatformStatsView, State, Exam, TestimonialView, FaqView, StudyContentTeaserView, MobileAppLatestReleaseView } from '@rajyarank/contracts';
+import type { ProductView, PartnerInstituteView, PlatformStatsView, State, Exam, TestimonialView, FaqView, StudyContentTeaserView, MobileAppLatestReleaseView, MarketingBannerView } from '@rajyarank/contracts';
 
 const TEASER_STYLE: Record<StudyContentTeaserView['kind'], { icon: string; color: string; fg: string }> = {
   VIDEO: { icon: '▶', color: 'edf4ff', fg: '2e69ba' },
@@ -31,7 +32,7 @@ export default async function LandingPage({ params }: { params: { locale: string
   const L = (h: string, e: string) => (hi ? h : e);
 
   const cookie = cookies().toString();
-  const [me, courseList, products, institutes, states, examList, testimonials, faqRows, teasers, platformStats, androidRelease] = await Promise.all([
+  const [me, courseList, products, institutes, states, examList, testimonials, faqRows, teasers, platformStats, androidRelease, banner] = await Promise.all([
     getMe(cookie),
     apiFetchServer<CourseListItem[]>('/courses', ''),
     apiFetchServer<ProductView[]>('/products', ''),
@@ -43,6 +44,7 @@ export default async function LandingPage({ params }: { params: { locale: string
     apiFetchServer<StudyContentTeaserView[]>('/study-content-teasers', ''),
     apiFetchServer<PlatformStatsView>('/platform-stats', ''),
     apiFetchServer<MobileAppLatestReleaseView | null>('/app-releases/android/latest', ''),
+    apiFetchServer<MarketingBannerView | null>('/marketing-banner', ''),
   ]);
   const isStudent = !!me && me.kind === 'STUDENT';
   const courses = toFilterableCourses(courseList ?? [], products ?? []).slice(0, 24);
@@ -87,10 +89,8 @@ export default async function LandingPage({ params }: { params: { locale: string
 
   return (
     <main id="main" className="bg-[#fffdfb]">
-      {/* Announcement */}
-      <div className="bg-navy-950 px-4 py-2 text-center text-[13px] font-medium text-white">
-        🎯 {L('मुफ़्त दैनिक क्विज़: SSC और Railways अभ्यास आज उपलब्ध।', 'Free daily quiz: SSC & Railways practice available today.')}
-      </div>
+      {/* Announcement — dynamic, Super-Admin-managed (Marketing → Homepage banner) */}
+      <AnnouncementBanner banner={banner ?? null} locale={locale} />
 
       {/* Header */}
       <PublicHeader locale={locale} showInstitutesLink={!!(institutes && institutes.length)} me={me} />

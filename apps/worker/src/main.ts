@@ -12,7 +12,8 @@
  *   <queue>:dead   → jobs that exhausted every delivery attempt
  * Scheduled:
  *   expire stale staff invitations; purge expired login sessions;
- *   institute risk-signal sweep (Institute Intervention Radar, Phase 3).
+ *   institute risk-signal sweep (Institute Intervention Radar, Phase 3);
+ *   institution trial reminders + expiration (free-trial onboarding).
  */
 import Redis from 'ioredis';
 import nodemailer from 'nodemailer';
@@ -306,6 +307,120 @@ async function sweepSubscriptionExpiry() {
 }
 
 /** Same duplicated-shell convention as entitlementExpiringHtml above. */
+function trialReminderHtml(locale: 'hi' | 'en', orgName: string, daysLeft: number): { subject: string; html: string } {
+  const hi = locale === 'hi';
+  const heading = hi ? 'आपका निःशुल्क ट्रायल जल्द समाप्त हो रहा है' : 'Your free trial is ending soon';
+  const subject = hi ? `RajyaRank — ट्रायल ${daysLeft} दिनों में समाप्त` : `RajyaRank — trial ends in ${daysLeft} day(s)`;
+  const body = hi
+    ? `${orgName} के लिए RajyaRank का निःशुल्क ट्रायल ${daysLeft} दिनों में समाप्त हो रहा है। बिना रुकावट के जारी रखने के लिए अभी एक योजना चुनें।`
+    : `${orgName}'s RajyaRank free trial ends in ${daysLeft} day(s). Pick a plan now to keep student enrollment, staff invites, and content authoring working without interruption.`;
+  const html = `<!doctype html><html lang="${locale}"><body style="margin:0;padding:0;background:#F4F6F8;font-family:Arial,Helvetica,sans-serif;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F4F6F8;padding:24px 12px;"><tr><td align="center">
+<table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#ffffff;border-radius:12px;overflow:hidden;">
+<tr><td style="background:#0B2F4F;padding:20px 28px;"><span style="font-size:20px;font-weight:900;color:#ffffff;">Rajya<span style="color:#F97316;">Rank</span></span></td></tr>
+<tr><td style="padding:32px 28px;"><h1 style="margin:0 0 16px;font-size:19px;font-weight:900;color:#0B2F4F;">${heading}</h1><p style="margin:0;font-size:14px;line-height:1.6;color:#334155;">${body}</p></td></tr>
+</table></td></tr></table></body></html>`;
+  return { subject, html };
+}
+
+/** Same duplicated-shell convention as entitlementExpiringHtml above. */
+function trialExpiredHtml(locale: 'hi' | 'en', orgName: string): { subject: string; html: string } {
+  const hi = locale === 'hi';
+  const heading = hi ? 'आपका निःशुल्क ट्रायल समाप्त हो गया' : 'Your free trial has ended';
+  const subject = hi ? 'RajyaRank — ट्रायल समाप्त हो गया' : 'RajyaRank — your trial has ended';
+  const body = hi
+    ? `${orgName} के लिए RajyaRank का 30-दिन का निःशुल्क ट्रायल समाप्त हो गया है। छात्र जोड़ने, स्टाफ़ आमंत्रित करने व अन्य सुविधाओं तक पहुँच फिर से शुरू करने के लिए एक योजना चुनें।`
+    : `${orgName}'s 30-day RajyaRank free trial has ended. Pick a plan to restore access to adding students, inviting staff, and other institution features.`;
+  const html = `<!doctype html><html lang="${locale}"><body style="margin:0;padding:0;background:#F4F6F8;font-family:Arial,Helvetica,sans-serif;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F4F6F8;padding:24px 12px;"><tr><td align="center">
+<table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#ffffff;border-radius:12px;overflow:hidden;">
+<tr><td style="background:#0B2F4F;padding:20px 28px;"><span style="font-size:20px;font-weight:900;color:#ffffff;">Rajya<span style="color:#F97316;">Rank</span></span></td></tr>
+<tr><td style="padding:32px 28px;"><h1 style="margin:0 0 16px;font-size:19px;font-weight:900;color:#0B2F4F;">${heading}</h1><p style="margin:0;font-size:14px;line-height:1.6;color:#334155;">${body}</p></td></tr>
+</table></td></tr></table></body></html>`;
+  return { subject, html };
+}
+
+/** Institutions on a TRIAL subscription with 7, 3, or 1 day(s) left — each
+ *  threshold notified at most once per trial period (Redis SETNX dedupe keyed
+ *  by subscription id + threshold, so a manually-extended trial with a new
+ *  currentPeriodEnd naturally gets fresh reminders since it re-crosses each
+ *  threshold from further out). */
+async function sweepTrialReminders() {
+  const now = new Date();
+  const soon = new Date(now.getTime() + 7 * 86_400_000);
+  const trials = await prisma.organizationSubscription.findMany({
+    where: { status: 'TRIAL', currentPeriodEnd: { gt: now, lte: soon } },
+    include: { organization: { select: { name: true, headUserId: true } } },
+  });
+  let notified = 0;
+  for (const sub of trials) {
+    if (!sub.organization.headUserId || !sub.currentPeriodEnd) continue;
+    const daysLeft = Math.ceil((sub.currentPeriodEnd.getTime() - now.getTime()) / 86_400_000);
+    const threshold = [7, 3, 1].find((t) => daysLeft <= t);
+    if (!threshold) continue;
+    const claimed = await redis.set(`rr:trial:reminder:${sub.id}:${sub.currentPeriodEnd.toISOString()}:${threshold}`, '1', 'EX', 32 * 86_400, 'NX');
+    if (!claimed) continue;
+    const head = await prisma.user.findUnique({ where: { id: sub.organization.headUserId }, select: { email: true, locale: true } });
+    if (!head?.email) continue;
+    const pref = await prisma.notificationPreference.findUnique({ where: { userId: sub.organization.headUserId } });
+    if (pref?.mutedCategories?.includes('EXPIRY') || pref?.emailEnabled === false) continue;
+    const locale: 'hi' | 'en' = head.locale === 'hi' ? 'hi' : 'en';
+    const { subject, html } = trialReminderHtml(locale, sub.organization.name, daysLeft);
+    await mailer.sendMail({ from: env.EMAIL_FROM, to: head.email, subject, html });
+    await prisma.notification.create({
+      data: {
+        userId: sub.organization.headUserId,
+        category: 'EXPIRY',
+        titleHi: 'आपका निःशुल्क ट्रायल जल्द समाप्त हो रहा है',
+        titleEn: 'Your free trial is ending soon',
+        bodyHi: `ट्रायल ${daysLeft} दिनों में समाप्त हो रहा है।`,
+        bodyEn: `Trial ends in ${daysLeft} day(s).`,
+      },
+    });
+    notified++;
+  }
+  if (notified) console.log(`[worker] trial-reminder notified ${notified} institution(s)`);
+}
+
+/** Institutions whose TRIAL ran past currentPeriodEnd without converting —
+ *  flips the subscription to EXPIRED (the policy-engine gate then blocks
+ *  institution-staff actions the same way an inactive paid subscription
+ *  already does), bumps every org member's permVersion so the block takes
+ *  effect immediately rather than waiting out the up-to-5-minute Principal
+ *  cache TTL, and notifies the Head once. */
+async function sweepTrialExpiration() {
+  const now = new Date();
+  const expired = await prisma.organizationSubscription.findMany({
+    where: { status: 'TRIAL', currentPeriodEnd: { lte: now } },
+    include: { organization: { select: { id: true, name: true, headUserId: true } } },
+  });
+  for (const sub of expired) {
+    await prisma.organizationSubscription.update({ where: { orgId: sub.orgId }, data: { status: 'EXPIRED' } });
+    await prisma.user.updateMany({ where: { orgId: sub.organization.id }, data: { permVersion: { increment: 1 } } });
+    if (!sub.organization.headUserId) continue;
+    const head = await prisma.user.findUnique({ where: { id: sub.organization.headUserId }, select: { email: true, locale: true } });
+    if (!head?.email) continue;
+    const pref = await prisma.notificationPreference.findUnique({ where: { userId: sub.organization.headUserId } });
+    const locale: 'hi' | 'en' = head.locale === 'hi' ? 'hi' : 'en';
+    if (!(pref?.mutedCategories?.includes('EXPIRY') || pref?.emailEnabled === false)) {
+      const { subject, html } = trialExpiredHtml(locale, sub.organization.name);
+      await mailer.sendMail({ from: env.EMAIL_FROM, to: head.email, subject, html });
+    }
+    await prisma.notification.create({
+      data: {
+        userId: sub.organization.headUserId,
+        category: 'EXPIRY',
+        titleHi: 'आपका निःशुल्क ट्रायल समाप्त हो गया',
+        titleEn: 'Your free trial has ended',
+        bodyHi: 'जारी रखने के लिए एक योजना चुनें।',
+        bodyEn: 'Pick a plan to keep going.',
+      },
+    });
+  }
+  if (expired.length) console.log(`[worker] expired ${expired.length} institution trial(s)`);
+}
+
+/** Same duplicated-shell convention as entitlementExpiringHtml above. */
 function planBehindHtml(locale: 'hi' | 'en', missedCount: number): { subject: string; html: string } {
   const hi = locale === 'hi';
   const heading = hi ? 'आपकी स्टडी प्लान अपडेट हुई' : 'Your study plan was refreshed';
@@ -579,10 +694,14 @@ async function main() {
   const sweepTimer = setInterval(() => void scheduledSweeps(), 60_000);
   const expiryTimer = setInterval(() => void sweepEntitlementExpiry(), 3_600_000);
   const subExpiryTimer = setInterval(() => void sweepSubscriptionExpiry(), 3_600_000);
+  const trialReminderTimer = setInterval(() => void sweepTrialReminders(), 3_600_000);
+  const trialExpiryTimer = setInterval(() => void sweepTrialExpiration(), 3_600_000);
   const planTimer = setInterval(() => void sweepStudyPlans(), 3_600_000);
   const riskTimer = setInterval(() => void sweepInstituteRisk(), 3_600_000);
   void sweepEntitlementExpiry();
   void sweepSubscriptionExpiry();
+  void sweepTrialReminders();
+  void sweepTrialExpiration();
   void sweepStudyPlans();
   void sweepInstituteRisk();
   const shutdown = async () => {
@@ -590,6 +709,8 @@ async function main() {
     clearInterval(sweepTimer);
     clearInterval(expiryTimer);
     clearInterval(subExpiryTimer);
+    clearInterval(trialReminderTimer);
+    clearInterval(trialExpiryTimer);
     clearInterval(planTimer);
     clearInterval(riskTimer);
     // Let an in-progress delivery (including its retry backoff) finish rather

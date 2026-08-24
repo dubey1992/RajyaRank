@@ -93,6 +93,10 @@ export const meResponseSchema = z.object({
   /** Only meaningful when orgId is set (STAFF with an institution) — null
    *  for platform-level staff (Super Admin, Content Admin) and students. */
   orgSubscriptionActive: z.boolean().nullable(),
+  /** Days left in an active free trial, only set when 7 or fewer remain —
+   *  drives the Shell's "trial ending soon" banner. Null otherwise (no
+   *  subscription, a paid plan, an expired/canceled one, or >7 days left). */
+  orgTrialDaysLeft: z.number().int().nullable(),
 });
 export type MeResponse = z.infer<typeof meResponseSchema>;
 

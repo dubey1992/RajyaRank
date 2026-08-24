@@ -29,9 +29,11 @@ function rupees(minor: number) {
 
 const STATUS_TONE: Record<string, string> = {
   ACTIVE: 'bg-teal-100 text-success',
+  TRIAL: 'bg-blue-100 text-blue-700',
   TRIALING: 'bg-blue-100 text-blue-700',
   PAST_DUE: 'bg-orange-100 text-danger',
   CANCELED: 'bg-line text-muted',
+  EXPIRED: 'bg-orange-100 text-danger',
 };
 
 /** Academic Head self-serve subscription purchase/renewal — no Super Admin
@@ -65,6 +67,11 @@ export function BillingSelfServe({
   // completed. Buying again is blocked (server-side 409 too) until this one
   // is either completed or lapses.
   const pendingSub = summary.subscription?.status === 'TRIALING' ? summary.subscription : null;
+  // A real, time-boxed free-access period — distinct from pendingSub
+  // (TRIALING) above. Buying a plan here is allowed (and encouraged) at any
+  // point during a trial, not just after it lapses.
+  const trialSub = summary.subscription?.status === 'TRIAL' ? summary.subscription : null;
+  const trialExpired = summary.subscription?.status === 'EXPIRED';
 
   async function buy(planId: string, billingCycle: 'MONTHLY' | 'ANNUAL') {
     setBusyKey(`${planId}-${billingCycle}`);
@@ -173,6 +180,17 @@ export function BillingSelfServe({
             `आप अभी ${hi ? activeSub.planNameHi : activeSub.planNameEn} योजना पर हैं, जो ${activeSub.currentPeriodEnd?.slice(0, 10) ?? '—'} तक सक्रिय है।`,
             `You're currently on the ${activeSub.planNameEn} plan, active through ${activeSub.currentPeriodEnd?.slice(0, 10) ?? '—'}.`,
           )}
+        </Alert>
+      ) : trialSub ? (
+        <Alert tone="info">
+          {L(
+            `आप अभी निःशुल्क ट्रायल पर हैं, जो ${trialSub.currentPeriodEnd?.slice(0, 10) ?? '—'} तक चलेगा। बिना रुकावट जारी रखने के लिए किसी भी समय नीचे से एक योजना चुनें।`,
+            `You're currently on the free trial, running through ${trialSub.currentPeriodEnd?.slice(0, 10) ?? '—'}. Pick a plan below anytime to keep going without interruption once it ends.`,
+          )}
+        </Alert>
+      ) : trialExpired ? (
+        <Alert tone="error">
+          {L('आपका निःशुल्क ट्रायल समाप्त हो गया है। जारी रखने के लिए नीचे से एक योजना चुनें।', 'Your free trial has ended. Pick a plan below to continue.')}
         </Alert>
       ) : pendingSub ? (
         <Alert tone="info">

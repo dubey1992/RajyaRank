@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { UpsertTestimonial, UpsertFaq, UpsertStudyContentTeaser, SendBroadcastEmail, BroadcastAudienceValue, BroadcastEmailResult } from '@rajyarank/contracts';
+import type { UpsertTestimonial, UpsertFaq, UpsertStudyContentTeaser, SendBroadcastEmail, BroadcastAudienceValue, BroadcastEmailResult, UpsertMarketingBanner, MarketingBannerView } from '@rajyarank/contracts';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { NotificationService } from '../notifications/notification.service';
@@ -106,6 +106,27 @@ export class MarketingService {
     if (!row) throw AppError.notFound('Study content teaser not found.');
     await this.prisma.studyContentTeaser.delete({ where: { id } });
     return { ok: true };
+  }
+
+  // ── Homepage announcement banner (singleton) ──
+  private toBannerView(row: { enabled: boolean; messageHi: string; messageEn: string; ctaLabelHi: string | null; ctaLabelEn: string | null; ctaHref: string | null }): MarketingBannerView {
+    return { enabled: row.enabled, messageHi: row.messageHi, messageEn: row.messageEn, ctaLabelHi: row.ctaLabelHi, ctaLabelEn: row.ctaLabelEn, ctaHref: row.ctaHref };
+  }
+  async getBanner(): Promise<MarketingBannerView | null> {
+    const row = await this.prisma.marketingBanner.findFirst({ where: { enabled: true }, orderBy: { updatedAt: 'desc' } });
+    return row ? this.toBannerView(row) : null;
+  }
+  async adminGetBanner(): Promise<MarketingBannerView | null> {
+    const row = await this.prisma.marketingBanner.findFirst({ orderBy: { updatedAt: 'desc' } });
+    return row ? this.toBannerView(row) : null;
+  }
+  async updateBanner(actorUserId: string, dto: UpsertMarketingBanner): Promise<MarketingBannerView> {
+    const existing = await this.prisma.marketingBanner.findFirst({ orderBy: { updatedAt: 'desc' } });
+    const data = { ...dto, updatedBy: actorUserId };
+    const row = existing
+      ? await this.prisma.marketingBanner.update({ where: { id: existing.id }, data })
+      : await this.prisma.marketingBanner.create({ data });
+    return this.toBannerView(row);
   }
 
   // ── Promotional email broadcast (Super Admin only) ──

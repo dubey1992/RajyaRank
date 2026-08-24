@@ -10,9 +10,11 @@ function rupees(minor: number) {
 
 const STATUS_TONE: Record<string, string> = {
   ACTIVE: 'bg-teal-100 text-success',
+  TRIAL: 'bg-blue-100 text-blue-700',
   TRIALING: 'bg-blue-100 text-blue-700',
   PAST_DUE: 'bg-orange-100 text-danger',
   CANCELED: 'bg-line text-muted',
+  EXPIRED: 'bg-orange-100 text-danger',
   PAID: 'bg-teal-100 text-success',
   PENDING: 'bg-orange-100 text-orange-700',
   OVERDUE: 'bg-orange-100 text-danger',
@@ -46,6 +48,10 @@ export function InstitutionBillingManager({
   const [sendingId, setSendingId] = useState<string | null>(null);
   const [cancelingOrgId, setCancelingOrgId] = useState<string | null>(null);
   const [cancelTarget, setCancelTarget] = useState<OrganizationSubscriptionView | null>(null);
+  const [extendDays, setExtendDays] = useState<Record<string, number>>({});
+  const [extendingOrgId, setExtendingOrgId] = useState<string | null>(null);
+  const [endingOrgId, setEndingOrgId] = useState<string | null>(null);
+  const [endTarget, setEndTarget] = useState<OrganizationSubscriptionView | null>(null);
   const [orgFilter, setOrgFilter] = useState('');
   const filterQuery = orgFilter.trim().toLowerCase();
   const filteredSubscriptions = filterQuery ? subscriptions.filter((s) => s.orgName.toLowerCase().includes(filterQuery)) : subscriptions;
@@ -88,6 +94,37 @@ export function InstitutionBillingManager({
     } finally {
       setCancelingOrgId(null);
       setCancelTarget(null);
+    }
+  }
+
+  async function extendTrial(s: OrganizationSubscriptionView) {
+    const extraDays = extendDays[s.orgId] ?? 14;
+    setExtendingOrgId(s.orgId);
+    try {
+      await apiFetch(`/admin/billing/organizations/${s.orgId}/trial/extend`, { method: 'POST', body: JSON.stringify({ extraDays }) });
+      const refreshed = await apiFetch<OrganizationSubscriptionView[]>('/admin/billing/subscriptions');
+      setSubscriptions(refreshed);
+      setToast(L(`ट्रायल ${extraDays} दिनों के लिए बढ़ाया गया।`, `Trial extended by ${extraDays} day(s).`));
+    } catch (e) {
+      setToast((e as ApiError).message);
+    } finally {
+      setExtendingOrgId(null);
+    }
+  }
+
+  async function endTrialNow() {
+    if (!endTarget) return;
+    setEndingOrgId(endTarget.orgId);
+    try {
+      await apiFetch(`/admin/billing/organizations/${endTarget.orgId}/trial/end`, { method: 'POST' });
+      const refreshed = await apiFetch<OrganizationSubscriptionView[]>('/admin/billing/subscriptions');
+      setSubscriptions(refreshed);
+      setToast(L('ट्रायल समाप्त कर दिया गया।', 'Trial ended.'));
+    } catch (e) {
+      setToast((e as ApiError).message);
+    } finally {
+      setEndingOrgId(null);
+      setEndTarget(null);
     }
   }
 
@@ -162,16 +199,49 @@ export function InstitutionBillingManager({
                     <td className="px-3 py-2">{s.currentPeriodEnd ? s.currentPeriodEnd.slice(0, 10) : '—'}</td>
                     <td className="px-3 py-2"><span className={`rounded-full px-2 py-0.5 text-xs font-extrabold ${STATUS_TONE[s.status] ?? 'bg-line text-muted'}`}>{s.status}</span></td>
                     <td className="px-3 py-2 text-right">
-                      {s.status !== 'CANCELED' ? (
-                        <button
-                          type="button"
-                          disabled={cancelingOrgId === s.orgId}
-                          className="rounded-md border border-line px-2 py-1 text-xs font-bold text-danger hover:bg-surface-soft disabled:opacity-50"
-                          onClick={() => setCancelTarget(s)}
-                        >
-                          {cancelingOrgId === s.orgId ? L('रद्द हो रहा है…', 'Canceling…') : L('रद्द करें', 'Cancel')}
-                        </button>
-                      ) : null}
+                      <div className="flex flex-wrap items-center justify-end gap-1.5">
+                        {s.status === 'TRIAL' || s.status === 'EXPIRED' ? (
+                          <span className="flex items-center gap-1">
+                            <input
+                              type="number"
+                              min={1}
+                              max={90}
+                              value={extendDays[s.orgId] ?? 14}
+                              onChange={(e) => setExtendDays((d) => ({ ...d, [s.orgId]: Math.max(1, Math.min(90, Number(e.target.value) || 14)) }))}
+                              className="w-14 rounded-md border border-line px-1.5 py-1 text-xs"
+                              aria-label={L('दिन', 'Days')}
+                            />
+                            <button
+                              type="button"
+                              disabled={extendingOrgId === s.orgId}
+                              className="rounded-md border border-line px-2 py-1 text-xs font-bold text-navy-900 hover:bg-surface-soft disabled:opacity-50"
+                              onClick={() => void extendTrial(s)}
+                            >
+                              {extendingOrgId === s.orgId ? L('बढ़ाया जा रहा है…', 'Extending…') : L('ट्रायल बढ़ाएँ', 'Extend trial')}
+                            </button>
+                          </span>
+                        ) : null}
+                        {s.status === 'TRIAL' ? (
+                          <button
+                            type="button"
+                            disabled={endingOrgId === s.orgId}
+                            className="rounded-md border border-line px-2 py-1 text-xs font-bold text-danger hover:bg-surface-soft disabled:opacity-50"
+                            onClick={() => setEndTarget(s)}
+                          >
+                            {L('ट्रायल समाप्त करें', 'End trial')}
+                          </button>
+                        ) : null}
+                        {s.status !== 'CANCELED' ? (
+                          <button
+                            type="button"
+                            disabled={cancelingOrgId === s.orgId}
+                            className="rounded-md border border-line px-2 py-1 text-xs font-bold text-danger hover:bg-surface-soft disabled:opacity-50"
+                            onClick={() => setCancelTarget(s)}
+                          >
+                            {cancelingOrgId === s.orgId ? L('रद्द हो रहा है…', 'Canceling…') : L('रद्द करें', 'Cancel')}
+                          </button>
+                        ) : null}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -275,6 +345,24 @@ export function InstitutionBillingManager({
         busy={cancelingOrgId === cancelTarget?.orgId}
         onConfirm={() => void cancelSubscription()}
         onCancel={() => setCancelTarget(null)}
+      />
+      <ConfirmDialog
+        open={!!endTarget}
+        title={L('ट्रायल अभी समाप्त करें?', 'End trial now?')}
+        message={
+          endTarget
+            ? L(
+                `"${endTarget.orgName}" का निःशुल्क ट्रायल तुरंत समाप्त कर दिया जाएगा और संस्थान की प्लेटफ़ॉर्म एक्सेस बंद हो जाएगी, भले ही समय शेष हो।`,
+                `"${endTarget.orgName}"'s free trial will end immediately and the institution will lose platform access, even if time remains.`,
+              )
+            : ''
+        }
+        confirmLabel={L('ट्रायल समाप्त करें', 'End trial')}
+        cancelLabel={L('वापस जाएँ', 'Keep it')}
+        tone="danger"
+        busy={endingOrgId === endTarget?.orgId}
+        onConfirm={() => void endTrialNow()}
+        onCancel={() => setEndTarget(null)}
       />
       <Toast message={toast} tone="success" onDismiss={() => setToast(null)} />
     </div>

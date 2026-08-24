@@ -576,6 +576,19 @@ async function seedMarketingContent() {
     await prisma.testimonial.upsert({ where: { id: t.id }, update: t, create: t });
   }
 
+  // Singleton — matches the row seeded in the 20260824100100_add_marketing_banner
+  // migration (deploys never run this script) so local/dev environments match.
+  const banner = {
+    id: 'seed-marketing-banner',
+    enabled: true,
+    messageHi: '🎯 संस्थानों के लिए नया: बिना भुगतान के 30 दिन का निःशुल्क ट्रायल। डेमो का अनुरोध करें या हमें ईमेल करें।',
+    messageEn: '🎯 New for institutions: a free 30-day trial, no payment required. Request a demo or email us to get started.',
+    ctaLabelHi: 'डेमो का अनुरोध करें',
+    ctaLabelEn: 'Request a demo',
+    ctaHref: '/request-demo',
+  };
+  await prisma.marketingBanner.upsert({ where: { id: banner.id }, update: banner, create: banner });
+
   const faqs = [
     { id: 'seed-faq-1', questionHi: 'क्या बिना भुगतान कोर्स देख सकते हैं?', questionEn: 'Can I explore without paying?', answerHi: 'हाँ — सिलेबस, डेमो वीडियो और दैनिक क्विज़ मुफ़्त हैं। पूरा कंटेंट खरीद के बाद अनलॉक होता है।', answerEn: 'Yes — syllabus, demo videos and the daily quiz are free. Full content unlocks after purchase.', sequence: 0 },
     { id: 'seed-faq-2', questionHi: 'कोर्स की वैधता कितनी होगी?', questionEn: 'How long is course validity?', answerHi: 'हर कोर्स पर वैधता स्पष्ट दिखाई जाती है — परीक्षा-चक्र, 4-माह, 6-माह और 8-माह प्लान उपलब्ध हैं।', answerEn: 'Validity is shown clearly on each course — exam-cycle, 4-month, 6-month and 8-month plans are available.', sequence: 1 },
@@ -620,6 +633,12 @@ async function seedBillingPlans() {
     { code: 'STARTER', nameHi: 'स्टार्टर', nameEn: 'Starter', priceMonthlyMinor: 149900, priceAnnualMinor: 149900 * 10, maxActiveStudents: 250, maxStaffSeats: 5, storageGb: 50, internalFeeBps: 300, externalFeeBps: 1800, sequence: 0 },
     { code: 'GROWTH', nameHi: 'ग्रोथ', nameEn: 'Growth', priceMonthlyMinor: 699900, priceAnnualMinor: 699900 * 10, maxActiveStudents: 1500, maxStaffSeats: 20, storageGb: 250, internalFeeBps: 150, externalFeeBps: 1500, sequence: 1 },
     { code: 'PRO', nameHi: 'प्रो', nameEn: 'Pro', priceMonthlyMinor: 1499900, priceAnnualMinor: 1499900 * 10, maxActiveStudents: 5000, maxStaffSeats: 200, storageGb: 1000, internalFeeBps: 50, externalFeeBps: 1200, sequence: 2 },
+    // Synthetic plan backing every institution's auto-started free trial —
+    // hidden from the self-serve catalog (active: false) via BillingService's
+    // listActivePlans(). Real production row is seeded in the
+    // 20260824100000_add_institution_trial migration (deploys never run this
+    // script), duplicated here so local/dev environments match.
+    { code: 'FREE_TRIAL', nameHi: 'निःशुल्क ट्रायल', nameEn: 'Free Trial', priceMonthlyMinor: 0, priceAnnualMinor: 0, maxActiveStudents: 20, maxStaffSeats: 3, storageGb: 10, internalFeeBps: 0, externalFeeBps: 0, active: false, sequence: 999 },
   ];
   for (const p of plans) {
     await prisma.subscriptionPlan.upsert({ where: { code: p.code }, update: p, create: p });

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import Link from 'next/link';
 import { LogoMark } from '@rajyarank/ui';
 import type { MeResponse } from '@rajyarank/contracts';
 import type { Locale } from '@/lib/i18n';
@@ -6,6 +7,32 @@ import { can } from '@/lib/permissions';
 import { AdminLangSwitch } from './AdminLangSwitch';
 import { ProfileMenu } from './ProfileMenu';
 import { SideNav } from './SideNav';
+
+/** Shown to an org-scoped staff member (any role, not just the Head — the
+ *  whole team should see the runway) once 7 or fewer trial days remain. Only
+ *  the Head can act on it (billing.subscribe requires org.manage or the
+ *  self-serve academic.billing.subscribe route, both Head-only), so
+ *  non-Heads just see the notice with no CTA. */
+function TrialBanner({ daysLeft, locale }: { daysLeft: number; locale: Locale }) {
+  const hi = locale === 'hi';
+  const urgent = daysLeft <= 3;
+  return (
+    <div className={`flex flex-wrap items-center justify-center gap-2 px-4 py-2 text-center text-[13px] font-bold text-white ${urgent ? 'bg-danger' : 'bg-navy-900'}`}>
+      <span>
+        {daysLeft === 0
+          ? hi
+            ? 'आपका निःशुल्क ट्रायल आज समाप्त हो रहा है।'
+            : 'Your free trial ends today.'
+          : hi
+            ? `आपका निःशुल्क ट्रायल ${daysLeft} दिन${daysLeft === 1 ? '' : 'ों'} में समाप्त हो रहा है।`
+            : `Your free trial ends in ${daysLeft} day${daysLeft === 1 ? '' : 's'}.`}
+      </span>
+      <Link href={`/${locale}/admin/billing`} className="font-black underline">
+        {hi ? 'अभी योजना चुनें →' : 'Choose a plan now →'}
+      </Link>
+    </div>
+  );
+}
 
 interface NavItem {
   href: string;
@@ -161,6 +188,7 @@ export function Shell({
             <ProfileMenu me={me} locale={locale} />
           </div>
         </header>
+        {me.orgId && me.orgTrialDaysLeft !== null ? <TrialBanner daysLeft={me.orgTrialDaysLeft} locale={locale} /> : null}
         <main id="main" className="flex-1 p-6">
           {children}
         </main>

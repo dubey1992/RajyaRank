@@ -4,8 +4,10 @@ import type { Principal } from '@rajyarank/auth';
 import {
   upsertSubscriptionPlanSchema,
   subscribeOrganizationSchema,
+  extendTrialSchema,
   type UpsertSubscriptionPlan,
   type SubscribeOrganization,
+  type ExtendTrial,
 } from '@rajyarank/contracts';
 import { CurrentPrincipal } from '../common/decorators/current-principal.decorator';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
@@ -63,6 +65,22 @@ export class BillingController {
   @RequirePermission('org.manage', { assurance: 'AAL2' })
   cancelSubscription(@CurrentPrincipal() principal: Principal, @Param('orgId') orgId: string) {
     return this.billing.cancelSubscription(principal, orgId);
+  }
+
+  @Post('organizations/:orgId/trial/extend')
+  @RequirePermission('org.manage', { assurance: 'AAL2' })
+  extendTrial(
+    @CurrentPrincipal() principal: Principal,
+    @Param('orgId') orgId: string,
+    @Body(new ZodValidationPipe(extendTrialSchema)) body: ExtendTrial,
+  ) {
+    return this.billing.extendTrial(principal, orgId, body.extraDays);
+  }
+
+  @Post('organizations/:orgId/trial/end')
+  @RequirePermission('org.manage', { assurance: 'AAL2' })
+  endTrialNow(@CurrentPrincipal() principal: Principal, @Param('orgId') orgId: string) {
+    return this.billing.endTrialNow(principal, orgId);
   }
 
   @Get('invoices')

@@ -2147,10 +2147,20 @@ enum BillingCycle {
 }
 
 enum SubscriptionStatus {
+  // Self-serve checkout started but not yet paid — no platform access
+  // unlocked (see provisionSubscription's doc comment in billing.service.ts).
   TRIALING
+  // A real, time-boxed free-access period for a newly-onboarded institution —
+  // full feature access at reduced seat/student caps until currentPeriodEnd,
+  // unlike TRIALING which grants no access at all. See
+  // isSubscriptionUsable() in apps/api/src/common/subscription-status.util.ts.
+  TRIAL
   ACTIVE
   PAST_DUE
   CANCELED
+  // A TRIAL that ran out without converting to a paid plan — distinct from
+  // CANCELED (explicit) and PAST_DUE (a paid plan's failed renewal).
+  EXPIRED
 }
 
 enum InvoiceStatus {
@@ -2265,6 +2275,26 @@ model Testimonial {
   createdBy   String?  @map("created_by")
 
   @@map("testimonials")
+}
+
+// Singleton — Super Admin edits the one existing row (or creates the first
+// one) rather than choosing among a list; see MarketingService.getBanner()/
+// updateBanner(). Powers the animated top announcement bar on the public
+// marketing homepage (apps/web/app/[locale]/page.tsx).
+model MarketingBanner {
+  id         String   @id @default(uuid())
+  enabled    Boolean  @default(false)
+  messageHi  String   @map("message_hi")
+  messageEn  String   @map("message_en")
+  ctaLabelHi String?  @map("cta_label_hi")
+  ctaLabelEn String?  @map("cta_label_en")
+  // Internal path (e.g. "/request-demo", locale-prefixed at render time) or
+  // "mailto:"/"http(s)://" — MarketingBannerCTA on the web side decides which.
+  ctaHref    String?  @map("cta_href")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+  updatedBy  String?  @map("updated_by")
+
+  @@map("marketing_banners")
 }
 
 model Faq {

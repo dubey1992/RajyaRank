@@ -13,6 +13,10 @@ import { staffInvitedEmail, staffInviteResentEmail, staffInviteAcceptedEmail, st
 import { randomToken, sha256 } from '../common/crypto.util';
 import { AppError } from '../common/errors/app-error';
 import { resolveByIdOrName } from '../common/resolve-by-id-or-name.util';
+import { isSubscriptionUsable } from '../common/subscription-status.util';
+
+/** How long a newly-onboarded institution's free trial lasts. */
+const TRIAL_DAYS = 30;
 
 interface AssignmentPayload {
   scope: 'ORG' | 'STATE' | 'EXAM' | 'COURSE' | 'SUBJECT' | 'BATCH';
@@ -76,7 +80,7 @@ export class InvitationsService {
     // Head brings on, not the Head's own account.
     if (orgId && dto.roleKey !== 'ACADEMIC_HEAD') {
       const subscription = await this.prisma.organizationSubscription.findUnique({ where: { orgId }, include: { plan: true } });
-      if (!subscription || subscription.status !== 'ACTIVE') {
+      if (!subscription || !isSubscriptionUsable(subscription.status, subscription.currentPeriodEnd)) {
         throw AppError.conflict("This institution's subscription is not active.");
       }
       const [activeStaffCount, pendingInviteCount] = await Promise.all([
@@ -269,6 +273,20 @@ export class InvitationsService {
       // whoever's already there.
       if (inv.roleKey === 'ACADEMIC_HEAD' && inv.orgId) {
         await tx.organization.updateMany({ where: { id: inv.orgId, headUserId: null }, data: { headUserId: created.id } });
+        // First-ever Head accepting starts this institution's one-time free
+        // trial — real, capped access (20 students / 3 staff seats, via the
+        // synthetic FREE_TRIAL plan) rather than TRIALING's "no access at
+        // all". upsert with an empty update keeps this idempotent if a
+        // co-Head accepts later and a subscription already exists (real or
+        // already-trialed) — never clobber it.
+        const trialPlan = await tx.subscriptionPlan.findUniqueOrThrow({ where: { code: 'FREE_TRIAL' } });
+        const now = new Date();
+        const trialEnd = new Date(now.getTime() + TRIAL_DAYS * 86_400_000);
+        await tx.organizationSubscription.upsert({
+          where: { orgId: inv.orgId },
+          create: { orgId: inv.orgId, planId: trialPlan.id, billingCycle: 'MONTHLY', status: 'TRIAL', currentPeriodStart: now, currentPeriodEnd: trialEnd },
+          update: {},
+        });
       }
       await tx.staffInvitation.update({
         where: { id: inv.id },
