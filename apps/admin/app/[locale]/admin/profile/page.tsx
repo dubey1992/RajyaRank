@@ -173,7 +173,14 @@ export default async function ProfilePage({
             </section>
           ) : null}
 
-          <PaymentMethodsManager initial={paymentMethods} locale={locale} />
+          {/* Saved cards used to pay for the institution's own subscription
+              (BillingSelfServe reuses razorpayCustomerId from here) — no
+              legitimate use for a non-Head staff role, who never pays for
+              anything on this platform. The underlying /payment-methods
+              endpoints stay intentionally ungated (self-scoped to whoever's
+              logged in, harmless either way) — this is purely hiding a
+              section with nothing useful in it for other roles. */}
+          {isHead ? <PaymentMethodsManager initial={paymentMethods} locale={locale} /> : null}
 
           {profile.hasPassword ? (
             <section className="rounded-lg border border-line bg-white p-5">

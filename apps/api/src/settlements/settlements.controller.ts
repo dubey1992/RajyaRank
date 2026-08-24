@@ -95,8 +95,11 @@ export class SettlementsAdminController {
 }
 
 /** Academic Head: their own institution's earnings only — org-scope is
- *  enforced inside the service via principal.orgId, which also naturally
- *  excludes course.manage holders with no institution (e.g. Content Admin). */
+ *  enforced inside the service via principal.orgId. Explicitly role-
+ *  restricted to ACADEMIC_HEAD (see the `roles` option on RequirePermission):
+ *  course.manage alone isn't enough, since Content Admin holds it too for
+ *  legitimate course-management reasons and has no business seeing
+ *  institution earnings/payout/KYC data. */
 @Controller('academic/settlements')
 export class SettlementsAcademicController {
   constructor(private readonly settlements: SettlementsService) {}
@@ -108,7 +111,7 @@ export class SettlementsAcademicController {
   // already earned, and this is also where the KYC submission form lives
   // (/admin/earnings), which must render even before any subscription exists.
   @Get('earnings')
-  @RequirePermission('course.manage', { bypassSubscriptionGate: true })
+  @RequirePermission('course.manage', { bypassSubscriptionGate: true, roles: ['ACADEMIC_HEAD'] })
   earnings(@CurrentPrincipal() principal: Principal) {
     return this.settlements.institutionEarnings(principal);
   }
@@ -119,13 +122,13 @@ export class SettlementsAcademicController {
   // through academic/billing — gating it behind an active subscription made
   // both unreachable for exactly the orgs that need them.
   @Get('kyc')
-  @RequirePermission('course.manage', { bypassSubscriptionGate: true })
+  @RequirePermission('course.manage', { bypassSubscriptionGate: true, roles: ['ACADEMIC_HEAD'] })
   getMyKyc(@CurrentPrincipal() principal: Principal) {
     return this.settlements.getMyKycSubmission(principal);
   }
 
   @Post('kyc')
-  @RequirePermission('course.manage', { bypassSubscriptionGate: true })
+  @RequirePermission('course.manage', { bypassSubscriptionGate: true, roles: ['ACADEMIC_HEAD'] })
   submitKyc(
     @CurrentPrincipal() principal: Principal,
     @Body(new ZodValidationPipe(submitKycSchema)) body: SubmitKyc,
@@ -134,7 +137,7 @@ export class SettlementsAcademicController {
   }
 
   @Post('kyc/documents')
-  @RequirePermission('course.manage', { bypassSubscriptionGate: true })
+  @RequirePermission('course.manage', { bypassSubscriptionGate: true, roles: ['ACADEMIC_HEAD'] })
   createKycDocumentUploadIntent(
     @CurrentPrincipal() principal: Principal,
     @Body(new ZodValidationPipe(kycDocumentUploadIntentSchema)) body: KycDocumentUploadIntent,
@@ -143,7 +146,7 @@ export class SettlementsAcademicController {
   }
 
   @Post('kyc/documents/confirm')
-  @RequirePermission('course.manage', { bypassSubscriptionGate: true })
+  @RequirePermission('course.manage', { bypassSubscriptionGate: true, roles: ['ACADEMIC_HEAD'] })
   confirmKycDocumentUpload(
     @CurrentPrincipal() principal: Principal,
     @Body(new ZodValidationPipe(confirmKycDocumentUploadSchema)) body: ConfirmKycDocumentUpload,

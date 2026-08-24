@@ -2,7 +2,6 @@ import { cookies } from 'next/headers';
 import { resolveLocale } from '@/lib/i18n';
 import { getMeOrRedirect } from '@/lib/auth';
 import { apiFetchServer } from '@/lib/api';
-import { can } from '@/lib/permissions';
 import { Shell } from '@/components/Shell';
 import { AccessDenied } from '@/components/AccessDenied';
 import { StudentPaymentsManager } from '@/components/StudentPaymentsManager';
@@ -16,10 +15,13 @@ export default async function StudentPaymentsPage({ params }: { params: { locale
   const me = await getMeOrRedirect(locale);
   const title = hi ? 'छात्र भुगतान' : 'Student Payments';
 
-  if (!can(me, 'course.manage')) {
+  // Role-checked, not permission-checked — course.manage alone is too broad
+  // (Content Admin holds it too); see academic-payments.controller.ts's
+  // matching backend gate.
+  if (!me.roleKeys.includes('ACADEMIC_HEAD')) {
     return (
       <Shell me={me} locale={locale} title={title}>
-        <AccessDenied locale={locale} permission="course.manage" />
+        <AccessDenied locale={locale} />
       </Shell>
     );
   }

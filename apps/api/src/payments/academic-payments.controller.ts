@@ -9,21 +9,23 @@ import { AppError } from '../common/errors/app-error';
 import { PaymentsService } from './payments.service';
 
 /** Academic Head's "Student Payments" ledger — org-scoped via principal.orgId,
- *  never a client-supplied org id. Naturally excludes course.manage holders
- *  with no institution (e.g. Content Admin), same pattern as settlements. */
+ *  never a client-supplied org id. Explicitly role-restricted to ACADEMIC_HEAD
+ *  (see the `roles` option on RequirePermission): course.manage alone isn't
+ *  enough, since Content Admin holds it too for legitimate course-management
+ *  reasons and has no business seeing institution payment data. */
 @Controller('academic')
 export class AcademicPaymentsController {
   constructor(private readonly payments: PaymentsService) {}
 
   @Get('orders')
-  @RequirePermission('course.manage')
+  @RequirePermission('course.manage', { roles: ['ACADEMIC_HEAD'] })
   orders(@CurrentPrincipal() p: Principal) {
     if (!p.orgId) throw AppError.permissionDenied('No institution assigned.');
     return this.payments.academicListOrders(p.orgId);
   }
 
   @Get('orders/:id/receipt')
-  @RequirePermission('course.manage')
+  @RequirePermission('course.manage', { roles: ['ACADEMIC_HEAD'] })
   async receipt(@CurrentPrincipal() p: Principal, @Param('id') id: string, @Res() res: Response) {
     if (!p.orgId) throw AppError.permissionDenied('No institution assigned.');
     const order = await this.payments.getOrderForReceipt(id);
@@ -35,7 +37,7 @@ export class AcademicPaymentsController {
   }
 
   @Post('refunds')
-  @RequirePermission('course.manage')
+  @RequirePermission('course.manage', { roles: ['ACADEMIC_HEAD'] })
   requestRefund(
     @CurrentPrincipal() p: Principal,
     @Body(new ZodValidationPipe(refundSchema)) body: { paymentId: string; amountMinor?: number; reason?: string },

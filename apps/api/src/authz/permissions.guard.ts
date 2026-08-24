@@ -47,6 +47,21 @@ export class PermissionsGuard implements CanActivate {
         ? AppError.permissionDenied("Your institution's subscription is not active. Contact RajyaRank support to reactivate access.")
         : AppError.permissionDenied();
     }
+
+    // Narrower than the permission code alone — see the `roles` doc comment
+    // on RequirePermission. Checked after the normal decision so a denial
+    // here still gets the same audit trail as any other permission check.
+    if (meta.roles && !meta.roles.some((r) => principal.roleKeys.includes(r))) {
+      await this.authz.auditDenied({
+        principal,
+        permission: meta.code,
+        decision: { allow: false, code: 'MISSING_PERMISSION', reason: `Requires one of roles: ${meta.roles.join(', ')}.` },
+        correlationId: req.correlationId,
+        ip: req.ip,
+        userAgent: req.header('user-agent') ?? null,
+      });
+      throw AppError.permissionDenied();
+    }
     return true;
   }
 }

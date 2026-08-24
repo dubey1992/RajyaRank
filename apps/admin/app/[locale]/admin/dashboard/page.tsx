@@ -26,11 +26,21 @@ export default async function AdminDashboard({ params }: { params: { locale: str
   const isSuper = me.roleKeys.includes('SUPER_ADMIN');
   // Org-scoped, permission-driven (not a role-name literal) — matches each
   // endpoint's own gate exactly, so a Permission Matrix edit is reflected here
-  // too: /admin/staff + institution-overview require user.manage, institution
-  // earnings requires course.manage, both additionally require an orgId.
+  // too: /admin/staff + institution-overview require user.manage. Institution
+  // earnings (isOrgAcademicHead, below) is the one exception — deliberately
+  // role-checked, since course.manage is too broad for it.
   const isOrgUserManager = can(me, 'user.manage') && !!me.orgId;
   const isOrgCourseManager = can(me, 'course.manage') && !!me.orgId;
   const showsInstitutionSection = isOrgUserManager || isOrgCourseManager;
+  // Institution earnings specifically is role-checked, not permission-checked
+  // — course.manage alone is too broad (Content Admin holds it too, for
+  // unrelated course-management reasons, and has no business seeing
+  // institution payment data). Matches the `roles` restriction on
+  // SettlementsAcademicController's earnings route. Deliberately a narrower
+  // flag than isOrgCourseManager/showsInstitutionSection above, which still
+  // correctly cover the rest of the institution snapshot (student/course
+  // counts) for Content Admin.
+  const isOrgAcademicHead = me.roleKeys.includes('ACADEMIC_HEAD') && !!me.orgId;
   // content.edit_all is held by both ACADEMIC_HEAD and CONTENT_ADMIN — the
   // endpoint itself scopes to the actor's org when present, platform-wide
   // otherwise, so one flag correctly serves both roles.
@@ -45,7 +55,7 @@ export default async function AdminDashboard({ params }: { params: { locale: str
     showsContentPipeline ? apiFetchServer<ContentPipelineOverview>('/admin/analytics/content-pipeline', cookie) : Promise.resolve(null),
     isReviewer ? apiFetchServer<ReviewOverview>('/admin/analytics/review-overview', cookie) : Promise.resolve(null),
     can(me, 'org.manage') ? apiFetchServer<SettlementSummaryView>('/admin/settlements/summary', cookie) : Promise.resolve(null),
-    isOrgCourseManager ? apiFetchServer<InstitutionEarningsView>('/academic/settlements/earnings', cookie) : Promise.resolve(null),
+    isOrgAcademicHead ? apiFetchServer<InstitutionEarningsView>('/academic/settlements/earnings', cookie) : Promise.resolve(null),
   ]);
 
   const quickLinks: { href: string; label: string; show: boolean }[] = [

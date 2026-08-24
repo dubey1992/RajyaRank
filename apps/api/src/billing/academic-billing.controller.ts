@@ -9,7 +9,10 @@ import { BillingService } from './billing.service';
 /** Academic Head: self-serve subscription purchase/renewal for their own
  *  institution — org-scope enforced inside the service via principal.orgId,
  *  same pattern as SettlementsAcademicController. course.manage is the
- *  Head-held permission this mirrors (org.manage stays Super-Admin-only).
+ *  Head-held permission this mirrors (org.manage stays Super-Admin-only), but
+ *  isn't narrow enough on its own — Content Admin holds it too for legitimate
+ *  course-management reasons and has no business managing institution
+ *  billing, hence the explicit `roles: ['ACADEMIC_HEAD']` on every route.
  *
  *  Every route here bypasses the subscription gate: this controller IS how a
  *  Head escapes an inactive/never-purchased subscription, so gating it
@@ -20,19 +23,19 @@ export class AcademicBillingController {
   constructor(private readonly billing: BillingService) {}
 
   @Get('plans')
-  @RequirePermission('course.manage', { bypassSubscriptionGate: true })
+  @RequirePermission('course.manage', { bypassSubscriptionGate: true, roles: ['ACADEMIC_HEAD'] })
   listPlans() {
     return this.billing.listActivePlans();
   }
 
   @Get('subscription')
-  @RequirePermission('course.manage', { bypassSubscriptionGate: true })
+  @RequirePermission('course.manage', { bypassSubscriptionGate: true, roles: ['ACADEMIC_HEAD'] })
   mySubscription(@CurrentPrincipal() principal: Principal) {
     return this.billing.getMySubscription(principal);
   }
 
   @Post('subscribe')
-  @RequirePermission('course.manage', { assurance: 'AAL2', bypassSubscriptionGate: true })
+  @RequirePermission('course.manage', { assurance: 'AAL2', bypassSubscriptionGate: true, roles: ['ACADEMIC_HEAD'] })
   subscribe(
     @CurrentPrincipal() principal: Principal,
     @Body(new ZodValidationPipe(subscribeOrganizationSchema)) body: SubscribeOrganization,
@@ -45,7 +48,7 @@ export class AcademicBillingController {
    *  confirming a payment already authorized isn't itself a sensitive
    *  state-change requiring step-up. */
   @Post('subscribe/verify')
-  @RequirePermission('course.manage', { bypassSubscriptionGate: true })
+  @RequirePermission('course.manage', { bypassSubscriptionGate: true, roles: ['ACADEMIC_HEAD'] })
   verify(
     @CurrentPrincipal() principal: Principal,
     @Body(new ZodValidationPipe(confirmSelfServePaymentSchema)) body: ConfirmSelfServePayment,

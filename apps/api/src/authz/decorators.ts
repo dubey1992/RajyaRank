@@ -1,6 +1,6 @@
 import { SetMetadata } from '@nestjs/common';
 import type { Request } from 'express';
-import type { ResourceContext } from '@rajyarank/auth';
+import type { ResourceContext, RoleKey } from '@rajyarank/auth';
 
 export const PERMISSION_KEY = 'rr:permission';
 export const RESOURCE_RESOLVER_KEY = 'rr:resourceResolver';
@@ -9,6 +9,7 @@ export interface RequirePermissionMeta {
   code: string;
   assurance?: 'AAL2';
   bypassSubscriptionGate?: boolean;
+  roles?: RoleKey[];
 }
 
 /**
@@ -20,12 +21,26 @@ export interface RequirePermissionMeta {
  * reach WHILE their institution has no active subscription, because they're
  * how the Head gets one (KYC submission, browsing/buying a plan). Any other
  * use would defeat the point of the gate.
+ *
+ * `roles` narrows an endpoint to specific role keys, checked by
+ * PermissionsGuard IN ADDITION to the permission code — reserve this for the
+ * rare case where the permission code alone is too broad because it's
+ * legitimately shared with another role for unrelated reasons (e.g.
+ * course.manage is held by both Academic Head and Content Admin, but a small
+ * set of financial routes — academic/settlements, academic/billing,
+ * academic/orders — must stay Academic-Head-only). Splitting a new
+ * permission code out isn't always warranted just to narrow one route; this
+ * is the lighter-weight escape hatch for that. Matches the same
+ * role-checked-not-permission-checked precedent already used in
+ * students.service.ts#listIndependent and support.service.ts, just enforced
+ * declaratively here instead of inline in the service.
  */
-export const RequirePermission = (code: string, opts?: { assurance?: 'AAL2'; bypassSubscriptionGate?: boolean }) =>
+export const RequirePermission = (code: string, opts?: { assurance?: 'AAL2'; bypassSubscriptionGate?: boolean; roles?: RoleKey[] }) =>
   SetMetadata(PERMISSION_KEY, {
     code,
     assurance: opts?.assurance,
     bypassSubscriptionGate: opts?.bypassSubscriptionGate,
+    roles: opts?.roles,
   } satisfies RequirePermissionMeta);
 
 export type ResourceResolver = (req: Request) => ResourceContext | Promise<ResourceContext>;

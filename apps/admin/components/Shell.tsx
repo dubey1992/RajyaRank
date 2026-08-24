@@ -66,9 +66,15 @@ const NAV: NavItem[] = [
   // half (e.g. Teacher still gets a top-level Official Notices link).
   { href: '/admin/manage-students', label: { hi: 'छात्र प्रबंधन', en: 'Manage Students' }, show: showsMergedStudents },
   { href: '/admin/at-risk-students', label: { hi: 'इंटरवेंशन रडार', en: 'Intervention Radar' }, show: (me) => can(me, 'user.manage') && !!me.orgId },
-  { href: '/admin/student-payments', label: { hi: 'छात्र भुगतान', en: 'Student Payments' }, show: (me) => can(me, 'course.manage') && !!me.orgId },
-  { href: '/admin/earnings', label: { hi: 'कमाई व भुगतान', en: 'Earnings & Payouts' }, show: (me) => can(me, 'course.manage') && !!me.orgId },
-  { href: '/admin/billing', label: { hi: 'सदस्यता व बिलिंग', en: 'Subscription & Billing' }, show: (me) => can(me, 'course.manage') && !!me.orgId },
+  // These three are financial/institution-billing screens — deliberately
+  // role-checked (ACADEMIC_HEAD, covers a co-Head too — they carry the same
+  // role key) rather than permission-checked on course.manage, which Content
+  // Admin also holds for unrelated, legitimate course-management reasons and
+  // has no business seeing institution payment data. Matches the equivalent
+  // `roles` restriction on the backend routes these pages call.
+  { href: '/admin/student-payments', label: { hi: 'छात्र भुगतान', en: 'Student Payments' }, show: (me) => me.roleKeys.includes('ACADEMIC_HEAD') && !!me.orgId },
+  { href: '/admin/earnings', label: { hi: 'कमाई व भुगतान', en: 'Earnings & Payouts' }, show: (me) => me.roleKeys.includes('ACADEMIC_HEAD') && !!me.orgId },
+  { href: '/admin/billing', label: { hi: 'सदस्यता व बिलिंग', en: 'Subscription & Billing' }, show: (me) => me.roleKeys.includes('ACADEMIC_HEAD') && !!me.orgId },
   { href: '/admin/referrals', label: { hi: 'रेफ़रल', en: 'Referrals' }, show: (me) => can(me, 'course.manage') && !!me.orgId },
   { href: '/admin/staff', label: { hi: 'स्टाफ़ प्रबंधन', en: 'Manage Staffs' }, show: (me) => can(me, 'user.manage') },
   { href: '/admin/students', label: { hi: 'छात्र', en: 'Students' }, show: (me) => can(me, 'user.manage') },
