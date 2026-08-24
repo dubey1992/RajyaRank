@@ -581,8 +581,8 @@ async function seedMarketingContent() {
   const banner = {
     id: 'seed-marketing-banner',
     enabled: true,
-    messageHi: '🎯 संस्थानों के लिए नया: बिना भुगतान के 30 दिन का निःशुल्क ट्रायल। डेमो का अनुरोध करें या हमें ईमेल करें।',
-    messageEn: '🎯 New for institutions: a free 30-day trial, no payment required. Request a demo or email us to get started.',
+    messageHi: '🎯 संस्थानों के लिए नया: बिना भुगतान के 15 दिन का निःशुल्क ट्रायल। डेमो का अनुरोध करें या हमें ईमेल करें।',
+    messageEn: '🎯 New for institutions: a free 15-day trial, no payment required. Request a demo or email us to get started.',
     ctaLabelHi: 'डेमो का अनुरोध करें',
     ctaLabelEn: 'Request a demo',
     ctaHref: '/request-demo',

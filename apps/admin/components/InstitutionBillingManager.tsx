@@ -104,7 +104,18 @@ export function InstitutionBillingManager({
       await apiFetch(`/admin/billing/organizations/${s.orgId}/trial/extend`, { method: 'POST', body: JSON.stringify({ extraDays }) });
       const refreshed = await apiFetch<OrganizationSubscriptionView[]>('/admin/billing/subscriptions');
       setSubscriptions(refreshed);
-      setToast(L(`ट्रायल ${extraDays} दिनों के लिए बढ़ाया गया।`, `Trial extended by ${extraDays} day(s).`));
+      // Names the resulting "Period ends" date explicitly, from the freshly
+      // re-fetched row — not just the days-added count — so there's no doubt
+      // about what actually took effect, independent of the number input
+      // above (which is a plain UI default and always shows 14 again after a
+      // page refresh; it holds no memory of what was last submitted).
+      const newEnd = refreshed.find((r) => r.orgId === s.orgId)?.currentPeriodEnd?.slice(0, 10);
+      setToast(
+        L(
+          `ट्रायल ${extraDays} दिनों के लिए बढ़ाया गया — अब ${newEnd ?? '—'} तक चलेगा।`,
+          `Trial extended by ${extraDays} day(s) — now runs through ${newEnd ?? '—'}.`,
+        ),
+      );
     } catch (e) {
       setToast((e as ApiError).message);
     } finally {

@@ -13,7 +13,7 @@ import { NotificationService } from '../notifications/notification.service';
 import { studentAccountStatusChangedEmail, studentForcedPasswordResetEmail } from '../notifications/email-templates/auth';
 import { institutionJoinedEmail } from '../notifications/email-templates/engagement';
 import { AppError } from '../common/errors/app-error';
-import { isSubscriptionUsable } from '../common/subscription-status.util';
+import { assertCanAddStudent } from '../common/assert-student-seat.util';
 
 /**
  * Institution-scoped student roster. An Institution Head enrolls students
@@ -131,6 +131,12 @@ export class StudentsService {
       throw AppError.conflict('This student already belongs to another institution. They (or the institution) must leave it first.');
     }
 
+    // Only reached when this actually grows the org's roster — the
+    // idempotent re-submit case above already returned. Same seat-limit gate
+    // as StudentsService.enroll()/StudentService.joinInstitution(), so this
+    // administrative path can't be used to route around a trial's cap.
+    await assertCanAddStudent(this.prisma, org.id);
+
     await this.prisma.$transaction([
       this.prisma.user.update({ where: { id: studentId }, data: { orgId: org.id } }),
       this.prisma.orgMembershipEvent.create({ data: { userId: studentId, orgId: org.id, action: 'JOINED', method: 'ACCESS_CODE' } }),
@@ -175,16 +181,7 @@ export class StudentsService {
     // here means the limit still holds even if that ever changes.)
     const consumesNewSeat = orgId && (!existing || !existing.orgId);
     if (consumesNewSeat) {
-      const subscription = await this.prisma.organizationSubscription.findUnique({ where: { orgId }, include: { plan: true } });
-      if (!subscription || !isSubscriptionUsable(subscription.status, subscription.currentPeriodEnd)) {
-        throw AppError.conflict("This institution's subscription is not active.");
-      }
-      const activeCount = await this.prisma.user.count({ where: { kind: 'STUDENT', orgId, status: 'ACTIVE' } });
-      if (activeCount >= subscription.plan.maxActiveStudents) {
-        throw AppError.conflict(
-          `This institution's plan allows up to ${subscription.plan.maxActiveStudents} active students. Contact RajyaRank to upgrade the plan.`,
-        );
-      }
+      await assertCanAddStudent(this.prisma, orgId);
     }
 
     // Guard against silently renaming a different real person who happens to

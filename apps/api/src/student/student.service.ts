@@ -23,6 +23,7 @@ import { NotificationService } from '../notifications/notification.service';
 import { institutionJoinedEmail } from '../notifications/email-templates/engagement';
 import { StudyPlanService } from './study-plan.service';
 import { AppError } from '../common/errors/app-error';
+import { assertCanAddStudent } from '../common/assert-student-seat.util';
 
 // Minimum share of a lesson's staff-estimated length a student must have
 // accumulated (via videoPositionSeconds — real watch time for VIDEO, engaged
@@ -146,6 +147,12 @@ export class StudentService {
     if (user.orgId && user.orgId !== org.id) {
       throw AppError.conflict('You are already a member of another institution. Leave it first to join a new one.');
     }
+
+    // Only reached when this actually grows the org's roster — the
+    // idempotent re-submit case above already returned. Same seat-limit gate
+    // as StudentsService.enroll()/linkToInstitution(), so this self-serve
+    // path can't be used to route around a trial's cap.
+    await assertCanAddStudent(this.prisma, org.id);
 
     await this.prisma.$transaction([
       this.prisma.user.update({ where: { id: userId }, data: { orgId: org.id } }),

@@ -15,8 +15,10 @@ import { AppError } from '../common/errors/app-error';
 import { resolveByIdOrName } from '../common/resolve-by-id-or-name.util';
 import { isSubscriptionUsable } from '../common/subscription-status.util';
 
-/** How long a newly-onboarded institution's free trial lasts. */
-const TRIAL_DAYS = 30;
+/** How long a newly-onboarded institution's free trial lasts — matches the
+ *  "15-day free trial" promise on the public marketing banner (Marketing →
+ *  Homepage banner). Keep both in sync if this ever changes. */
+const TRIAL_DAYS = 15;
 
 interface AssignmentPayload {
   scope: 'ORG' | 'STATE' | 'EXAM' | 'COURSE' | 'SUBJECT' | 'BATCH';
@@ -71,30 +73,48 @@ export class InvitationsService {
       orgId = actor.orgId;
     }
 
-    // Seat limit — deliberately excludes ACADEMIC_HEAD both as the role being
-    // invited and from the existing-headcount denominator: a Head invite is
-    // how an institution is onboarded in the first place, before it has ever
-    // had a subscription (billing.service.ts refuses to subscribe an org
-    // until its Head has accepted), so gating it on a plan that can't exist
-    // yet would make onboarding impossible. "Staff seats" means the team the
-    // Head brings on, not the Head's own account.
-    if (orgId && dto.roleKey !== 'ACADEMIC_HEAD') {
-      const subscription = await this.prisma.organizationSubscription.findUnique({ where: { orgId }, include: { plan: true } });
-      if (!subscription || !isSubscriptionUsable(subscription.status, subscription.currentPeriodEnd)) {
-        throw AppError.conflict("This institution's subscription is not active.");
-      }
-      const [activeStaffCount, pendingInviteCount] = await Promise.all([
-        this.prisma.user.count({
-          where: { kind: 'STAFF', orgId, status: 'ACTIVE', deletedAt: null, roles: { none: { role: { key: 'ACADEMIC_HEAD' } } } },
-        }),
-        this.prisma.staffInvitation.count({
-          where: { orgId, status: 'PENDING', expiresAt: { gt: new Date() }, roleKey: { not: 'ACADEMIC_HEAD' } },
-        }),
+    // Seat limit. The one case that must stay exempt is an institution's
+    // very first-ever invite: it can only be an ACADEMIC_HEAD invite (an org
+    // has no other staff before it has a Head), and it happens before any
+    // subscription exists (billing.service.ts refuses to subscribe an org
+    // until its Head has accepted; the trial subscription auto-created on
+    // acceptance — see createFromInvitation — needs this exact invite to
+    // exist first). Gating that one invite on a plan that can't exist yet
+    // would make onboarding impossible.
+    //
+    // Every invite AFTER that — including a co-Head — counts toward
+    // maxStaffSeats like any other role, once a subscription exists to check
+    // against. This was previously a blanket exemption for every ACADEMIC_HEAD
+    // invite, which let a trial (or paid) institution add unlimited co-Heads —
+    // the platform's most privileged institution-level role — completely free
+    // of the seat cap; only the institution's own designated primary Head
+    // (Organization.headUserId) stays excluded from the denominator, since
+    // "staff seats" means the team the Head brings on, not the Head's own
+    // account (see the doc comment on headUserId in organizations.service.ts).
+    if (orgId) {
+      const [org, subscription] = await Promise.all([
+        this.prisma.organization.findUnique({ where: { id: orgId }, select: { headUserId: true } }),
+        this.prisma.organizationSubscription.findUnique({ where: { orgId }, include: { plan: true } }),
       ]);
-      if (activeStaffCount + pendingInviteCount >= subscription.plan.maxStaffSeats) {
-        throw AppError.conflict(
-          `This institution's plan allows up to ${subscription.plan.maxStaffSeats} staff seats. Contact RajyaRank to upgrade the plan.`,
-        );
+      const isVeryFirstInvite = !subscription && !org?.headUserId;
+      if (isVeryFirstInvite) {
+        if (dto.roleKey !== 'ACADEMIC_HEAD') {
+          throw AppError.conflict('This institution has no accepted Academic Head yet — invite one first.');
+        }
+      } else {
+        if (!subscription || !isSubscriptionUsable(subscription.status, subscription.currentPeriodEnd)) {
+          throw AppError.conflict("This institution's subscription is not active.");
+        }
+        const excludeHead = org?.headUserId ? { id: { not: org.headUserId } } : {};
+        const [activeStaffCount, pendingInviteCount] = await Promise.all([
+          this.prisma.user.count({ where: { kind: 'STAFF', orgId, status: 'ACTIVE', deletedAt: null, ...excludeHead } }),
+          this.prisma.staffInvitation.count({ where: { orgId, status: 'PENDING', expiresAt: { gt: new Date() } } }),
+        ]);
+        if (activeStaffCount + pendingInviteCount >= subscription.plan.maxStaffSeats) {
+          throw AppError.conflict(
+            `This institution's plan allows up to ${subscription.plan.maxStaffSeats} staff seats. Contact RajyaRank to upgrade the plan.`,
+          );
+        }
       }
     }
 
