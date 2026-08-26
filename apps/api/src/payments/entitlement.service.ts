@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import type { Order, Payment, Product } from '@prisma/client';
 import type { Principal } from '@rajyarank/auth';
 import { PrismaService } from '../prisma/prisma.service';
@@ -12,6 +12,8 @@ import { AppError } from '../common/errors/app-error';
  */
 @Injectable()
 export class EntitlementService {
+  private readonly logger = new Logger('Entitlements');
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
@@ -43,6 +45,23 @@ export class EntitlementService {
       result: 'SUCCESS',
       after: { source: 'PURCHASE', productId: product.id },
     });
+    // The student's existing plan was built from whatever they were entitled
+    // to before this purchase, so newly-unlocked lessons won't appear in it
+    // until it's rebuilt. Abandon it here rather than calling
+    // StudyPlanService.generate() directly — that would import StudyPlanService
+    // into EntitlementService, which StudyPlanService already depends on
+    // (circular). activeOrGenerate() already lazily rebuilds an abandoned plan
+    // on the student's next today()/week() read, which is the same machinery
+    // the manual "Regenerate" button and a goal edit already use.
+    try {
+      await this.prisma.studyPlan.updateMany({ where: { studentId: order.userId, status: 'ACTIVE' }, data: { status: 'ABANDONED' } });
+    } catch (err) {
+      // The entitlement above is already durably granted — a plan-refresh
+      // hiccup must never make a paid purchase look like it failed. Worst
+      // case, the student's plan just stays as it was until they hit
+      // "Regenerate" themselves, same as before this change existed.
+      this.logger.error(`Failed to refresh study plan after purchase for user ${order.userId}: ${err instanceof Error ? err.message : String(err)}`);
+    }
     return entitlement;
   }
 

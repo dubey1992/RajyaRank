@@ -43,19 +43,39 @@ class _StudyPlanScreenState extends ConsumerState<StudyPlanScreen> {
       appBar: AppBar(
         title: const Text('Study Plan'),
         actions: [
-          IconButton(
-            icon: _regenerating
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
+          // A bare refresh icon read as unfamiliar/unclear to students (no
+          // visible label, only a long-press tooltip) — a labeled pill button
+          // matches the web app's own "↻ Regenerate plan" button text instead.
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: _regenerating
+                ? const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 10),
+                    child: SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
                     ),
                   )
-                : const Icon(Icons.refresh),
-            tooltip: 'Regenerate plan',
-            onPressed: _regenerating ? null : _regenerate,
+                : OutlinedButton.icon(
+                    onPressed: _regenerate,
+                    icon: const Icon(Icons.refresh, size: 16, color: Colors.white),
+                    label: const Text('Regenerate plan'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      side: const BorderSide(color: Colors.white70),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                    ),
+                  ),
           ),
         ],
       ),
