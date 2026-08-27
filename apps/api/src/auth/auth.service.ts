@@ -576,6 +576,7 @@ export class AuthService {
     // (rather than threading this through the cached Principal) keeps the
     // sensitive Principal/policy-engine contract untouched.
     let orgTrialDaysLeft: number | null = null;
+    let orgTrialExpired = false;
     if (user.orgId) {
       const sub = await this.prisma.organizationSubscription.findUnique({
         where: { orgId: user.orgId },
@@ -585,6 +586,11 @@ export class AuthService {
         const daysLeft = Math.ceil((sub.currentPeriodEnd.getTime() - Date.now()) / 86_400_000);
         if (daysLeft <= 7) orgTrialDaysLeft = Math.max(0, daysLeft);
       }
+      // EXPIRED is set only by the trial-lapse paths (sweepTrialExpiration /
+      // endTrialNow), never by a paid subscription falling behind (that goes
+      // to PAST_DUE/CANCELED instead) — safe to read as "was a free trial,
+      // now lapsed" without cross-checking the plan.
+      orgTrialExpired = sub?.status === 'EXPIRED';
     }
     return {
       userId: user.id,
@@ -598,6 +604,7 @@ export class AuthService {
       orgId: user.orgId,
       orgSubscriptionActive,
       orgTrialDaysLeft,
+      orgTrialExpired,
     };
   }
 

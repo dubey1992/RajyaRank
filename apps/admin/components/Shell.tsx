@@ -34,6 +34,24 @@ function TrialBanner({ daysLeft, locale }: { daysLeft: number; locale: Locale })
   );
 }
 
+/** Shown once a free trial has actually lapsed (orgTrialExpired) — TrialBanner
+ *  above only covers the final 7-day countdown, which stops applying the
+ *  instant the trial ends, otherwise leaving no persistent notice in the
+ *  Shell at all until staff happen to hit a blocked action or the hard
+ *  redirect on page load. Same audience/CTA-only-works-for-Head note as
+ *  TrialBanner applies here too. */
+function TrialExpiredBanner({ locale }: { locale: Locale }) {
+  const hi = locale === 'hi';
+  return (
+    <div className="flex flex-wrap items-center justify-center gap-2 bg-danger px-4 py-2 text-center text-[13px] font-bold text-white">
+      <span>{hi ? 'आपका निःशुल्क ट्रायल समाप्त हो गया है।' : 'Your free trial has ended.'}</span>
+      <Link href={`/${locale}/admin/billing`} className="font-black underline">
+        {hi ? 'अभी योजना चुनें →' : 'Choose a plan now →'}
+      </Link>
+    </div>
+  );
+}
+
 interface NavItem {
   href: string;
   label: { hi: string; en: string };
@@ -194,7 +212,11 @@ export function Shell({
             <ProfileMenu me={me} locale={locale} />
           </div>
         </header>
-        {me.orgId && me.orgTrialDaysLeft !== null ? <TrialBanner daysLeft={me.orgTrialDaysLeft} locale={locale} /> : null}
+        {me.orgId && me.orgTrialExpired ? (
+          <TrialExpiredBanner locale={locale} />
+        ) : me.orgId && me.orgTrialDaysLeft !== null ? (
+          <TrialBanner daysLeft={me.orgTrialDaysLeft} locale={locale} />
+        ) : null}
         <main id="main" className="flex-1 p-6">
           {children}
         </main>

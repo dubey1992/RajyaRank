@@ -97,6 +97,12 @@ export const meResponseSchema = z.object({
    *  drives the Shell's "trial ending soon" banner. Null otherwise (no
    *  subscription, a paid plan, an expired/canceled one, or >7 days left). */
   orgTrialDaysLeft: z.number().int().nullable(),
+  /** True once a free trial has actually lapsed (subscription status
+   *  EXPIRED) and hasn't since been converted to a paid plan or re-opened —
+   *  drives the Shell's persistent "trial expired" banner, distinct from
+   *  orgTrialDaysLeft's countdown (which stops applying the moment the
+   *  trial actually ends, leaving nothing visible in the Shell otherwise). */
+  orgTrialExpired: z.boolean(),
 });
 export type MeResponse = z.infer<typeof meResponseSchema>;
 
