@@ -269,33 +269,38 @@ export class BillingService {
     return updated;
   }
 
-  /** Super Admin manually extends an institution's free trial from the
-   *  Institutions screen. Works on a currently-TRIAL subscription (pushes
-   *  currentPeriodEnd out) and also on an already-EXPIRED one (reopens it as
-   *  TRIAL from today) — a Head who churned out mid-conversation with sales
-   *  shouldn't need a brand-new invite cycle just to get more time. */
-  async extendTrial(actor: Principal, orgId: string, extraDays: number) {
+  /** Super Admin manually sets an institution's free trial end date from the
+   *  Institutions screen — an absolute date, not a "+N days" delta (the
+   *  earlier delta design silently compounded on whatever end-date already
+   *  existed and was easy to misread as not having taken effect at all, since
+   *  the UI's day-count input had no memory of what was last submitted).
+   *  Works on a currently-TRIAL subscription (moves currentPeriodEnd) and
+   *  also on an already-EXPIRED one (reopens it as TRIAL) — a Head who
+   *  churned out mid-conversation with sales shouldn't need a brand-new
+   *  invite cycle just to get more time. */
+  async setTrialEnd(actor: Principal, orgId: string, newEndDate: Date) {
     const subscription = await this.prisma.organizationSubscription.findUnique({ where: { orgId } });
     if (!subscription) throw AppError.notFound('This institution has no subscription — its Head must accept their invite first.');
     if (subscription.status !== 'TRIAL' && subscription.status !== 'EXPIRED') {
-      throw AppError.conflict(`This institution's subscription is ${subscription.status}, not a trial — nothing to extend.`);
+      throw AppError.conflict(`This institution's subscription is ${subscription.status}, not a trial — nothing to set.`);
     }
     const now = new Date();
-    const base = subscription.status === 'TRIAL' && subscription.currentPeriodEnd && subscription.currentPeriodEnd > now ? subscription.currentPeriodEnd : now;
-    const currentPeriodEnd = new Date(base.getTime() + extraDays * 86_400_000);
+    if (newEndDate <= now) {
+      throw AppError.conflict('The new trial end date must be in the future — use "End trial" instead to end it immediately.');
+    }
     const updated = await this.prisma.organizationSubscription.update({
       where: { orgId },
-      data: { status: 'TRIAL', currentPeriodStart: subscription.currentPeriodStart ?? now, currentPeriodEnd },
+      data: { status: 'TRIAL', currentPeriodStart: subscription.currentPeriodStart ?? now, currentPeriodEnd: newEndDate },
     });
     await this.authz.invalidateOrg(orgId);
     await this.audit.record({
       actorUserId: actor.userId,
-      action: 'billing.trial_extended',
+      action: 'billing.trial_end_set',
       targetType: 'Organization',
       targetId: orgId,
       result: 'SUCCESS',
       before: { status: subscription.status, currentPeriodEnd: subscription.currentPeriodEnd?.toISOString() ?? null },
-      after: { status: 'TRIAL', currentPeriodEnd: currentPeriodEnd.toISOString(), extraDays },
+      after: { status: 'TRIAL', currentPeriodEnd: newEndDate.toISOString() },
     });
     return updated;
   }

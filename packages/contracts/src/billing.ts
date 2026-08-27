@@ -56,12 +56,15 @@ export interface SelfServeSubscribeResult {
   razorpayCustomerId?: string | null;
 }
 
-/** Super Admin manually extending/ending an institution's free trial from the
- *  Institutions screen — see BillingService.extendTrial/endTrialNow. */
-export const extendTrialSchema = z.object({
-  extraDays: z.number().int().min(1).max(90),
+/** Super Admin manually setting/ending an institution's free trial from the
+ *  Institutions screen — see BillingService.setTrialEnd/endTrialNow.
+ *  Absolute, not a delta — an admin sets the actual date the trial runs
+ *  through, rather than "add N days" (which silently compounded on whatever
+ *  was already there and was easy to misread as "add N more days from now"). */
+export const setTrialEndSchema = z.object({
+  newEndDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD.'),
 });
-export type ExtendTrial = z.infer<typeof extendTrialSchema>;
+export type SetTrialEnd = z.infer<typeof setTrialEndSchema>;
 
 export const confirmSelfServePaymentSchema = z.object({
   subscriptionId: z.string().min(1),

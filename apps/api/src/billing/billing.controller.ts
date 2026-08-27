@@ -4,10 +4,10 @@ import type { Principal } from '@rajyarank/auth';
 import {
   upsertSubscriptionPlanSchema,
   subscribeOrganizationSchema,
-  extendTrialSchema,
+  setTrialEndSchema,
   type UpsertSubscriptionPlan,
   type SubscribeOrganization,
-  type ExtendTrial,
+  type SetTrialEnd,
 } from '@rajyarank/contracts';
 import { CurrentPrincipal } from '../common/decorators/current-principal.decorator';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
@@ -67,14 +67,17 @@ export class BillingController {
     return this.billing.cancelSubscription(principal, orgId);
   }
 
-  @Post('organizations/:orgId/trial/extend')
+  @Post('organizations/:orgId/trial/set-end')
   @RequirePermission('org.manage', { assurance: 'AAL2' })
-  extendTrial(
+  setTrialEnd(
     @CurrentPrincipal() principal: Principal,
     @Param('orgId') orgId: string,
-    @Body(new ZodValidationPipe(extendTrialSchema)) body: ExtendTrial,
+    @Body(new ZodValidationPipe(setTrialEndSchema)) body: SetTrialEnd,
   ) {
-    return this.billing.extendTrial(principal, orgId, body.extraDays);
+    // Runs through the entire selected day, matching how "Period ends" is
+    // shown/read elsewhere as a date, not a timestamp.
+    const newEndDate = new Date(`${body.newEndDate}T23:59:59.999Z`);
+    return this.billing.setTrialEnd(principal, orgId, newEndDate);
   }
 
   @Post('organizations/:orgId/trial/end')

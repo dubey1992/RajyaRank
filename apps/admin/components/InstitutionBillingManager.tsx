@@ -48,7 +48,7 @@ export function InstitutionBillingManager({
   const [sendingId, setSendingId] = useState<string | null>(null);
   const [cancelingOrgId, setCancelingOrgId] = useState<string | null>(null);
   const [cancelTarget, setCancelTarget] = useState<OrganizationSubscriptionView | null>(null);
-  const [extendDays, setExtendDays] = useState<Record<string, number>>({});
+  const [newEndDates, setNewEndDates] = useState<Record<string, string>>({});
   const [extendingOrgId, setExtendingOrgId] = useState<string | null>(null);
   const [endingOrgId, setEndingOrgId] = useState<string | null>(null);
   const [endTarget, setEndTarget] = useState<OrganizationSubscriptionView | null>(null);
@@ -97,25 +97,25 @@ export function InstitutionBillingManager({
     }
   }
 
-  async function extendTrial(s: OrganizationSubscriptionView) {
-    const extraDays = extendDays[s.orgId] ?? 14;
+  /** Pre-fills with the institution's actual current trial end date (falling
+   *  back to +15 days if it has none yet) — so the field always starts by
+   *  showing the real current value, editable in place, rather than a
+   *  meaningless fixed default that looked like it "reverted" after saving. */
+  function defaultNewEndDate(s: OrganizationSubscriptionView): string {
+    if (s.currentPeriodEnd) return s.currentPeriodEnd.slice(0, 10);
+    const d = new Date();
+    d.setDate(d.getDate() + 15);
+    return d.toISOString().slice(0, 10);
+  }
+
+  async function setTrialEnd(s: OrganizationSubscriptionView) {
+    const newEndDate = newEndDates[s.orgId] ?? defaultNewEndDate(s);
     setExtendingOrgId(s.orgId);
     try {
-      await apiFetch(`/admin/billing/organizations/${s.orgId}/trial/extend`, { method: 'POST', body: JSON.stringify({ extraDays }) });
+      await apiFetch(`/admin/billing/organizations/${s.orgId}/trial/set-end`, { method: 'POST', body: JSON.stringify({ newEndDate }) });
       const refreshed = await apiFetch<OrganizationSubscriptionView[]>('/admin/billing/subscriptions');
       setSubscriptions(refreshed);
-      // Names the resulting "Period ends" date explicitly, from the freshly
-      // re-fetched row — not just the days-added count — so there's no doubt
-      // about what actually took effect, independent of the number input
-      // above (which is a plain UI default and always shows 14 again after a
-      // page refresh; it holds no memory of what was last submitted).
-      const newEnd = refreshed.find((r) => r.orgId === s.orgId)?.currentPeriodEnd?.slice(0, 10);
-      setToast(
-        L(
-          `ट्रायल ${extraDays} दिनों के लिए बढ़ाया गया — अब ${newEnd ?? '—'} तक चलेगा।`,
-          `Trial extended by ${extraDays} day(s) — now runs through ${newEnd ?? '—'}.`,
-        ),
-      );
+      setToast(L(`ट्रायल अब ${newEndDate} तक चलेगा।`, `Trial now runs through ${newEndDate}.`));
     } catch (e) {
       setToast((e as ApiError).message);
     } finally {
@@ -214,21 +214,20 @@ export function InstitutionBillingManager({
                         {s.status === 'TRIAL' || s.status === 'EXPIRED' ? (
                           <span className="flex items-center gap-1">
                             <input
-                              type="number"
-                              min={1}
-                              max={90}
-                              value={extendDays[s.orgId] ?? 14}
-                              onChange={(e) => setExtendDays((d) => ({ ...d, [s.orgId]: Math.max(1, Math.min(90, Number(e.target.value) || 14)) }))}
-                              className="w-14 rounded-md border border-line px-1.5 py-1 text-xs"
-                              aria-label={L('दिन', 'Days')}
+                              type="date"
+                              min={new Date(Date.now() + 86_400_000).toISOString().slice(0, 10)}
+                              value={newEndDates[s.orgId] ?? defaultNewEndDate(s)}
+                              onChange={(e) => setNewEndDates((d) => ({ ...d, [s.orgId]: e.target.value }))}
+                              className="rounded-md border border-line px-1.5 py-1 text-xs"
+                              aria-label={L('ट्रायल यहाँ तक चलेगा', 'Trial ends on')}
                             />
                             <button
                               type="button"
                               disabled={extendingOrgId === s.orgId}
                               className="rounded-md border border-line px-2 py-1 text-xs font-bold text-navy-900 hover:bg-surface-soft disabled:opacity-50"
-                              onClick={() => void extendTrial(s)}
+                              onClick={() => void setTrialEnd(s)}
                             >
-                              {extendingOrgId === s.orgId ? L('बढ़ाया जा रहा है…', 'Extending…') : L('ट्रायल बढ़ाएँ', 'Extend trial')}
+                              {extendingOrgId === s.orgId ? L('सहेजा जा रहा है…', 'Saving…') : L('तिथि सेट करें', 'Set end date')}
                             </button>
                           </span>
                         ) : null}
