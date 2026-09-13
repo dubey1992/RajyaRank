@@ -39,10 +39,10 @@ const preset: Partial<Config> = {
       },
       fontFamily: {
         // var(...) falls back to the literal family name in apps that don't
-        // define --font-inter/--font-noto-deva (i.e. haven't wired next/font
+        // define --font-sans/--font-noto-deva (i.e. haven't wired next/font
         // via their own layout) — same as the old unloaded-webfont behavior.
-        sans: ['var(--font-inter, Inter)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        deva: ['var(--font-noto-deva, "Noto Sans Devanagari")', 'var(--font-inter, Inter)', 'ui-sans-serif', 'sans-serif'],
+        sans: ['var(--font-sans, Poppins)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        deva: ['var(--font-noto-deva, "Noto Sans Devanagari")', 'var(--font-sans, Poppins)', 'ui-sans-serif', 'sans-serif'],
       },
     },
   },

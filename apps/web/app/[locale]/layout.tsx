@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import type { Metadata, Viewport } from 'next';
-import { Inter, Noto_Sans_Devanagari } from 'next/font/google';
+import { Poppins, Noto_Sans_Devanagari } from 'next/font/google';
 import NextTopLoader from 'nextjs-toploader';
 import { resolveLocale, getT } from '@/lib/i18n';
 import { RegisterSW } from '@/components/RegisterSW';
@@ -13,10 +13,15 @@ import './globals.css';
 const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
 
 // Self-hosted at build time (no runtime request to fonts.googleapis.com, no
-// layout shift) — previously the site only ever *referenced* 'Inter' and
+// layout shift) — previously the site only ever *referenced* 'Poppins' and
 // 'Noto Sans Devanagari' by name in CSS with nothing actually loading them,
 // so every visitor silently got system-font fallbacks the whole time.
-const inter = Inter({ subsets: ['latin'], weight: 'variable', variable: '--font-inter', display: 'swap' });
+const poppins = Poppins({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700', '800', '900'],
+  variable: '--font-sans',
+  display: 'swap',
+});
 const notoSansDevanagari = Noto_Sans_Devanagari({
   subsets: ['devanagari'],
   weight: 'variable',
@@ -66,7 +71,7 @@ export default function LocaleLayout({
   const t = getT(locale);
   // translate="no": the platform is genuinely bilingual, never machine-translated.
   return (
-    <html lang={locale} translate="no" className={`${inter.variable} ${notoSansDevanagari.variable}`}>
+    <html lang={locale} translate="no" className={`${poppins.variable} ${notoSansDevanagari.variable}`}>
       <body className={locale === 'hi' ? 'font-deva' : 'font-sans'}>
         {/* Progress bar during page transitions — most pages are SSR'd
             (force-dynamic + server-side data fetches), which otherwise gave no
