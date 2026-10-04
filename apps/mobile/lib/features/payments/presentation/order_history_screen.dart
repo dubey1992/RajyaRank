@@ -130,11 +130,10 @@ class _OrderHistoryScreenState extends ConsumerState<OrderHistoryScreen> {
     _ => status,
   };
 
+  // dd/mm/yyyy — the one date format used across the whole app.
   String _formatDate(DateTime date) {
-    const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-    ];
-    return '${date.day} ${months[date.month - 1]} ${date.year}';
+    final dd = date.day.toString().padLeft(2, '0');
+    final mm = date.month.toString().padLeft(2, '0');
+    return '$dd/$mm/${date.year}';
   }
 }

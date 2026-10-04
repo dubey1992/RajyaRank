@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { Alert, Button, ConfirmDialog, Field, PasswordChecklist, Toast } from '@rajyarank/ui';
+import { Alert, Button, ConfirmDialog, Field, PasswordChecklist, Toast, formatDate } from '@rajyarank/ui';
 import { apiFetch, type ApiError } from '@/lib/api';
 import { serverFieldErrors } from '@/lib/form';
 import { SearchInput } from './SearchInput';
@@ -213,7 +213,7 @@ export function StudentsManager({
                         {s.status}
                       </span>
                     </td>
-                    <td className="px-3 py-2 text-xs text-muted">{s.lastLoginAt ? new Date(s.lastLoginAt).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) : L('कभी नहीं', 'Never')}</td>
+                    <td className="px-3 py-2 text-xs text-muted">{s.lastLoginAt ? formatDate(s.lastLoginAt) : L('कभी नहीं', 'Never')}</td>
                     <td className="px-3 py-2 text-right">
                       <RowActionsMenu
                         locale={locale}

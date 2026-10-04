@@ -5,6 +5,7 @@ import { getMe } from '@/lib/student';
 import { BuyButton } from '@/components/BuyButton';
 import { PublicHeader } from '@/components/PublicHeader';
 import type { ProductView, EntitlementView } from '@rajyarank/contracts';
+import { formatDate } from '@rajyarank/ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -71,7 +72,7 @@ export default async function PricingPage({ params }: { params: { locale: string
                 {active ? (
                   <p className="text-center text-sm font-bold text-navy-900">
                     {active.endsAt
-                      ? `${hi ? 'तक मान्य' : 'Valid till'} ${new Date(active.endsAt).toLocaleDateString(hi ? 'hi-IN' : 'en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`
+                      ? `${hi ? 'तक मान्य' : 'Valid till'} ${formatDate(active.endsAt)}`
                       : hi ? 'आजीवन मान्य' : 'Valid for life'}
                   </p>
                 ) : (

@@ -6,6 +6,7 @@ import { apiFetchServer } from '@/lib/api';
 import { getMe } from '@/lib/student';
 import { PublicHeader } from '@/components/PublicHeader';
 import type { BlogPostSummary } from '@rajyarank/contracts';
+import { formatDate } from '@rajyarank/ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,10 +26,6 @@ export function generateMetadata({ params }: { params: { locale: string } }): Me
       types: { 'application/rss+xml': `/${locale}/feed.xml` },
     },
   };
-}
-
-function timeAgo(iso: string, hi: boolean) {
-  return new Date(iso).toLocaleDateString(hi ? 'hi-IN' : 'en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 const COVER_GRADIENTS = [
@@ -118,7 +115,7 @@ export default async function BlogIndexPage({
                   <div className="mt-4 flex items-center justify-between text-xs text-muted">
                     <span>{p.authorName}</span>
                     <span>
-                      {p.publishedAt ? timeAgo(p.publishedAt, hi) : ''} · {p.readingMinutes} {L('मिनट पठन', 'min read')}
+                      {p.publishedAt ? formatDate(p.publishedAt) : ''} · {p.readingMinutes} {L('मिनट पठन', 'min read')}
                     </span>
                   </div>
                 </div>

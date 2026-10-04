@@ -1,4 +1,5 @@
 import type { InstitutionEarningsView, KycSubmissionView } from '@rajyarank/contracts';
+import { formatDate } from '@rajyarank/ui';
 import { KycSubmissionForm } from './KycSubmissionForm';
 
 function rupees(minor: number) {
@@ -198,7 +199,7 @@ export function EarningsPayoutsPanel({
                         <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-extrabold text-danger">{L('विफल', 'Failed')}</span>
                       )}
                     </td>
-                    <td className="px-3 py-2">{new Date(s.settledAt).toLocaleDateString('en-GB')}</td>
+                    <td className="px-3 py-2">{formatDate(s.settledAt)}</td>
                   </tr>
                 ))}
               </tbody>

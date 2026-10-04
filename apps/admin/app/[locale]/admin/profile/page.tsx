@@ -9,7 +9,7 @@ import { ChangePasswordForm } from '@/components/ChangePasswordForm';
 import { TrustedDevicesManager, type TrustedDeviceView } from '@/components/TrustedDevicesManager';
 import { MfaSetup } from '@/components/MfaSetup';
 import { PaymentMethodsManager } from '@/components/PaymentMethodsManager';
-import { Alert } from '@rajyarank/ui';
+import { Alert, formatDate } from '@rajyarank/ui';
 import { roleLabel } from '@/lib/labels';
 import type { ProfileResponse, SavedPaymentMethodView } from '@rajyarank/contracts';
 
@@ -130,7 +130,7 @@ export default async function ProfilePage({
                     <span className={`rounded-full px-2 py-0.5 text-xs font-extrabold ${PLAN_STATUS_TONE[plan.status] ?? 'bg-line text-muted'}`}>{plan.status}</span>
                     <span className="text-xs text-muted">
                       {plan.billingCycle === 'MONTHLY' ? L('मासिक बिलिंग', 'Billed monthly') : L('वार्षिक बिलिंग', 'Billed annually')}
-                      {plan.currentPeriodEnd ? ` · ${L('अगली अवधि', 'renews')} ${plan.currentPeriodEnd.slice(0, 10)}` : ''}
+                      {plan.currentPeriodEnd ? ` · ${L('अगली अवधि', 'renews')} ${formatDate(plan.currentPeriodEnd)}` : ''}
                     </span>
                     {plan.status !== 'ACTIVE' && plan.status !== 'TRIAL' ? (
                       <Link href={`/${locale}/admin/billing`} className="text-xs font-bold text-navy-900 underline">

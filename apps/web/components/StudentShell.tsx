@@ -2,7 +2,7 @@
 import { useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LogoMark } from '@rajyarank/ui';
+import { LogoMark, formatDate } from '@rajyarank/ui';
 import { apiFetch } from '@/lib/api';
 
 type IconName = 'home' | 'book' | 'clipboard' | 'bookmark' | 'heart' | 'newspaper' | 'help' | 'bell' | 'user' | 'headphones' | 'search' | 'menu';
@@ -166,8 +166,8 @@ export function StudentShell({
                 {hasActivePlan
                   ? activeEntitlementEndsAt
                     ? L(
-                        `एक्सेस ${new Date(activeEntitlementEndsAt).toLocaleDateString('hi-IN', { day: 'numeric', month: 'short', year: 'numeric' })} तक वैध।`,
-                        `Access valid until ${new Date(activeEntitlementEndsAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}.`,
+                        `एक्सेस ${formatDate(activeEntitlementEndsAt)} तक वैध।`,
+                        `Access valid until ${formatDate(activeEntitlementEndsAt)}.`,
                       )
                     : L('आजीवन एक्सेस।', 'Lifetime access.')
                   : L('पूरे कोर्स व टेस्ट सीरीज़ खोलने के लिए एक प्लान खरीदें।', 'Buy a plan to unlock full courses and test series.')}

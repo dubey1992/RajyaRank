@@ -6,6 +6,7 @@ import { can } from '@/lib/permissions';
 import { Shell } from '@/components/Shell';
 import { AccessDenied } from '@/components/AccessDenied';
 import type { OrganizationView } from '@rajyarank/contracts';
+import { formatDate } from '@rajyarank/ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -96,7 +97,7 @@ export default async function PaymentsPage({
                   <td className="px-4 py-2 text-muted">{o.institution ?? '—'}</td>
                   <td className="px-4 py-2 font-extrabold text-navy-900">₹{(o.amountMinor / 100).toLocaleString('en-IN')}</td>
                   <td className="px-4 py-2"><span className={`rounded-full px-2 py-0.5 text-xs font-extrabold ${STATUS_TONE[o.status] ?? 'bg-line text-ink'}`}>{o.status}</span></td>
-                  <td className="px-4 py-2 text-muted">{new Date(o.createdAt).toLocaleDateString(hi ? 'hi-IN' : 'en-IN')}</td>
+                  <td className="px-4 py-2 text-muted">{formatDate(o.createdAt)}</td>
                 </tr>
               ))}
             </tbody>

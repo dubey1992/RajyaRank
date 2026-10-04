@@ -10,6 +10,7 @@ import { ChangePhoneForm } from '@/components/ChangePhoneForm';
 import { StudyGoalsForm } from '@/components/StudyGoalsForm';
 import { JoinInstitutionForm } from '@/components/JoinInstitutionForm';
 import { ChangePasswordForm } from '@/components/ChangePasswordForm';
+import { formatDate } from '@rajyarank/ui';
 import { DeleteAccountSection } from '@/components/DeleteAccountSection';
 import { PaymentMethodsManager } from '@/components/PaymentMethodsManager';
 import type { EntitlementView, ProfileResponse, StudyGoals, SavedPaymentMethodView } from '@rajyarank/contracts';
@@ -80,7 +81,7 @@ export default async function AccountPage({ params }: { params: { locale: string
           {mostRecentEntitlement ? (
             <div className="mt-4 rounded-xl bg-surface-soft p-3 text-left text-[10.5px]">
               <div className="flex items-center justify-between"><span className="text-muted">{L('प्लान', 'Plan')}</span><strong className={mostRecentEntitlement.status === 'ACTIVE' ? 'text-success' : 'text-ink'}>{mostRecentEntitlement.status}</strong></div>
-              {mostRecentEntitlement.endsAt ? <div className="mt-1 flex items-center justify-between"><span className="text-muted">{L('वैध तक', 'Valid till')}</span><strong>{mostRecentEntitlement.endsAt.slice(0, 10)}</strong></div> : null}
+              {mostRecentEntitlement.endsAt ? <div className="mt-1 flex items-center justify-between"><span className="text-muted">{L('वैध तक', 'Valid till')}</span><strong>{formatDate(mostRecentEntitlement.endsAt)}</strong></div> : null}
             </div>
           ) : null}
         </aside>
@@ -138,7 +139,7 @@ export default async function AccountPage({ params }: { params: { locale: string
                       )}
                     </span>
                     <span className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold ${e.status === 'ACTIVE' ? 'bg-teal-100 text-success' : 'bg-line text-ink'}`}>
-                      {e.status}{e.endsAt ? ` · ${L('तक', 'till')} ${e.endsAt.slice(0, 10)}` : ''}
+                      {e.status}{e.endsAt ? ` · ${L('तक', 'till')} ${formatDate(e.endsAt)}` : ''}
                     </span>
                   </li>
                 ))}
@@ -157,7 +158,7 @@ export default async function AccountPage({ params }: { params: { locale: string
                 {orders.map((o) => (
                   <li key={o.id} className="flex items-center justify-between rounded-xl border border-line bg-white p-3">
                     <span className="text-[12px]">{o.product} · ₹{(o.amountMinor / 100).toLocaleString('en-IN')}</span>
-                    <span className="text-[11px] text-muted">{o.status} · {o.createdAt.slice(0, 10)}</span>
+                    <span className="text-[11px] text-muted">{o.status} · {formatDate(o.createdAt)}</span>
                   </li>
                 ))}
               </ul>

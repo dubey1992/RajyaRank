@@ -8,6 +8,7 @@ import { can } from '@/lib/permissions';
 import { Shell } from '@/components/Shell';
 import { AccessDenied } from '@/components/AccessDenied';
 import type { OrganizationDetailView, InstitutionEarningsView } from '@rajyarank/contracts';
+import { formatDate } from '@rajyarank/ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -93,7 +94,7 @@ export default async function OrganizationDetailPage({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="text-xl font-black text-navy-950">{detail.name}</h2>
-            <div className="text-xs text-muted">{detail.code} · {L('पंजीकृत', 'Registered')} {new Date(detail.createdAt).toLocaleDateString(hi ? 'hi-IN' : 'en-IN')}</div>
+            <div className="text-xs text-muted">{detail.code} · {L('पंजीकृत', 'Registered')} {formatDate(detail.createdAt)}</div>
           </div>
           <div className="flex flex-wrap gap-1.5">
             <span className={`rounded-full px-2 py-0.5 text-xs font-extrabold ${detail.status === 'ACTIVE' ? 'bg-teal-100 text-success' : 'bg-orange-100 text-danger'}`}>
@@ -112,7 +113,7 @@ export default async function OrganizationDetailPage({
           {detail.subscription ? (
             <span>
               <b>{detail.subscription.planNameEn}</b> · {detail.subscription.status}
-              {detail.subscription.currentPeriodEnd ? ` · ${L('नवीनीकरण', 'renews')} ${new Date(detail.subscription.currentPeriodEnd).toLocaleDateString(hi ? 'hi-IN' : 'en-IN')}` : ''}
+              {detail.subscription.currentPeriodEnd ? ` · ${L('नवीनीकरण', 'renews')} ${formatDate(detail.subscription.currentPeriodEnd)}` : ''}
             </span>
           ) : (
             <span className="text-muted">{L('कोई सक्रिय सदस्यता नहीं', 'No active subscription')}</span>
@@ -191,7 +192,7 @@ export default async function OrganizationDetailPage({
                     <td className="px-3 py-2 text-muted">{o.buyer}</td>
                     <td className="px-3 py-2 font-extrabold text-navy-900">{rupees(o.amountMinor)}</td>
                     <td className="px-3 py-2"><span className={`rounded-full px-2 py-0.5 text-xs font-extrabold ${ORDER_STATUS_TONE[o.status] ?? 'bg-line text-ink'}`}>{o.status}</span></td>
-                    <td className="px-3 py-2 text-muted">{new Date(o.createdAt).toLocaleDateString(hi ? 'hi-IN' : 'en-IN')}</td>
+                    <td className="px-3 py-2 text-muted">{formatDate(o.createdAt)}</td>
                   </tr>
                 ))}
               </tbody>

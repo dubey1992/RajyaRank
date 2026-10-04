@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { Alert, Button, Field, Toast } from '@rajyarank/ui';
+import { Alert, Button, Field, Toast, formatDate } from '@rajyarank/ui';
 import { apiFetch, type ApiError } from '@/lib/api';
 import { serverFieldErrors } from '@/lib/form';
 import type { KycDocType, KycDocumentUploadIntentResponse, KycSubmissionView } from '@rajyarank/contracts';
@@ -146,8 +146,8 @@ export function KycSubmissionForm({
                   `Your KYC was rejected: ${submission.kycRejectionReason ?? ''} — please fix the details below and resubmit.`,
                 )
               : L(
-                  `KYC ${new Date(submission.kycSubmittedAt).toLocaleDateString('en-GB')} को सबमिट किया गया — सत्यापन लंबित है।`,
-                  `KYC submitted on ${new Date(submission.kycSubmittedAt).toLocaleDateString('en-GB')} — verification pending.`,
+                  `KYC ${formatDate(submission.kycSubmittedAt)} को सबमिट किया गया — सत्यापन लंबित है।`,
+                  `KYC submitted on ${formatDate(submission.kycSubmittedAt)} — verification pending.`,
                 )}
         </Alert>
       ) : (

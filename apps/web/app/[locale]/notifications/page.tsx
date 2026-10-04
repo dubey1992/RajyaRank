@@ -7,6 +7,7 @@ import { StudentShell } from '@/components/StudentShell';
 import { MarkAllRead } from './mark-all-read';
 import { EnablePush } from '@/components/EnablePush';
 import type { NotificationView } from '@rajyarank/contracts';
+import { formatDate } from '@rajyarank/ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -54,7 +55,7 @@ export default async function NotificationsPage({ params }: { params: { locale: 
                 <h3 className="text-[11.5px] font-black text-navy-900">{hi ? n.titleHi : n.titleEn}</h3>
                 {(hi ? n.bodyHi : n.bodyEn) ? <p className="mt-0.5 text-[9.5px] text-muted">{hi ? n.bodyHi : n.bodyEn}</p> : null}
               </div>
-              <time className="whitespace-nowrap text-[8.5px] text-muted">{new Date(n.createdAt).toLocaleDateString(hi ? 'hi-IN' : 'en-IN')}</time>
+              <time className="whitespace-nowrap text-[8.5px] text-muted">{formatDate(n.createdAt)}</time>
             </div>
           ))}
         </article>

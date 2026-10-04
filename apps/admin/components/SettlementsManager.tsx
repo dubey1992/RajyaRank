@@ -1,6 +1,6 @@
 'use client';
 import { Fragment, useState } from 'react';
-import { Alert, Toast } from '@rajyarank/ui';
+import { Alert, Toast, formatDate } from '@rajyarank/ui';
 import { apiFetch, apiDownloadPresigned, type ApiError } from '@/lib/api';
 import type { SettlementSummaryView, LinkedAccountView, TransferView, KycSubmissionView } from '@rajyarank/contracts';
 
@@ -248,7 +248,7 @@ export function SettlementsManager({
                                   <div><span className="text-muted">{L('बैंक खाता: ', 'Bank account: ')}</span><b>{submission.bankAccountNumberMasked}</b></div>
                                   <div><span className="text-muted">IFSC: </span><b>{submission.bankIfsc}</b></div>
                                   <div><span className="text-muted">{L('लाभार्थी: ', 'Beneficiary: ')}</span><b>{submission.beneficiaryName}</b></div>
-                                  <div><span className="text-muted">{L('सबमिट किया गया: ', 'Submitted: ')}</span><b>{new Date(submission.kycSubmittedAt).toLocaleDateString('en-GB')}</b></div>
+                                  <div><span className="text-muted">{L('सबमिट किया गया: ', 'Submitted: ')}</span><b>{formatDate(submission.kycSubmittedAt)}</b></div>
                                 </div>
                                 <div>
                                   <div className="mb-2 text-xs font-extrabold uppercase text-muted">{L('दस्तावेज़', 'Documents')}</div>
@@ -375,7 +375,7 @@ export function SettlementsManager({
                         <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-extrabold text-danger">{L('विफल', 'Failed')}</span>
                       )}
                     </td>
-                    <td className="px-3 py-2">{new Date(s.settledAt).toLocaleDateString('en-GB')}</td>
+                    <td className="px-3 py-2">{formatDate(s.settledAt)}</td>
                   </tr>
                 ))}
               </tbody>

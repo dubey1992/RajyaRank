@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { Alert, Button, ConfirmDialog, Toast } from '@rajyarank/ui';
+import { Alert, Button, ConfirmDialog, Toast, formatDate } from '@rajyarank/ui';
 import { apiFetch, apiDownload, type ApiError } from '@/lib/api';
 import type { OrganizationSubscriptionView, InstitutionInvoiceView, SubscriptionPlanView } from '@rajyarank/contracts';
 
@@ -207,7 +207,7 @@ export function InstitutionBillingManager({
                     <td className="px-3 py-2 font-bold text-ink">{s.orgName}</td>
                     <td className="px-3 py-2">{hi ? s.planNameHi : s.planNameEn}</td>
                     <td className="px-3 py-2">{s.billingCycle === 'MONTHLY' ? L('मासिक', 'Monthly') : L('वार्षिक', 'Annual')}</td>
-                    <td className="px-3 py-2">{s.currentPeriodEnd ? s.currentPeriodEnd.slice(0, 10) : '—'}</td>
+                    <td className="px-3 py-2">{s.currentPeriodEnd ? formatDate(s.currentPeriodEnd) : '—'}</td>
                     <td className="px-3 py-2"><span className={`rounded-full px-2 py-0.5 text-xs font-extrabold ${STATUS_TONE[s.status] ?? 'bg-line text-muted'}`}>{s.status}</span></td>
                     <td className="px-3 py-2 text-right">
                       <div className="flex flex-wrap items-center justify-end gap-1.5">
@@ -313,7 +313,7 @@ export function InstitutionBillingManager({
                     <td className="px-3 py-2">{i.periodLabel}</td>
                     <td className="px-3 py-2">{rupees(i.basePlanMinor)}</td>
                     <td className="px-3 py-2">{rupees(i.totalMinor)}</td>
-                    <td className="px-3 py-2">{i.dueAt.slice(0, 10)}</td>
+                    <td className="px-3 py-2">{formatDate(i.dueAt)}</td>
                     <td className="px-3 py-2"><span className={`rounded-full px-2 py-0.5 text-xs font-extrabold ${STATUS_TONE[i.status] ?? 'bg-line text-muted'}`}>{i.status}</span></td>
                     <td className="px-3 py-2 text-right">
                       <div className="flex flex-wrap items-center justify-end gap-1">

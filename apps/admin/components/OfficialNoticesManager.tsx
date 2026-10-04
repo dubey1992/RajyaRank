@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { Alert, Button, Field, Toast } from '@rajyarank/ui';
+import { Alert, Button, Field, Toast, formatDate } from '@rajyarank/ui';
 import { apiFetch, type ApiError } from '@/lib/api';
 import { serverFieldErrors } from '@/lib/form';
 import { StatusBadge } from '@/components/WorkflowActions';
@@ -225,7 +225,7 @@ export function OfficialNoticesManager({
                     <tr key={r.id}>
                       <td className="px-3 py-2 text-muted">{hi ? r.examNameHi : r.examNameEn}</td>
                       <td className="whitespace-nowrap px-3 py-2 text-muted">{r.noticeNumber}</td>
-                      <td className="whitespace-nowrap px-3 py-2 text-muted">{r.publishedDate.slice(0, 10)}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-muted">{formatDate(r.publishedDate)}</td>
                       <td className="px-3 py-2 font-bold text-ink">
                         {hi ? r.titleHi : r.titleEn}
                         {r.status === 'CORRECTION_REQUIRED' && r.correctionReason ? (

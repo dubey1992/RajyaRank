@@ -4,6 +4,7 @@ import { resolveLocale } from '@/lib/i18n';
 import { apiFetchServer } from '@/lib/api';
 import { getMe, initialsOf } from '@/lib/student';
 import { StudentShell } from '@/components/StudentShell';
+import { formatDate } from '@rajyarank/ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,7 +45,7 @@ export default async function ExamNoticesPage({ params }: { params: { locale: st
             <li key={n.id} className="rounded-lg border border-line bg-white p-5">
               <div className="mb-1 flex flex-wrap items-center gap-2 text-xs">
                 <span className="rounded-full bg-navy-100 px-2 py-0.5 font-extrabold text-navy-900">{n.noticeNumber}</span>
-                <span className="text-muted">{new Date(n.publishedDate).toLocaleDateString(hi ? 'hi-IN' : 'en-IN')}</span>
+                <span className="text-muted">{formatDate(n.publishedDate)}</span>
               </div>
               <h2 className="text-lg font-black text-navy-900">{hi ? n.titleHi : n.titleEn}</h2>
               <p className="mt-1 text-sm text-ink">{hi ? n.bodyHi : n.bodyEn}</p>

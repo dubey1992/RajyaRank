@@ -30,8 +30,13 @@ function lineRow(doc: PDFKit.PDFDocument, label: string, value: string, bold = f
   doc.y = y + rowHeight + 7;
 }
 
+// dd/mm/yyyy — the one date format used across the whole app (see the
+// identical helper in packages/ui/src/date.ts; this package can't import a
+// React-oriented package, so it's duplicated here rather than shared).
 function formatDate(d: Date): string {
-  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  return `${dd}/${mm}/${d.getFullYear()}`;
 }
 
 const INVOICE_STATUS_COLOR: Record<string, string> = {

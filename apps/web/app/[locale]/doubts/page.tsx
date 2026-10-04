@@ -6,6 +6,7 @@ import { getMe, initialsOf } from '@/lib/student';
 import { StudentShell } from '@/components/StudentShell';
 import { DoubtComposer } from './composer';
 import type { DoubtView } from '@rajyarank/contracts';
+import { formatDate } from '@rajyarank/ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,7 +56,7 @@ export default async function DoubtsPage({ params }: { params: { locale: string 
                       <p key={r.id} className="mt-2 rounded-md bg-surface-soft p-2 text-[11px] text-ink">↳ {r.bodyText}</p>
                     ))}
                     <div className="mt-2 flex gap-2 text-[8.5px] text-muted">
-                      <span>{new Date(d.createdAt).toLocaleDateString(hi ? 'hi-IN' : 'en-IN')}</span>
+                      <span>{formatDate(d.createdAt)}</span>
                       {d.replies.length ? <><span>•</span><span>{d.replies.length} {L('उत्तर', 'replies')}</span></> : null}
                     </div>
                   </div>

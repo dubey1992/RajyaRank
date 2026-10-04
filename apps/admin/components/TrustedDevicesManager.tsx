@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { Alert, ConfirmDialog, Toast } from '@rajyarank/ui';
+import { Alert, ConfirmDialog, Toast, formatDate } from '@rajyarank/ui';
 import { apiFetch, type ApiError } from '@/lib/api';
 
 export interface TrustedDeviceView {
@@ -73,8 +73,8 @@ export function TrustedDevicesManager({ initial, locale }: { initial: TrustedDev
                   ) : null}
                 </div>
                 <div className="mt-0.5 text-xs text-muted">
-                  {d.ip ?? L('अज्ञात IP', 'Unknown IP')} · {L('अंतिम उपयोग', 'Last used')} {new Date(d.lastUsedAt).toLocaleDateString(hi ? 'hi-IN' : 'en-IN')} ·{' '}
-                  {L('समाप्ति', 'Expires')} {new Date(d.expiresAt).toLocaleDateString(hi ? 'hi-IN' : 'en-IN')}
+                  {d.ip ?? L('अज्ञात IP', 'Unknown IP')} · {L('अंतिम उपयोग', 'Last used')} {formatDate(d.lastUsedAt)} ·{' '}
+                  {L('समाप्ति', 'Expires')} {formatDate(d.expiresAt)}
                 </div>
               </div>
               <button

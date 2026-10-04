@@ -6,6 +6,7 @@ import { apiFetchServer } from '@/lib/api';
 import { getMe, initialsOf } from '@/lib/student';
 import { PublicHeader } from '@/components/PublicHeader';
 import { StudentShell } from '@/components/StudentShell';
+import { formatDate } from '@rajyarank/ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -68,7 +69,7 @@ export default async function CurrentAffairsPage({ params }: { params: { locale:
               {c.publishedAt && Date.now() - new Date(c.publishedAt).getTime() < 2 * 24 * 60 * 60 * 1000 ? (
                 <span className="rounded-full bg-navy-100 px-2 py-0.5 font-extrabold text-navy-800">{L('नया', 'New')}</span>
               ) : null}
-              <span className="text-muted">{new Date(c.dateFor).toLocaleDateString(hi ? 'hi-IN' : 'en-IN')}</span>
+              <span className="text-muted">{formatDate(c.dateFor)}</span>
             </div>
             <Link href={`/${locale}/current-affairs/${c.id}`} className="block">
               <h2 className="text-lg font-black text-navy-900 hover:text-orange-600">{hi ? c.titleHi : c.titleEn}</h2>

@@ -9,6 +9,7 @@ import { getMe } from '@/lib/student';
 import { PublicHeader } from '@/components/PublicHeader';
 import { MarkdownBody } from '@/components/MarkdownBody';
 import type { BlogPostSummary, BlogPostView } from '@rajyarank/contracts';
+import { formatDate } from '@rajyarank/ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -96,7 +97,7 @@ export default async function BlogPostPage({ params }: { params: { locale: strin
         <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
           <span className="font-bold text-ink">{post.authorName}</span>
           <span>·</span>
-          <span>{new Date(post.publishedAt ?? post.createdAt).toLocaleDateString(hi ? 'hi-IN' : 'en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+          <span>{formatDate(post.publishedAt ?? post.createdAt)}</span>
           <span>·</span>
           <span>{post.readingMinutes} {L('मिनट पठन', 'min read')}</span>
         </div>

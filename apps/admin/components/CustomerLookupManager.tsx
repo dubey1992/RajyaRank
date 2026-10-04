@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { Alert, ConfirmDialog, Toast } from '@rajyarank/ui';
+import { Alert, ConfirmDialog, Toast, formatDate } from '@rajyarank/ui';
 import { apiFetch, type ApiError } from '@/lib/api';
 import { SearchInput } from './SearchInput';
 import type { CustomerDetail, CustomerSearchResult } from '@rajyarank/contracts';
@@ -21,10 +21,6 @@ function tone(status: string): string {
 function money(amountMinor: number, currency: string): string {
   return `${currency === 'INR' ? '₹' : currency + ' '}${(amountMinor / 100).toLocaleString('en-IN')}`;
 }
-function fmtDate(iso: string, hi: boolean): string {
-  return new Date(iso).toLocaleDateString(hi ? 'hi-IN' : 'en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-}
-
 export function CustomerLookupManager({ locale }: { locale: 'hi' | 'en' }) {
   const hi = locale === 'hi';
   const L = (h: string, e: string) => (hi ? h : e);
@@ -149,8 +145,8 @@ export function CustomerLookupManager({ locale }: { locale: 'hi' | 'en' }) {
           <div className="mt-4 grid gap-1.5 text-left text-xs text-muted">
             <div>✉️ {detail.email ?? '—'}</div>
             <div>📞 {detail.phone}</div>
-            <div>{L('सदस्य बने', 'Member since')} {fmtDate(detail.createdAt, hi)}</div>
-            <div>{L('अंतिम लॉगिन', 'Last login')} {detail.lastLoginAt ? fmtDate(detail.lastLoginAt, hi) : L('कभी नहीं', 'Never')}</div>
+            <div>{L('सदस्य बने', 'Member since')} {formatDate(detail.createdAt)}</div>
+            <div>{L('अंतिम लॉगिन', 'Last login')} {detail.lastLoginAt ? formatDate(detail.lastLoginAt) : L('कभी नहीं', 'Never')}</div>
           </div>
 
           <div className="mt-4 grid gap-2 text-left">
@@ -175,7 +171,7 @@ export function CustomerLookupManager({ locale }: { locale: 'hi' | 'en' }) {
                 <tbody className="divide-y divide-line">
                   {detail.orders.map((o) => (
                     <tr key={o.id}>
-                      <td className="py-2">{fmtDate(o.createdAt, hi)}</td>
+                      <td className="py-2">{formatDate(o.createdAt)}</td>
                       <td className="py-2">{hi ? o.productTitleHi : o.productTitleEn}</td>
                       <td className="py-2 font-bold">{money(o.amountMinor, o.currency)}</td>
                       <td className="py-2"><span className={`rounded-full px-2 py-0.5 font-extrabold ${tone(o.status)}`}>{o.status}</span></td>
@@ -195,7 +191,7 @@ export function CustomerLookupManager({ locale }: { locale: 'hi' | 'en' }) {
                   {detail.entitlements.map((e) => (
                     <div key={e.id} className="text-xs">
                       <div className="font-bold text-ink">{hi ? e.productTitleHi : e.productTitleEn}</div>
-                      <div className="text-muted">{L('से', 'from')} {fmtDate(e.startsAt ?? detail.createdAt, hi)} · {e.endsAt ? `${L('तक', 'until')} ${fmtDate(e.endsAt, hi)}` : L('कोई समाप्ति नहीं', 'no expiry')}</div>
+                      <div className="text-muted">{L('से', 'from')} {formatDate(e.startsAt ?? detail.createdAt)} · {e.endsAt ? `${L('तक', 'until')} ${formatDate(e.endsAt)}` : L('कोई समाप्ति नहीं', 'no expiry')}</div>
                     </div>
                   ))}
                 </div>
@@ -231,7 +227,7 @@ export function CustomerLookupManager({ locale }: { locale: 'hi' | 'en' }) {
                   {detail.sessions.map((s) => (
                     <div key={s.id} className="text-xs">
                       <div className="font-bold text-ink">{s.userAgent ?? L('अज्ञात डिवाइस', 'Unknown device')}</div>
-                      <div className="text-muted">{s.ip ?? L('अज्ञात IP', 'Unknown IP')} · {L('अंतिम उपयोग', 'last used')} {fmtDate(s.lastUsedAt, hi)}</div>
+                      <div className="text-muted">{s.ip ?? L('अज्ञात IP', 'Unknown IP')} · {L('अंतिम उपयोग', 'last used')} {formatDate(s.lastUsedAt)}</div>
                     </div>
                   ))}
                 </div>
@@ -244,7 +240,7 @@ export function CustomerLookupManager({ locale }: { locale: 'hi' | 'en' }) {
                 <div className="grid gap-1.5">
                   {detail.activity.map((a) => (
                     <div key={a.id} className="flex items-baseline gap-2 text-xs">
-                      <span className="w-16 flex-none text-muted">{fmtDate(a.createdAt, hi)}</span>
+                      <span className="w-20 flex-none text-muted">{formatDate(a.createdAt)}</span>
                       <span className={a.result === 'FAILED' || a.result === 'DENIED' ? 'text-danger' : 'text-ink'}>{a.action}</span>
                     </div>
                   ))}

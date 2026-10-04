@@ -1,6 +1,6 @@
 'use client';
 import { Fragment, useState } from 'react';
-import { Alert, Button } from '@rajyarank/ui';
+import { Alert, Button, formatDate } from '@rajyarank/ui';
 import { apiFetch, type ApiError } from '@/lib/api';
 import { SearchInput } from './SearchInput';
 import type { IndependentStudentListItem } from '@rajyarank/contracts';
@@ -10,10 +10,6 @@ const STATUS_TONE: Record<string, string> = {
   SUSPENDED: 'bg-orange-100 text-danger',
   DISABLED: 'bg-line text-muted',
 };
-
-function fmtDate(iso: string, hi: boolean): string {
-  return new Date(iso).toLocaleDateString(hi ? 'hi-IN' : 'en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-}
 
 export function IndependentStudentsManager({
   initial,
@@ -154,8 +150,8 @@ export function IndependentStudentsManager({
                         {s.status}
                       </span>
                     </td>
-                    <td className="px-3 py-2 text-xs text-muted">{fmtDate(s.createdAt, hi)}</td>
-                    <td className="px-3 py-2 text-xs text-muted">{s.lastLoginAt ? fmtDate(s.lastLoginAt, hi) : L('कभी नहीं', 'Never')}</td>
+                    <td className="px-3 py-2 text-xs text-muted">{formatDate(s.createdAt)}</td>
+                    <td className="px-3 py-2 text-xs text-muted">{s.lastLoginAt ? formatDate(s.lastLoginAt) : L('कभी नहीं', 'Never')}</td>
                     <td className="px-3 py-2 text-xs text-muted">{s.referredByOrgName ?? '—'}</td>
                     <td className="px-3 py-2">
                       <button

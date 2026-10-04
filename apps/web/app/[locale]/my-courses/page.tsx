@@ -7,6 +7,7 @@ import { apiFetchServer } from '@/lib/api';
 import { getMe, initialsOf } from '@/lib/student';
 import { StudentShell } from '@/components/StudentShell';
 import { BuyButton } from '@/components/BuyButton';
+import { formatDate } from '@rajyarank/ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -72,7 +73,7 @@ export default async function MyCoursesPage({ params }: { params: { locale: stri
                   <span>{c.lessonsCompleted}/{c.lessonsTotal} {L('पाठ', 'lessons')}</span>
                 </div>
                 <div className="mt-3.5 flex items-center justify-between gap-2">
-                  <small className="text-[9.5px] text-muted">{c.validUntil ? `${L('वैध', 'Valid until')} ${c.validUntil.slice(0, 10)}` : L('पूर्ण एक्सेस', 'Full access')}</small>
+                  <small className="text-[9.5px] text-muted">{c.validUntil ? `${L('वैध', 'Valid until')} ${formatDate(c.validUntil)}` : L('पूर्ण एक्सेस', 'Full access')}</small>
                   <Link href={`/${locale}/my-courses/${c.courseId}`} className="inline-flex min-h-[34px] items-center rounded-xl bg-orange-500 px-3 text-[10.5px] font-extrabold text-white transition hover:bg-orange-600">{L('जारी रखें', 'Continue')}</Link>
                 </div>
               </div>

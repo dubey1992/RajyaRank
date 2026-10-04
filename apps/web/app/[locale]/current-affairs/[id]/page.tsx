@@ -7,6 +7,7 @@ import { apiFetchServer } from '@/lib/api';
 import { getMe, initialsOf } from '@/lib/student';
 import { PublicHeader } from '@/components/PublicHeader';
 import { StudentShell } from '@/components/StudentShell';
+import { formatDate } from '@rajyarank/ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -94,7 +95,7 @@ export default async function CurrentAffairDetailPage({ params }: { params: { lo
           <span className="rounded-full bg-surface-soft px-2 py-0.5 font-extrabold text-muted">{L('RajyaRank संपादकीय', 'RajyaRank Editorial')}</span>
         )}
         {isNew ? <span className="rounded-full bg-navy-100 px-2 py-0.5 font-extrabold text-navy-800">{L('नया', 'New')}</span> : null}
-        <span className="text-muted">{new Date(item.dateFor).toLocaleDateString(hi ? 'hi-IN' : 'en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+        <span className="text-muted">{formatDate(item.dateFor)}</span>
       </div>
 
       <h1 className="mt-3 text-3xl font-black leading-tight tracking-tight text-navy-950 md:text-4xl">{title}</h1>

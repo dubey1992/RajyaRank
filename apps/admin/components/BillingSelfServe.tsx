@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import Link from 'next/link';
-import { Alert, Button, Toast } from '@rajyarank/ui';
+import { Alert, Button, Toast, formatDate } from '@rajyarank/ui';
 import { apiFetch, type ApiError } from '@/lib/api';
 import type { SubscriptionPlanView, MySubscriptionView, SelfServeSubscribeResult } from '@rajyarank/contracts';
 
@@ -177,15 +177,15 @@ export function BillingSelfServe({
       {activeSub ? (
         <Alert tone="success">
           {L(
-            `आप अभी ${hi ? activeSub.planNameHi : activeSub.planNameEn} योजना पर हैं, जो ${activeSub.currentPeriodEnd?.slice(0, 10) ?? '—'} तक सक्रिय है।`,
-            `You're currently on the ${activeSub.planNameEn} plan, active through ${activeSub.currentPeriodEnd?.slice(0, 10) ?? '—'}.`,
+            `आप अभी ${hi ? activeSub.planNameHi : activeSub.planNameEn} योजना पर हैं, जो ${activeSub.currentPeriodEnd ? formatDate(activeSub.currentPeriodEnd) : '—'} तक सक्रिय है।`,
+            `You're currently on the ${activeSub.planNameEn} plan, active through ${activeSub.currentPeriodEnd ? formatDate(activeSub.currentPeriodEnd) : '—'}.`,
           )}
         </Alert>
       ) : trialSub ? (
         <Alert tone="info">
           {L(
-            `आप अभी निःशुल्क ट्रायल पर हैं, जो ${trialSub.currentPeriodEnd?.slice(0, 10) ?? '—'} तक चलेगा। बिना रुकावट जारी रखने के लिए किसी भी समय नीचे से एक योजना चुनें।`,
-            `You're currently on the free trial, running through ${trialSub.currentPeriodEnd?.slice(0, 10) ?? '—'}. Pick a plan below anytime to keep going without interruption once it ends.`,
+            `आप अभी निःशुल्क ट्रायल पर हैं, जो ${trialSub.currentPeriodEnd ? formatDate(trialSub.currentPeriodEnd) : '—'} तक चलेगा। बिना रुकावट जारी रखने के लिए किसी भी समय नीचे से एक योजना चुनें।`,
+            `You're currently on the free trial, running through ${trialSub.currentPeriodEnd ? formatDate(trialSub.currentPeriodEnd) : '—'}. Pick a plan below anytime to keep going without interruption once it ends.`,
           )}
         </Alert>
       ) : trialExpired ? (

@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Alert, Button, Field, Toast } from '@rajyarank/ui';
+import { Alert, Button, Field, Toast, formatDate } from '@rajyarank/ui';
 import { apiFetch, type ApiError } from '@/lib/api';
 import { serverFieldErrors } from '@/lib/form';
 import type { BlogPostSummary, BlogPostView } from '@rajyarank/contracts';
@@ -210,7 +210,7 @@ export function BlogManager({ initial, locale }: { initial: BlogPostSummary[]; l
                           {p.published ? L('प्रकाशित', 'Published') : L('ड्राफ्ट', 'Draft')}
                         </span>
                       </td>
-                      <td className="px-3 py-2 text-muted">{new Date(p.publishedAt ?? p.createdAt).toLocaleDateString(hi ? 'hi-IN' : 'en-IN')}</td>
+                      <td className="px-3 py-2 text-muted">{formatDate(p.publishedAt ?? p.createdAt)}</td>
                       <td className="px-3 py-2">
                         <div className="flex flex-wrap justify-end gap-1.5">
                           <button type="button" disabled={busyRow} className={mini} onClick={() => void startEdit(p)}>
