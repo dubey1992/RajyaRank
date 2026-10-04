@@ -2226,6 +2226,11 @@ model InstitutionInvoice {
   totalMinor        Int           @map("total_minor")
   status            InvoiceStatus @default(PENDING)
   razorpayInvoiceId String?       @unique @map("razorpay_invoice_id")
+  // The actual Razorpay charge (payment entity) this invoice records — the
+  // real idempotency key for activateChargedSubscription: it dedupes the
+  // sync-verify-vs-webhook race for ONE charge without conflating that with
+  // a genuinely second, distinct real charge (see billing.service.ts).
+  razorpayPaymentId String?       @unique @map("razorpay_payment_id")
   dueAt             DateTime      @map("due_at")
   paidAt            DateTime?     @map("paid_at")
   createdAt         DateTime      @default(now()) @map("created_at")

@@ -374,7 +374,7 @@ export class BillingService {
       await this.audit.record({ actorUserId: actor.userId, action: 'billing.self_serve_verify', targetType: 'Organization', targetId: actor.orgId, result: 'FAILED', reasonCode: 'PAYMENT_SIGNATURE_INVALID' });
       throw AppError.paymentSignatureInvalid();
     }
-    await this.activateChargedSubscription(subscription);
+    await this.activateChargedSubscription(subscription, dto.razorpayPaymentId);
     return { status: 'ACTIVE' };
   }
 
@@ -436,15 +436,21 @@ export class BillingService {
   }
 
   /** Called from the shared Razorpay webhook handler for subscription.* /
-   *  invoice.* events. Idempotency is already handled by the caller. */
-  async handleSubscriptionEvent(eventType: string, payload: { subscription?: { entity?: { id?: string } } }) {
+   *  invoice.* events. Replay-of-the-same-webhook-delivery idempotency is
+   *  already handled by the caller (PaymentEvent.providerEventId); the
+   *  sync-verify-vs-webhook race for one real charge, and recording each
+   *  distinct real charge, is handled inside activateChargedSubscription. */
+  async handleSubscriptionEvent(
+    eventType: string,
+    payload: { subscription?: { entity?: { id?: string } }; payment?: { entity?: { id?: string } } },
+  ) {
     const razorpaySubscriptionId = payload.subscription?.entity?.id;
     if (!razorpaySubscriptionId) return;
     const subscription = await this.prisma.organizationSubscription.findUnique({ where: { razorpaySubscriptionId }, include: { plan: true } });
     if (!subscription) return;
 
     if (eventType === 'subscription.charged') {
-      await this.activateChargedSubscription(subscription);
+      await this.activateChargedSubscription(subscription, payload.payment?.entity?.id ?? null);
     } else if (eventType === 'subscription.cancelled') {
       await this.prisma.organizationSubscription.update({ where: { id: subscription.id }, data: { status: 'CANCELED' } });
     } else if (eventType === 'subscription.pending' || eventType === 'subscription.halted') {
@@ -458,29 +464,56 @@ export class BillingService {
   /** Flips a TRIALING/PAST_DUE subscription to ACTIVE and records the charge
    *  as a paid invoice. Reachable from two independent triggers for the same
    *  real-world charge — the Head's own Checkout success callback (immediate)
-   *  and Razorpay's subscription.charged webhook (eventual, redundant) — so
-   *  the status-guarded conditional update (not a plain update) is the actual
-   *  idempotency guard: whichever caller loses the race sees count === 0 and
-   *  skips creating a second invoice for one charge. */
-  private async activateChargedSubscription(subscription: OrganizationSubscription & { plan: SubscriptionPlan }) {
+   *  and Razorpay's subscription.charged webhook (eventual, redundant).
+   *
+   *  Idempotency is keyed on the actual Razorpay payment id (razorpayPaymentId),
+   *  NOT on subscription status — a previous version guarded with
+   *  `updateMany({ where: { status: { not: 'ACTIVE' } } })` and returned
+   *  early whenever count was 0. That correctly deduped the sync-vs-webhook
+   *  race for one charge, but it also silently dropped a genuinely SECOND
+   *  real charge landing while the row was already ACTIVE (e.g. an institute
+   *  paying twice, or a premature renewal charge): updateMany matched 0 rows,
+   *  the function returned, and no invoice was ever created for that second
+   *  charge — money collected by Razorpay, invisible in RajyaRank's own
+   *  ledger. Keying on the payment id instead means two calls for the SAME
+   *  charge still no-op the second time (both carry the identical payment
+   *  id), while two calls for two DIFFERENT real charges both get recorded. */
+  private async activateChargedSubscription(
+    subscription: OrganizationSubscription & { plan: SubscriptionPlan },
+    razorpayPaymentId: string | null,
+  ) {
+    if (razorpayPaymentId) {
+      const already = await this.prisma.institutionInvoice.findUnique({ where: { razorpayPaymentId } });
+      if (already) return; // the other trigger (webhook vs. sync verify) already recorded this exact charge
+    }
+
     const now = new Date();
-    const periodEnd = new Date(subscription.currentPeriodEnd ?? now);
-    if (subscription.billingCycle === 'MONTHLY') periodEnd.setMonth(periodEnd.getMonth() + 1);
-    else periodEnd.setFullYear(periodEnd.getFullYear() + 1);
     const amountMinor = subscription.billingCycle === 'MONTHLY' ? subscription.plan.priceMonthlyMinor : subscription.plan.priceAnnualMinor;
+    // A charge landing while the subscription is already ACTIVE with an
+    // unexpired period is a genuine extra/duplicate charge, not a renewal —
+    // still recorded as an invoice below (so the money isn't invisible), but
+    // the period/status aren't re-extended and the Head isn't re-notified
+    // for access that hasn't actually changed. Whether to refund or credit
+    // that extra charge is a billing-support decision, not one to make here.
+    const periodAlreadyCurrent = subscription.status === 'ACTIVE' && !!subscription.currentPeriodEnd && subscription.currentPeriodEnd > now;
 
-    const { count } = await this.prisma.organizationSubscription.updateMany({
-      where: { id: subscription.id, status: { not: 'ACTIVE' } },
-      data: { status: 'ACTIVE', currentPeriodStart: now, currentPeriodEnd: periodEnd },
-    });
-    if (count === 0) return; // another concurrent caller (webhook vs. sync verify) already handled this charge
+    const periodEnd = new Date(subscription.currentPeriodEnd ?? now);
+    if (!periodAlreadyCurrent) {
+      if (subscription.billingCycle === 'MONTHLY') periodEnd.setMonth(periodEnd.getMonth() + 1);
+      else periodEnd.setFullYear(periodEnd.getFullYear() + 1);
 
-    // Without this, the Head who just paid (and any staff of that org) stays
-    // stuck behind the "subscription isn't active" gate for up to 300s — the
-    // cached Principal's orgSubscriptionActive flag doesn't otherwise refresh
-    // until its Redis TTL expires (see AuthorizationService.resolvePrincipal).
-    await this.authz.invalidateOrg(subscription.orgId);
-    await this.notifySubscriptionOutcome(subscription.orgId, 'ACTIVATED', subscription.plan);
+      await this.prisma.organizationSubscription.update({
+        where: { id: subscription.id },
+        data: { status: 'ACTIVE', currentPeriodStart: now, currentPeriodEnd: periodEnd },
+      });
+      // Without this, the Head who just paid (and any staff of that org)
+      // stays stuck behind the "subscription isn't active" gate for up to
+      // 300s — the cached Principal's orgSubscriptionActive flag doesn't
+      // otherwise refresh until its Redis TTL expires (see
+      // AuthorizationService.resolvePrincipal).
+      await this.authz.invalidateOrg(subscription.orgId);
+      await this.notifySubscriptionOutcome(subscription.orgId, 'ACTIVATED', subscription.plan);
+    }
 
     await this.prisma.institutionInvoice.create({
       data: {
@@ -490,6 +523,7 @@ export class BillingService {
         basePlanMinor: amountMinor,
         totalMinor: amountMinor,
         status: 'PAID',
+        razorpayPaymentId,
         // See the identical comment in provisionSubscription above — dueAt is
         // the plan's validity end / next-renewal date, not a payment deadline.
         dueAt: periodEnd,
