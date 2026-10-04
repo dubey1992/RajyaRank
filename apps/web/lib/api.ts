@@ -90,6 +90,17 @@ export async function apiFetchServer<T>(path: string, cookie: string): Promise<T
       return null;
     }
   }
+  // A 5xx (e.g. the ALB returning 502/503/504 while swapping task targets
+  // mid-deploy) must NOT resolve to null the way a genuine 401 does — null
+  // reads as "not logged in" to every caller, which bounced every student
+  // to the login page for the brief window a production deploy takes, even
+  // though their session/cookies were completely intact. Retry once more;
+  // a 5xx that persists past that is a real outage, surfaced as a thrown
+  // error (caught by error.tsx) rather than a fake "please log in".
+  if (res.status >= 500) {
+    res = await attempt();
+    if (res.status >= 500) throw new Error(`API ${path} returned ${res.status}`);
+  }
   if (!res.ok) return null;
   const body = await res.json();
   return (body as { data: T }).data;

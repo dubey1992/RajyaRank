@@ -99,8 +99,16 @@ export async function apiDownloadPresigned(urlPath: string, filename: string): P
  *  cold Lambda container) — without this, one bad `getaddrinfo` on an
  *  otherwise-valid session bounced the user straight to login, which reads
  *  as "randomly logged out" since it's whichever compute container happens
- *  to serve that particular navigation. An actual 4xx/5xx from the API
- *  still resolves to null immediately; this only guards the fetch itself. */
+ *  to serve that particular navigation. A genuine 401 (not authenticated)
+ *  still resolves to null immediately — callers correctly redirect to login
+ *  for that. A 5xx is deliberately NOT treated the same way: the ALB
+ *  briefly returns 502/503/504 while swapping task targets during an ECS
+ *  deploy, which used to resolve to null → getMeOrRedirect → login, i.e.
+ *  every staff member got bounced to the login page for the few hundred ms
+ *  a production deploy takes, even though their session/cookies were
+ *  completely intact. Retry once more on a 5xx; if it's still failing after
+ *  that, throw so the page shows a real error (caught by error.tsx) instead
+ *  of silently pretending the user isn't logged in. */
 export async function apiFetchServer<T>(path: string, cookie: string): Promise<T | null> {
   const attempt = async () => fetch(`${API_URL}/api/v1${path}`, { headers: { cookie }, cache: 'no-store' });
   let res: Response;
@@ -117,6 +125,13 @@ export async function apiFetchServer<T>(path: string, cookie: string): Promise<T
       // diagnose (see commit e4454f9's history).
       console.error(`[apiFetchServer] both attempts failed for ${path}`, e, e2);
       return null;
+    }
+  }
+  if (res.status >= 500) {
+    res = await attempt();
+    if (res.status >= 500) {
+      console.error(`[apiFetchServer] ${path} returned ${res.status} after retry`);
+      throw new Error(`API ${path} returned ${res.status}`);
     }
   }
   if (!res.ok) return null;
