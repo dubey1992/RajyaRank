@@ -28,6 +28,7 @@ import {
 } from '@rajyarank/contracts';
 import { ENV } from '../config/config.module';
 import { Public } from '../common/decorators/public.decorator';
+import { AllowSuspendedOrg } from '../common/decorators/allow-suspended-org.decorator';
 import { CurrentPrincipal } from '../common/decorators/current-principal.decorator';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 import { AuthService } from './auth.service';
@@ -290,11 +291,13 @@ export class AuthController {
     return this.auth.refresh(req, res);
   }
 
+  @AllowSuspendedOrg()
   @Post('logout')
   async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     return this.auth.logout(req as Request & { auth?: AccessClaims }, res);
   }
 
+  @AllowSuspendedOrg()
   @Post('logout-all')
   async logoutAll(
     @CurrentPrincipal() principal: Principal,
@@ -303,6 +306,7 @@ export class AuthController {
     return this.auth.logoutAll(principal.userId, principal.kind, res);
   }
 
+  @AllowSuspendedOrg()
   @Get('me')
   async me(@CurrentPrincipal() principal: Principal, @Req() req: Request & { auth?: AccessClaims }) {
     return this.auth.me(
@@ -311,6 +315,7 @@ export class AuthController {
       [...principal.permissionCodes],
       req.auth?.assurance ?? 'AAL1',
       principal.orgId ? (principal.orgSubscriptionActive ?? false) : null,
+      principal.orgId ? principal.orgActive === false : false,
     );
   }
 

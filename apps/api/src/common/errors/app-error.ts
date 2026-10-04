@@ -28,6 +28,13 @@ export class AppError extends HttpException {
   static accountDisabled() {
     return new AppError('ACCOUNT_DISABLED', HttpStatus.FORBIDDEN, 'This account is not active.');
   }
+  static institutionSuspended() {
+    return new AppError(
+      'INSTITUTION_SUSPENDED',
+      HttpStatus.FORBIDDEN,
+      'This institution is currently suspended. Contact RajyaRank support to reactivate access.',
+    );
+  }
   static mfaRequired() {
     return new AppError('AUTH_MFA_REQUIRED', HttpStatus.UNAUTHORIZED, 'Two-factor authentication required.');
   }

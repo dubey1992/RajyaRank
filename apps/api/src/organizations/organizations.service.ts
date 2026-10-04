@@ -134,11 +134,19 @@ export class OrganizationsService {
     return result;
   }
 
-  /** Activate / deactivate (suspend) an institution. */
+  /** Activate / deactivate (suspend) an institution. Suspending detaches
+   *  every member (staff and students alike, via AccessGuard's orgActive
+   *  check) and hides every one of its courses from public discovery
+   *  (catalogue.controller.ts) without mutating their own status/content
+   *  state — so reactivating is the exact inverse with nothing to restore:
+   *  a member independently disabled, or a course independently left in
+   *  DRAFT, stays exactly as it was. invalidateOrg busts every member's
+   *  cached Principal immediately rather than waiting out its 300s TTL. */
   async setStatus(actor: Principal, orgId: string, status: 'ACTIVE' | 'SUSPENDED') {
     const org = await this.prisma.organization.findUnique({ where: { id: orgId } });
     if (!org) throw AppError.notFound('Institution not found.');
     await this.prisma.organization.update({ where: { id: orgId }, data: { status } });
+    await this.authz.invalidateOrg(orgId);
     await this.audit.record({
       actorUserId: actor.userId,
       action: 'org.status_change',

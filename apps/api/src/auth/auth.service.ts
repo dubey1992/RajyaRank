@@ -221,13 +221,17 @@ export class AuthService {
     remember = false,
   ): Promise<{ homeRoute: string; accessToken: string; refreshToken: string; expiresIn: number }> {
     const normalized = email.toLowerCase();
-    const user = await this.prisma.user.findFirst({ where: { kind: 'STUDENT', email: normalized, deletedAt: null } });
+    const user = await this.prisma.user.findFirst({
+      where: { kind: 'STUDENT', email: normalized, deletedAt: null },
+      include: { org: { select: { status: true } } },
+    });
     if (!user || !user.passwordHash) {
       const destLocked = await this.bumpDestinationFailure('STUDENT', normalized);
       await this.audit.record({ action: 'auth.login', result: 'FAILED', reasonCode: destLocked ? 'ACCOUNT_LOCKED' : 'AUTH_INVALID_CREDENTIALS', ip, userAgent });
       throw destLocked ? AppError.accountLocked() : AppError.invalidCredentials();
     }
     if (user.status === 'DISABLED' || user.status === 'SUSPENDED') throw AppError.accountDisabled();
+    if (user.orgId && user.org?.status === 'SUSPENDED') throw AppError.institutionSuspended();
     if (user.lockedUntil && user.lockedUntil.getTime() > Date.now()) throw AppError.accountLocked();
 
     const ok = await argon2.verify(user.passwordHash, password);
@@ -324,7 +328,7 @@ export class AuthService {
     const email = workEmail.toLowerCase();
     const user = await this.prisma.user.findFirst({
       where: { kind: 'STAFF', email, deletedAt: null },
-      include: { roles: { include: { role: true } } },
+      include: { roles: { include: { role: true } }, org: { select: { status: true } } },
     });
     if (!user || !user.passwordHash) {
       const destLocked = await this.bumpDestinationFailure('STAFF', email);
@@ -332,6 +336,7 @@ export class AuthService {
       throw destLocked ? AppError.accountLocked() : AppError.invalidCredentials();
     }
     if (user.status === 'DISABLED' || user.status === 'SUSPENDED') throw AppError.accountDisabled();
+    if (user.orgId && user.org?.status === 'SUSPENDED') throw AppError.institutionSuspended();
     if (user.lockedUntil && user.lockedUntil.getTime() > Date.now()) throw AppError.accountLocked();
 
     const ok = await argon2.verify(user.passwordHash, password);
@@ -569,6 +574,7 @@ export class AuthService {
     permissionCodes: string[],
     assurance: 'AAL1' | 'AAL2',
     orgSubscriptionActive: boolean | null,
+    orgSuspended: boolean,
   ): Promise<MeResponse> {
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
     // Cheap, one indexed lookup, only for org-scoped staff — /auth/me is a
@@ -605,6 +611,7 @@ export class AuthService {
       orgSubscriptionActive,
       orgTrialDaysLeft,
       orgTrialExpired,
+      orgSuspended,
     };
   }
 

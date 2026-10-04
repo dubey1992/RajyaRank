@@ -9,8 +9,10 @@ import { AppError } from '../common/errors/app-error';
 
 /**
  * Support tickets. Support agents operate under least privilege — they see the
- * ticket + the student id, never payment credentials or academic content.
- * Internal replies are hidden from the student.
+ * ticket + the owner's user id, never payment credentials or academic content.
+ * Internal replies are hidden from the ticket owner. A ticket's owner is
+ * usually a student, but can also be an institution's staff member — see
+ * ownerUserId().
  */
 @Injectable()
 export class SupportService {
@@ -20,24 +22,31 @@ export class SupportService {
     private readonly notifications: NotificationService,
   ) {}
 
-  private studentId(p: Principal): string {
-    if (p.kind !== 'STUDENT') throw AppError.permissionDenied('Student account required.');
-    return p.userId;
+  /** Who a ticket belongs to. Despite the `studentId` column name (no
+   *  migration for this), any STUDENT can own a ticket, and so can STAFF
+   *  belonging to an institution — e.g. an Academic Head reaching support
+   *  while their own institution is suspended and everything else is
+   *  blocked. Org-less staff (Super Admin, Content Admin) have no reason to
+   *  file a ticket against themselves, so they're excluded same as before. */
+  private ownerUserId(p: Principal): string {
+    if (p.kind === 'STUDENT') return p.userId;
+    if (p.kind === 'STAFF' && p.orgId) return p.userId;
+    throw AppError.permissionDenied('Student or institution-staff account required.');
   }
 
   async create(p: Principal, dto: CreateTicket) {
-    const studentId = this.studentId(p);
+    const ownerId = this.ownerUserId(p);
     const ticket = await this.prisma.supportTicket.create({
-      data: { studentId, orgId: p.orgId ?? null, category: dto.category, subject: dto.subject, bodyText: dto.bodyText },
+      data: { studentId: ownerId, orgId: p.orgId ?? null, category: dto.category, subject: dto.subject, bodyText: dto.bodyText },
     });
-    await this.audit.record({ actorUserId: studentId, action: 'support.ticket_created', targetType: 'SupportTicket', targetId: ticket.id, result: 'SUCCESS' });
+    await this.audit.record({ actorUserId: ownerId, action: 'support.ticket_created', targetType: 'SupportTicket', targetId: ticket.id, result: 'SUCCESS' });
     return this.view(ticket.id, false);
   }
 
   async listMine(p: Principal) {
-    const studentId = this.studentId(p);
+    const ownerId = this.ownerUserId(p);
     const tickets = await this.prisma.supportTicket.findMany({
-      where: { studentId },
+      where: { studentId: ownerId },
       orderBy: { updatedAt: 'desc' },
       include: { replies: { where: { internal: false }, orderBy: { createdAt: 'asc' } } },
       take: 100,
@@ -45,12 +54,12 @@ export class SupportService {
     return tickets.map((t) => toView(t));
   }
 
-  async studentReply(p: Principal, id: string, bodyText: string) {
-    const studentId = this.studentId(p);
-    const ticket = await this.prisma.supportTicket.findFirst({ where: { id, studentId } });
+  async ownerReply(p: Principal, id: string, bodyText: string) {
+    const ownerId = this.ownerUserId(p);
+    const ticket = await this.prisma.supportTicket.findFirst({ where: { id, studentId: ownerId } });
     if (!ticket) throw AppError.notFound('Ticket not found.');
     await this.prisma.$transaction([
-      this.prisma.ticketReply.create({ data: { ticketId: id, authorUserId: studentId, bodyText, internal: false } }),
+      this.prisma.ticketReply.create({ data: { ticketId: id, authorUserId: ownerId, bodyText, internal: false } }),
       this.prisma.supportTicket.update({ where: { id }, data: { status: 'IN_PROGRESS' } }),
     ]);
     return this.view(id, false);

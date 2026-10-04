@@ -103,6 +103,12 @@ export const meResponseSchema = z.object({
    *  orgTrialDaysLeft's countdown (which stops applying the moment the
    *  trial actually ends, leaving nothing visible in the Shell otherwise). */
   orgTrialExpired: z.boolean(),
+  /** True when the institution's own Organization.status is SUSPENDED —
+   *  distinct from orgSubscriptionActive (billing) and orgTrialExpired
+   *  (trial lapse). Every other route is blocked for this member while
+   *  true (see AccessGuard); /auth/me itself stays reachable via
+   *  @AllowSuspendedOrg specifically so the Shell can explain why. */
+  orgSuspended: z.boolean(),
 });
 export type MeResponse = z.infer<typeof meResponseSchema>;
 

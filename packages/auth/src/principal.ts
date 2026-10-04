@@ -12,6 +12,8 @@ export interface BuildPrincipalInput {
   orgId?: string;
   /** See Principal.orgSubscriptionActive — only relevant when orgId is set. */
   orgSubscriptionActive?: boolean;
+  /** See Principal.orgActive — only relevant when orgId is set. */
+  orgActive?: boolean;
   /** Optional override of the permission set; defaults to union of role perms. */
   permissionCodes?: Iterable<string>;
 }
@@ -40,5 +42,6 @@ export function buildPrincipal(input: BuildPrincipalInput): Principal {
     isSuperAdmin,
     orgId: input.orgId,
     orgSubscriptionActive: input.orgSubscriptionActive,
+    orgActive: input.orgActive,
   };
 }

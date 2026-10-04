@@ -7,6 +7,7 @@ import { can } from '@/lib/permissions';
 import { AdminLangSwitch } from './AdminLangSwitch';
 import { ProfileMenu } from './ProfileMenu';
 import { SideNav } from './SideNav';
+import { SuspendedBanner } from './SuspendedBanner';
 
 /** Shown to an org-scoped staff member (any role, not just the Head — the
  *  whole team should see the runway) once 7 or fewer trial days remain. Only
@@ -212,7 +213,9 @@ export function Shell({
             <ProfileMenu me={me} locale={locale} />
           </div>
         </header>
-        {me.orgId && me.orgTrialExpired ? (
+        {me.orgId && me.orgSuspended ? (
+          <SuspendedBanner locale={locale} />
+        ) : me.orgId && me.orgTrialExpired ? (
           <TrialExpiredBanner locale={locale} />
         ) : me.orgId && me.orgTrialDaysLeft !== null ? (
           <TrialBanner daysLeft={me.orgTrialDaysLeft} locale={locale} />

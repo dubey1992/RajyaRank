@@ -4,10 +4,12 @@ import type { Request } from 'express';
 import type { Principal } from '@rajyarank/auth';
 import type { ApiEnv } from '@rajyarank/config/env';
 import { IS_PUBLIC_KEY } from '../common/decorators/public.decorator';
+import { ALLOW_SUSPENDED_ORG_KEY } from '../common/decorators/allow-suspended-org.decorator';
 import { TokenService, type AccessClaims } from './token.service';
 import { AuthorizationService } from '../authz/authorization.service';
 import { ENV } from '../config/config.module';
 import { accessCookieName } from './cookies';
+import { AppError } from '../common/errors/app-error';
 
 /**
  * Global authentication guard. Verifies the access token (cookie or bearer),
@@ -46,6 +48,21 @@ export class AccessGuard implements CanActivate {
 
     const principal = await this.authz.resolvePrincipal(claims.sub, claims.assurance);
     if (!principal || principal.status !== 'ACTIVE') throw new UnauthorizedException();
+
+    // A suspended institution detaches every one of its members — staff AND
+    // students alike, not just permission-gated staff actions — from the
+    // platform until it's reactivated. Checked here (not only in the policy
+    // engine) so it's enforced on every request, including routes with no
+    // @RequirePermission at all (most student routes). @AllowSuspendedOrg
+    // carves out the handful of routes a detached member still needs: see
+    // why they're locked out (auth/me), sign out, and contact support.
+    const allowSuspendedOrg = this.reflector.getAllAndOverride<boolean>(ALLOW_SUSPENDED_ORG_KEY, [
+      ctx.getHandler(),
+      ctx.getClass(),
+    ]);
+    if (principal.orgId && principal.orgActive === false && !allowSuspendedOrg) {
+      throw AppError.institutionSuspended();
+    }
 
     req.auth = claims;
     req.principal = principal;

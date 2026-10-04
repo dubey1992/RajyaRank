@@ -39,6 +39,13 @@ export interface Principal {
    *  for org-less principals (Super Admin, Content Admin, students), who are
    *  never subject to this check regardless of value. */
   orgSubscriptionActive?: boolean;
+  /** Only meaningful when orgId is set — is that institution's own
+   *  Organization.status currently ACTIVE (not SUSPENDED)? Unlike
+   *  orgSubscriptionActive (a STAFF-only, permission-level gate), this is
+   *  enforced for every principal kind at the access-guard level — a
+   *  suspended institution detaches its staff AND its students alike.
+   *  Undefined for org-less principals, who are never subject to this. */
+  orgActive?: boolean;
 }
 
 /** The resource an action targets (optional for global endpoints). */

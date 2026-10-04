@@ -136,13 +136,24 @@ export class CatalogueController {
     return rows.map((r) => r.orgId);
   }
 
+  /** Suspended institutes — excluded from public course discovery alongside
+   *  rejected-KYC institutes (see rejectedKycOrgIds), so a suspended
+   *  institute's courses disappear from search/outline the moment it's
+   *  suspended and reappear automatically the moment it's reactivated,
+   *  without any change to the courses' own status. */
+  private async suspendedOrgIds(): Promise<string[]> {
+    const rows = await this.prisma.organization.findMany({ where: { status: 'SUSPENDED' }, select: { id: true } });
+    return rows.map((r) => r.id);
+  }
+
   /** Publicly discoverable courses (active + public only). */
   @Public()
   @Get('courses')
   async courses() {
-    const rejectedOrgIds = await this.rejectedKycOrgIds();
+    const [rejectedOrgIds, suspendedOrgIds] = await Promise.all([this.rejectedKycOrgIds(), this.suspendedOrgIds()]);
+    const excludedOrgIds = [...new Set([...rejectedOrgIds, ...suspendedOrgIds])];
     const rows = await this.prisma.course.findMany({
-      where: { deletedAt: null, status: 'ACTIVE', visibility: 'PUBLIC', OR: [{ orgId: null }, { orgId: { notIn: rejectedOrgIds } }] },
+      where: { deletedAt: null, status: 'ACTIVE', visibility: 'PUBLIC', OR: [{ orgId: null }, { orgId: { notIn: excludedOrgIds } }] },
       orderBy: { sequence: 'asc' },
       select: {
         id: true, code: true, titleHi: true, titleEn: true, stateId: true, examId: true, orgId: true,
@@ -281,7 +292,7 @@ export class CatalogueController {
         examId: true,
         orgId: true,
         createdAt: true,
-        organization: { select: { name: true } },
+        organization: { select: { name: true, status: true } },
         coursePromiseHi: true,
         coursePromiseEn: true,
         learningOutcomes: true,
@@ -325,6 +336,7 @@ export class CatalogueController {
       },
     });
     if (!course) return null;
+    if (course.organization?.status === 'SUSPENDED') return null;
     const { organization, createdAt, ...rest } = course;
     return {
       ...rest,

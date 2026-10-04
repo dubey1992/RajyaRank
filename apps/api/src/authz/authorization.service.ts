@@ -39,8 +39,10 @@ export class AuthorizationService {
         assignments: { where: { deletedAt: null } },
         // Only staff ever reach a permission-gated route (see policy.engine's
         // subscription check), but this join is cheap either way — one extra
-        // hop off a row we already fetched, not a separate query.
-        org: { select: { subscription: { select: { status: true, currentPeriodEnd: true } } } },
+        // hop off a row we already fetched, not a separate query. `status`
+        // (the org's own ACTIVE/SUSPENDED) is separate from `subscription` —
+        // see Principal.orgActive.
+        org: { select: { status: true, subscription: { select: { status: true, currentPeriodEnd: true } } } },
       },
     });
     if (!user) return null;
@@ -78,6 +80,7 @@ export class AuthorizationService {
       orgSubscriptionActive: user.org?.subscription
         ? isSubscriptionUsable(user.org.subscription.status, user.org.subscription.currentPeriodEnd)
         : false,
+      orgActive: user.org ? user.org.status === 'ACTIVE' : undefined,
     });
 
     await this.redis.client.set(cacheKey, serialize(principal), 'EX', 300);
