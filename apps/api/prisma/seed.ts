@@ -563,19 +563,11 @@ async function seedInstituteCourse(ref: Awaited<ReturnType<typeof seedReference>
   });
 }
 
-/** Real marketing copy — seeded in every environment (not demo-only), so the
- *  homepage's Testimonials/FAQ/Study Content sections always have content
- *  even before an admin has edited anything via /admin/marketing. */
+/** Real marketing copy — seeded in every environment (not demo-only). Testimonials
+ *  are deliberately NOT seeded: any student quote must come from a real,
+ *  consenting student entered via /admin/marketing, never invented here. The
+ *  homepage hides its Testimonials section entirely while there are none. */
 async function seedMarketingContent() {
-  const testimonials = [
-    { id: 'seed-testimonial-1', quoteHi: 'डेली प्लान से पता चलता है कि आज क्या पढ़ना है। पहले बहुत सारे वीडियो देखकर confuse हो जाता था।', quoteEn: 'The daily plan tells me exactly what to study. Earlier I got confused by too many videos.', studentName: 'Ankit Kumar', initials: 'AK', examLabel: 'SSC CGL', sequence: 0 },
-    { id: 'seed-testimonial-2', quoteHi: 'हर टेस्ट के बाद गलत टॉपिक की लिस्ट मिलती है। इससे रिवीज़न बहुत आसान हो गया।', quoteEn: 'After every test I get a weak-topic list — revision became much easier.', studentName: 'Priya Sinha', initials: 'PS', examLabel: 'BSSC', sequence: 1 },
-    { id: 'seed-testimonial-3', quoteHi: 'हिंदी explanation सरल है और मोबाइल पर वेबसाइट तेज़ चलती है। कम network में भी useful है।', quoteEn: 'Hindi explanations are simple and the site is fast on mobile — useful even on low network.', studentName: 'Manoj Rana', initials: 'MR', examLabel: 'JSSC', sequence: 2 },
-  ];
-  for (const t of testimonials) {
-    await prisma.testimonial.upsert({ where: { id: t.id }, update: t, create: t });
-  }
-
   // Singleton — matches the row seeded in the 20260824100100_add_marketing_banner
   // migration (deploys never run this script) so local/dev environments match.
   const banner = {
