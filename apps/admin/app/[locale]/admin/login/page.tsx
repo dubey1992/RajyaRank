@@ -11,11 +11,22 @@ import type { StaffLoginResult } from '@rajyarank/contracts';
 import { serverFieldErrors } from '@/lib/form';
 import { AdminLangSwitch } from '@/components/AdminLangSwitch';
 
-// "Remember me" persists only the work email (a non-secret identifier) across
-// visits/logout — never the password. Passwords are left to the browser's own
-// native password manager (the form already carries the right autoComplete
-// hints for that); storing a password in localStorage would be readable by
-// any injected script, which is not an acceptable risk for a staff/admin login.
+// "Remember me" does two things: persists the work email (a non-secret
+// identifier, never the password) across visits/logout via localStorage
+// here, AND is sent as `remember` in the login request body, which the API
+// uses to pick the refresh-token cookie's lifetime — REFRESH_TOKEN_TTL (30
+// days, sliding: renewed on every /auth/refresh) when true, vs. a deliberately
+// short NOT_REMEMBERED_REFRESH_TTL_SECONDS (1 day) when false. See
+// apps/api/src/auth/cookies.ts. Defaults to checked here: this is an internal
+// staff tool on the admin's own device, not a public/shared-device login, so
+// "stay signed in until I log out" is the behavior staff actually expect —
+// an unchecked default previously meant any admin who didn't know this
+// checkbox also controlled session length got silently logged out after a
+// day of not touching the app, which read as "the app logged me out for no
+// reason." Passwords are left to the browser's own native password manager
+// (the form already carries the right autoComplete hints for that); storing
+// a password in localStorage would be readable by any injected script, which
+// is not an acceptable risk for a staff/admin login.
 const REMEMBER_EMAIL_KEY = 'rr_admin_remember_email';
 
 export default function StaffLoginPage() {
@@ -28,7 +39,7 @@ export default function StaffLoginPage() {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [remember, setRemember] = useState(false);
+  const [remember, setRemember] = useState(true);
 
   // Pre-fill the remembered email (if any) once, on first render.
   useEffect(() => {
