@@ -93,7 +93,12 @@ export default async function OrganizationDetailPage({
       <div className="mb-6 rounded-lg border border-line bg-white p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="text-xl font-black text-navy-950">{detail.name}</h2>
+            <div className="flex items-center gap-1.5">
+              <h2 className="text-xl font-black text-navy-950">{detail.name}</h2>
+              {detail.isDemo ? (
+                <span className="rounded-full bg-orange-100 px-1.5 py-0.5 text-[10px] font-extrabold uppercase text-orange-700">{L('डेमो', 'Demo')}</span>
+              ) : null}
+            </div>
             <div className="text-xs text-muted">{detail.code} · {L('पंजीकृत', 'Registered')} {formatDate(detail.createdAt)}</div>
           </div>
           <div className="flex flex-wrap gap-1.5">

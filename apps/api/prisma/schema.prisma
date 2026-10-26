@@ -2090,6 +2090,14 @@ model Organization {
   // this institute's course pricing at checkout. Super Admin issues/rotates it.
   accessCode String?            @unique @map("access_code")
   status     OrganizationStatus @default(ACTIVE)
+  // Permanent sales-demo sandbox — set once at creation, never toggled. Every
+  // course/plan/exam/test it owns works normally for anyone with legitimate
+  // (authenticated, own-org) access, but is excluded from every public
+  // discovery surface (catalogue, sitemap, institutes directory, marketing
+  // stats) and from internal cross-org revenue/analytics aggregates, so a
+  // demo institution's content never reaches a real visitor and its (often
+  // token-amount) transactions never pollute real business numbers.
+  isDemo     Boolean            @default(false) @map("is_demo")
   headUserId String?            @unique @map("head_user_id")
   createdAt  DateTime           @default(now()) @map("created_at")
   updatedAt  DateTime           @updatedAt @map("updated_at")

@@ -412,16 +412,21 @@ export class SettlementsService {
   }
 
   async superSummary() {
-    const transfers = await this.prisma.transfer.findMany();
+    // Demo institutions are excluded throughout this platform-wide summary —
+    // a sales-demo's (if it even has one) linked payout account must never
+    // contribute to real platform revenue/payable/reserve numbers. See
+    // Organization.isDemo's doc comment.
+    const transfers = await this.prisma.transfer.findMany({ where: { linkedAccount: { organization: { isDemo: false } } } });
     const processed = transfers.filter((t) => t.status === 'PROCESSED');
     const held = transfers.filter((t) => t.status === 'ON_HOLD');
     const grossMinor = transfers.reduce((sum, t) => sum + t.grossMinor, 0);
     const institutionPayableMinor = processed.reduce((sum, t) => sum + t.netMinor, 0);
     const platformRevenueMinor = processed.reduce((sum, t) => sum + t.platformFeeMinor, 0);
     const heldMinor = held.reduce((sum, t) => sum + t.netMinor, 0);
-    const reserveHeldMinor = (await this.prisma.instituteLinkedAccount.aggregate({ _sum: { reserveHeldMinor: true } }))._sum.reserveHeldMinor ?? 0;
+    const reserveHeldMinor = (await this.prisma.instituteLinkedAccount.aggregate({ _sum: { reserveHeldMinor: true }, where: { organization: { isDemo: false } } }))._sum.reserveHeldMinor ?? 0;
 
     const settlements = await this.prisma.settlement.findMany({
+      where: { linkedAccount: { organization: { isDemo: false } } },
       include: { linkedAccount: { include: { organization: { select: { name: true } } } } },
       orderBy: { settledAt: 'desc' },
     });
@@ -441,8 +446,12 @@ export class SettlementsService {
   }
 
   async listTransfers(orgId?: string) {
+    // A specific orgId is an authenticated institution's own view of its own
+    // transfers (fine, even for a demo org) — the unscoped, cross-org branch
+    // is Super Admin's platform-wide view and must exclude demo institutions,
+    // same as superSummary() above.
     const rows = await this.prisma.transfer.findMany({
-      where: orgId ? { linkedAccount: { orgId } } : {},
+      where: orgId ? { linkedAccount: { orgId } } : { linkedAccount: { organization: { isDemo: false } } },
       include: { order: { include: { product: true } } },
       orderBy: { createdAt: 'desc' },
       take: 200,

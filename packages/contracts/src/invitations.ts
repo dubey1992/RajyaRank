@@ -46,6 +46,9 @@ export const registerOrganizationSchema = z.object({
   headFullName: z.string().min(2).max(120),
   headEmail: emailSchema,
   headPhone: phoneSchema,
+  // Permanent sales-demo sandbox — see Organization.isDemo's doc comment in
+  // schema.prisma. Set once here; never exposed as an editable toggle later.
+  isDemo: z.boolean().default(false),
 });
 export type RegisterOrganization = z.infer<typeof registerOrganizationSchema>;
 
@@ -79,6 +82,7 @@ export interface OrganizationView {
   code: string;
   accessCode: string | null;
   status: string;
+  isDemo: boolean;
   headName: string | null;
   headEmail: string | null;
   headPhone: string | null;
@@ -100,6 +104,7 @@ export interface OrganizationDetailView {
   name: string;
   code: string;
   status: string;
+  isDemo: boolean;
   createdAt: string;
   kyc: {
     status: string;

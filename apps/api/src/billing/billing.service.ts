@@ -93,6 +93,7 @@ export class BillingService {
   // ── Institution subscriptions ──
   async listSubscriptions() {
     const rows = await this.prisma.organizationSubscription.findMany({
+      where: { organization: { isDemo: false } },
       include: { organization: { select: { name: true } }, plan: { select: { nameHi: true, nameEn: true } } },
       orderBy: { createdAt: 'desc' },
     });
@@ -415,7 +416,12 @@ export class BillingService {
   }
 
   listInvoices() {
+    // Demo institutions' invoices are excluded from this platform-wide
+    // billing list for the same reason they're excluded from the revenue
+    // dashboard — a sales-demo's token charges have no place next to real
+    // institution billing records. See Organization.isDemo's doc comment.
     return this.prisma.institutionInvoice.findMany({
+      where: { subscription: { organization: { isDemo: false } } },
       include: { subscription: { include: { organization: { select: { name: true } } } } },
       orderBy: { createdAt: 'desc' },
     }).then((rows) =>

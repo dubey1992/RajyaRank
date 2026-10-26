@@ -17,6 +17,7 @@ export function OrganizationsManager({ initial, locale }: { initial: Organizatio
   const [headFullName, setHeadFullName] = useState('');
   const [headEmail, setHeadEmail] = useState('');
   const [headPhone, setHeadPhone] = useState('');
+  const [isDemo, setIsDemo] = useState(false);
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [toast, setToast] = useState<string | null>(null);
@@ -45,21 +46,21 @@ export function OrganizationsManager({ initial, locale }: { initial: Organizatio
     if (Object.keys(errs).length) return;
     setBusy(true);
     try {
-      const created = await apiFetch<{ id: string; code: string; invitationId: string }>('/admin/organizations', {
+      const created = await apiFetch<{ id: string; code: string; isDemo: boolean; invitationId: string }>('/admin/organizations', {
         method: 'POST',
-        body: JSON.stringify({ name: name.trim(), code, headFullName: headFullName.trim(), headEmail: headEmail.trim(), headPhone }),
+        body: JSON.stringify({ name: name.trim(), code, headFullName: headFullName.trim(), headEmail: headEmail.trim(), headPhone, isDemo }),
       });
       // Use the real database ids from the response, not the human-entered
       // code — every later action on this row (invite head, toggle status,
       // rotate access code, delete, resend) sends these straight to the API,
       // which looks things up by their real id, not by code.
       setRows((r) => [{
-        id: created.id, name: name.trim(), code: created.code, accessCode: null, status: 'ACTIVE',
+        id: created.id, name: name.trim(), code: created.code, accessCode: null, status: 'ACTIVE', isDemo: created.isDemo,
         headName: null, headEmail: null, headPhone: null, heads: [],
         pendingHeadInvites: [{ id: created.invitationId, email: headEmail.trim(), fullName: headFullName.trim() }],
         memberCount: 0, createdAt: new Date().toISOString(),
       }, ...r]);
-      setName(''); setCode(''); setHeadFullName(''); setHeadEmail(''); setHeadPhone(''); setErrors({});
+      setName(''); setCode(''); setHeadFullName(''); setHeadEmail(''); setHeadPhone(''); setIsDemo(false); setErrors({});
       setToast(L('संस्थान पंजीकृत; प्रमुख को आमंत्रण भेजा गया।', 'Institution registered; invite sent to the head.'));
     } catch (e) {
       setErrors(serverFieldErrors(e as ApiError));
@@ -207,7 +208,14 @@ export function OrganizationsManager({ initial, locale }: { initial: Organizatio
                   return (
                   <tr key={o.id}>
                     <td className="px-3 py-2">
-                      <Link href={`/${locale}/admin/organizations/${o.id}`} className="font-bold text-teal-700 hover:underline">{o.name}</Link>
+                      <div className="flex items-center gap-1.5">
+                        <Link href={`/${locale}/admin/organizations/${o.id}`} className="font-bold text-teal-700 hover:underline">{o.name}</Link>
+                        {o.isDemo ? (
+                          <span className="rounded-full bg-orange-100 px-1.5 py-0.5 text-[10px] font-extrabold uppercase text-orange-700" title={L('डेमो संस्थान — सार्वजनिक या रिपोर्ट में कभी नहीं दिखता', 'Demo institution — never shown publicly or in reports')}>
+                            {L('डेमो', 'Demo')}
+                          </span>
+                        ) : null}
+                      </div>
                       <div className="text-xs text-muted">{o.code}</div>
                     </td>
                     <td className="px-3 py-2 text-xs">
@@ -324,6 +332,15 @@ export function OrganizationsManager({ initial, locale }: { initial: Organizatio
             error={errors.headPhone}
             onChange={(e) => setHeadPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
           />
+          <label className="mb-3 flex items-start gap-2 text-xs text-muted">
+            <input type="checkbox" className="mt-0.5" checked={isDemo} onChange={(e) => setIsDemo(e.target.checked)} />
+            <span>
+              {L(
+                'यह एक डेमो संस्थान है (केवल बिक्री प्रदर्शन के लिए) — स्थायी है, बाद में बदला नहीं जा सकता। इसकी सामग्री कभी सार्वजनिक पृष्ठों या राजस्व रिपोर्ट में नहीं दिखेगी।',
+                "This is a demo institution (sales demonstration only) — permanent, can't be changed later. Its content never appears on public pages or in revenue reports.",
+              )}
+            </span>
+          </label>
           <Button type="submit" loading={busy} className="w-full">{L('पंजीकृत करें व प्रमुख को आमंत्रित करें', 'Register & invite head')}</Button>
         </form>
       </section>

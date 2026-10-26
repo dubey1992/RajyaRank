@@ -146,12 +146,21 @@ export class CatalogueController {
     return rows.map((r) => r.id);
   }
 
+  /** Permanent sales-demo sandboxes — excluded from every public discovery
+   *  surface alongside rejected-KYC/suspended institutes (see above), so a
+   *  demo institution's content never reaches a real visitor. See
+   *  Organization.isDemo's doc comment in schema.prisma. */
+  private async demoOrgIds(): Promise<string[]> {
+    const rows = await this.prisma.organization.findMany({ where: { isDemo: true }, select: { id: true } });
+    return rows.map((r) => r.id);
+  }
+
   /** Publicly discoverable courses (active + public only). */
   @Public()
   @Get('courses')
   async courses() {
-    const [rejectedOrgIds, suspendedOrgIds] = await Promise.all([this.rejectedKycOrgIds(), this.suspendedOrgIds()]);
-    const excludedOrgIds = [...new Set([...rejectedOrgIds, ...suspendedOrgIds])];
+    const [rejectedOrgIds, suspendedOrgIds, demoOrgIds] = await Promise.all([this.rejectedKycOrgIds(), this.suspendedOrgIds(), this.demoOrgIds()]);
+    const excludedOrgIds = [...new Set([...rejectedOrgIds, ...suspendedOrgIds, ...demoOrgIds])];
     const rows = await this.prisma.course.findMany({
       where: { deletedAt: null, status: 'ACTIVE', visibility: 'PUBLIC', OR: [{ orgId: null }, { orgId: { notIn: excludedOrgIds } }] },
       orderBy: { sequence: 'asc' },
@@ -185,7 +194,7 @@ export class CatalogueController {
   async institutes(): Promise<PartnerInstituteView[]> {
     const rejectedOrgIds = await this.rejectedKycOrgIds();
     const orgs = await this.prisma.organization.findMany({
-      where: { status: 'ACTIVE', id: { notIn: rejectedOrgIds } },
+      where: { status: 'ACTIVE', isDemo: false, id: { notIn: rejectedOrgIds } },
       select: { id: true, name: true, courses: { where: { deletedAt: null, status: 'ACTIVE' }, select: { id: true } } },
     });
     const active = orgs.filter((o) => o.courses.length > 0);
@@ -221,9 +230,12 @@ export class CatalogueController {
   async platformStats(): Promise<PlatformStatsView> {
     const rejectedOrgIds = await this.rejectedKycOrgIds();
     const [students, orgs] = await Promise.all([
-      this.prisma.user.count({ where: { kind: 'STUDENT', status: 'ACTIVE', deletedAt: null } }),
+      // A demo org's own (likely test) student accounts must not inflate the
+      // real "active students" count shown on the public marketing page —
+      // independent students (orgId null) are unaffected, same as elsewhere.
+      this.prisma.user.count({ where: { kind: 'STUDENT', status: 'ACTIVE', deletedAt: null, OR: [{ orgId: null }, { org: { isDemo: false } }] } }),
       this.prisma.organization.findMany({
-        where: { status: 'ACTIVE', id: { notIn: rejectedOrgIds } },
+        where: { status: 'ACTIVE', isDemo: false, id: { notIn: rejectedOrgIds } },
         select: { courses: { where: { deletedAt: null, status: 'ACTIVE' }, select: { id: true } } },
       }),
     ]);
@@ -292,7 +304,7 @@ export class CatalogueController {
         examId: true,
         orgId: true,
         createdAt: true,
-        organization: { select: { name: true, status: true } },
+        organization: { select: { name: true, status: true, isDemo: true } },
         coursePromiseHi: true,
         coursePromiseEn: true,
         learningOutcomes: true,
@@ -336,7 +348,7 @@ export class CatalogueController {
       },
     });
     if (!course) return null;
-    if (course.organization?.status === 'SUSPENDED') return null;
+    if (course.organization?.status === 'SUSPENDED' || course.organization?.isDemo) return null;
     const { organization, createdAt, ...rest } = course;
     return {
       ...rest,

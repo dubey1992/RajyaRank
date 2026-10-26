@@ -83,25 +83,29 @@ export class AnalyticsService {
       unpaidOrderRows,
     ] = await Promise.all([
       this.prisma.payment.aggregate({ _sum: { amountMinor: true }, where: { status: 'PAID' } }),
-      this.prisma.institutionInvoice.aggregate({ _sum: { totalMinor: true }, where: { status: 'PAID' } }),
+      // Demo institutions are excluded from every institution-revenue query
+      // below (via subscription.organization / organization.isDemo) — a
+      // sales-demo's token invoices/subscriptions must never inflate real
+      // revenue numbers or show up as a stalled-trial/overdue-invoice alert.
+      this.prisma.institutionInvoice.aggregate({ _sum: { totalMinor: true }, where: { status: 'PAID', subscription: { organization: { isDemo: false } } } }),
       this.prisma.payment.findMany({ where: { status: 'PAID', paidAt: { gte: twelveMonthsAgo } }, select: { amountMinor: true, paidAt: true } }),
-      this.prisma.institutionInvoice.findMany({ where: { status: 'PAID', paidAt: { gte: twelveMonthsAgo } }, select: { totalMinor: true, paidAt: true } }),
-      this.prisma.organizationSubscription.count({ where: { status: 'ACTIVE' } }),
+      this.prisma.institutionInvoice.findMany({ where: { status: 'PAID', paidAt: { gte: twelveMonthsAgo }, subscription: { organization: { isDemo: false } } }, select: { totalMinor: true, paidAt: true } }),
+      this.prisma.organizationSubscription.count({ where: { status: 'ACTIVE', organization: { isDemo: false } } }),
       this.prisma.entitlement.count({ where: { status: 'ACTIVE', product: { kind: 'SUBSCRIPTION' }, OR: [{ endsAt: null }, { endsAt: { gt: now } }] } }),
-      this.prisma.institutionInvoice.count({ where: { status: 'OVERDUE' } }),
-      this.prisma.organizationSubscription.findMany({ where: { status: 'ACTIVE' }, select: { plan: { select: { nameHi: true, nameEn: true } } } }),
+      this.prisma.institutionInvoice.count({ where: { status: 'OVERDUE', subscription: { organization: { isDemo: false } } } }),
+      this.prisma.organizationSubscription.findMany({ where: { status: 'ACTIVE', organization: { isDemo: false } }, select: { plan: { select: { nameHi: true, nameEn: true } } } }),
       this.prisma.entitlement.findMany({
         where: { status: 'ACTIVE', product: { kind: 'SUBSCRIPTION' }, OR: [{ endsAt: null }, { endsAt: { gt: now } }] },
         select: { product: { select: { titleHi: true, titleEn: true } } },
       }),
       this.prisma.organizationSubscription.findMany({
-        where: { status: 'TRIALING', createdAt: { lt: twoDaysAgo } },
+        where: { status: 'TRIALING', createdAt: { lt: twoDaysAgo }, organization: { isDemo: false } },
         select: { orgId: true, createdAt: true, organization: { select: { name: true } }, plan: { select: { nameEn: true } } },
         orderBy: { createdAt: 'asc' },
         take: 10,
       }),
       this.prisma.institutionInvoice.findMany({
-        where: { status: 'OVERDUE' },
+        where: { status: 'OVERDUE', subscription: { organization: { isDemo: false } } },
         select: { id: true, invoiceNumber: true, totalMinor: true, dueAt: true, subscription: { select: { organization: { select: { name: true } } } } },
         orderBy: { dueAt: 'asc' },
         take: 10,

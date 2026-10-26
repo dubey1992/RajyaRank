@@ -58,6 +58,7 @@ export class OrganizationsService {
         code: o.code,
         accessCode: o.accessCode,
         status: o.status,
+        isDemo: o.isDemo,
         headName: o.head?.displayName ?? heads[0]?.name ?? null,
         headEmail: o.head?.email ?? heads[0]?.email ?? null,
         headPhone: o.head?.phone ?? heads[0]?.phone ?? null,
@@ -287,6 +288,7 @@ export class OrganizationsService {
       name: org.name,
       code: org.code,
       status: org.status,
+      isDemo: org.isDemo,
       createdAt: org.createdAt.toISOString(),
       kyc: linkedAccount ? { status: linkedAccount.kycStatus, payoutsEnabled: linkedAccount.payoutsEnabled } : null,
       subscription: subscription
@@ -303,7 +305,7 @@ export class OrganizationsService {
     const existing = await this.prisma.organization.findUnique({ where: { code: dto.code } });
     if (existing) throw AppError.conflict('An institution with this code already exists.');
     const org = await this.prisma.organization.create({
-      data: { name: dto.name, code: dto.code, createdBy: actor.userId },
+      data: { name: dto.name, code: dto.code, createdBy: actor.userId, isDemo: dto.isDemo },
     });
     let invite: { id: string };
     try {
@@ -325,8 +327,8 @@ export class OrganizationsService {
       targetType: 'Organization',
       targetId: org.id,
       result: 'SUCCESS',
-      after: { code: dto.code, headEmail: dto.headEmail.toLowerCase() },
+      after: { code: dto.code, headEmail: dto.headEmail.toLowerCase(), isDemo: dto.isDemo },
     });
-    return { id: org.id, code: org.code, invitationId: invite.id };
+    return { id: org.id, code: org.code, isDemo: org.isDemo, invitationId: invite.id };
   }
 }
