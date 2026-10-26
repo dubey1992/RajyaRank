@@ -244,6 +244,38 @@ export class BillingService {
    *  cancellation is best-effort — a dev-fallback sub_dev_* id or a Razorpay
    *  outage must not block clearing the local record, matching the
    *  resilience pattern already used for Route linked-account creation. */
+  /** Grants a demo institution a permanent, always-ACTIVE subscription on the
+   *  top active plan — no Razorpay checkout, no invoice, nothing that ever
+   *  expires. Called when an org is marked demo (see
+   *  OrganizationsService.setDemo) so a sales demo is never interrupted by a
+   *  "choose a plan" or "renew" prompt. Deliberately reuses the exact
+   *  OrganizationSubscription row and status every real paying org has —
+   *  every place that asks "is this org's subscription active" (the
+   *  policy engine's STAFF gate, getMeOrRedirect's subscriptionRequired
+   *  redirect) already treats a far-future ACTIVE row as active, so nothing
+   *  else needs to special-case isDemo. A no-op if the org already has an
+   *  active-or-trialing subscription (don't clobber a real one by mistake). */
+  async grantLifetimeDemoSubscription(orgId: string): Promise<void> {
+    const existing = await this.prisma.organizationSubscription.findUnique({ where: { orgId } });
+    if (existing && (existing.status === 'ACTIVE' || existing.status === 'TRIALING')) return;
+
+    const topPlan = await this.prisma.subscriptionPlan.findFirst({ where: { active: true }, orderBy: { sequence: 'desc' } });
+    if (!topPlan) return; // no plans configured yet — nothing to grant
+
+    const now = new Date();
+    const farFuture = new Date(now.getFullYear() + 100, now.getMonth(), now.getDate());
+    const data = {
+      planId: topPlan.id,
+      billingCycle: 'ANNUAL' as const,
+      status: 'ACTIVE' as const,
+      razorpaySubscriptionId: null,
+      currentPeriodStart: now,
+      currentPeriodEnd: farFuture,
+    };
+    if (existing) await this.prisma.organizationSubscription.update({ where: { orgId }, data });
+    else await this.prisma.organizationSubscription.create({ data: { orgId, ...data } });
+  }
+
   async cancelSubscription(actor: Principal, orgId: string) {
     const subscription = await this.prisma.organizationSubscription.findUnique({ where: { orgId } });
     if (!subscription) throw AppError.notFound('This institution has no subscription to cancel.');

@@ -8,6 +8,7 @@ import { InvitationsService } from '../invitations/invitations.service';
 import { AuthorizationService } from '../authz/authorization.service';
 import { SessionService } from '../auth/session.service';
 import { NotificationService } from '../notifications/notification.service';
+import { BillingService } from '../billing/billing.service';
 import { AppError } from '../common/errors/app-error';
 
 // Avoids visually ambiguous characters (0/O, 1/I/L) since staff read this
@@ -29,6 +30,7 @@ export class OrganizationsService {
     private readonly authz: AuthorizationService,
     private readonly sessions: SessionService,
     private readonly notifications: NotificationService,
+    private readonly billing: BillingService,
   ) {}
 
   async list() {
@@ -165,11 +167,19 @@ export class OrganizationsService {
    *  demo, rather than building a fresh one from scratch. Once genuinely used
    *  as a demo it's meant to stay that way (see Organization.isDemo's doc
    *  comment) — this endpoint exists for Super Admin to set that up and to
-   *  correct a mistaken flag, not as a routine toggle. */
+   *  correct a mistaken flag, not as a routine toggle.
+   *
+   *  Marking demo also grants a lifetime subscription (see
+   *  BillingService.grantLifetimeDemoSubscription) so a sales demo is never
+   *  interrupted asking to pick or renew a plan — the whole point of a demo
+   *  is to show the product, not its own billing nag screen. Un-marking does
+   *  NOT revoke it; that's a separate, deliberate action via the existing
+   *  cancel-subscription control if it's ever actually needed. */
   async setDemo(actor: Principal, orgId: string, isDemo: boolean) {
     const org = await this.prisma.organization.findUnique({ where: { id: orgId } });
     if (!org) throw AppError.notFound('Institution not found.');
     await this.prisma.organization.update({ where: { id: orgId }, data: { isDemo } });
+    if (isDemo) await this.billing.grantLifetimeDemoSubscription(orgId);
     await this.audit.record({
       actorUserId: actor.userId,
       action: 'org.demo_flag_change',
@@ -344,6 +354,9 @@ export class OrganizationsService {
       await this.prisma.organization.delete({ where: { id: org.id } });
       throw e;
     }
+    // See setDemo's doc comment — a demo institution gets a lifetime
+    // subscription immediately so it never hits a "choose a plan" prompt.
+    if (dto.isDemo) await this.billing.grantLifetimeDemoSubscription(org.id);
     await this.audit.record({
       actorUserId: actor.userId,
       action: 'org.register',
