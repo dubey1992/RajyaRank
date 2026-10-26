@@ -13,6 +13,7 @@ import { NotifierService } from '../notifications/notifier.service';
 import { institutionInvoiceEmail } from '../notifications/email-templates/payments';
 import { subscriptionActivatedEmail, subscriptionExpiredEmail } from '../notifications/email-templates/subscriptions';
 import { renderInstitutionInvoicePdf } from '../common/pdf/pdf.util';
+import { isSubscriptionUsable } from '../common/subscription-status.util';
 import { AppError } from '../common/errors/app-error';
 
 function generateInvoiceNumber(date = new Date()): string {
@@ -257,7 +258,13 @@ export class BillingService {
    *  active-or-trialing subscription (don't clobber a real one by mistake). */
   async grantLifetimeDemoSubscription(orgId: string): Promise<void> {
     const existing = await this.prisma.organizationSubscription.findUnique({ where: { orgId } });
-    if (existing && (existing.status === 'ACTIVE' || existing.status === 'TRIALING')) return;
+    // isSubscriptionUsable, not a hand-rolled status check — TRIALING (a
+    // self-serve checkout started but never completed, no access granted at
+    // all) is NOT the same as TRIAL (a real, working free-access period) and
+    // must NOT be treated as "already fine, leave it alone": a demo org
+    // stuck in TRIALING otherwise keeps zero working access forever even
+    // after being marked demo.
+    if (existing && isSubscriptionUsable(existing.status, existing.currentPeriodEnd)) return;
 
     const topPlan = await this.prisma.subscriptionPlan.findFirst({ where: { active: true }, orderBy: { sequence: 'desc' } });
     if (!topPlan) return; // no plans configured yet — nothing to grant
