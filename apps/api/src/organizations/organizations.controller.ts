@@ -5,10 +5,12 @@ import {
   registerOrganizationSchema,
   inviteHeadSchema,
   orgStatusSchema,
+  orgDemoSchema,
   adminSetInvitePasswordSchema,
   type RegisterOrganization,
   type InviteHead,
   type OrgStatusUpdate,
+  type OrgDemoUpdate,
   type AdminSetInvitePassword,
 } from '@rajyarank/contracts';
 import { CurrentPrincipal } from '../common/decorators/current-principal.decorator';
@@ -81,6 +83,16 @@ export class OrganizationsController {
     @Body(new ZodValidationPipe(orgStatusSchema)) body: OrgStatusUpdate,
   ) {
     return this.orgs.setStatus(principal, id, body.status);
+  }
+
+  @Patch(':id/demo')
+  @RequirePermission('org.manage')
+  setDemo(
+    @CurrentPrincipal() principal: Principal,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(orgDemoSchema)) body: OrgDemoUpdate,
+  ) {
+    return this.orgs.setDemo(principal, id, body.isDemo);
   }
 
   @Post(':id/access-code')

@@ -62,6 +62,12 @@ export type InviteHead = z.infer<typeof inviteHeadSchema>;
 export const orgStatusSchema = z.object({ status: z.enum(['ACTIVE', 'SUSPENDED']) });
 export type OrgStatusUpdate = z.infer<typeof orgStatusSchema>;
 
+/** Marks an EXISTING institution as a permanent demo sandbox (or reverts a
+ *  mistaken flag) — distinct from `registerOrganizationSchema.isDemo`, which
+ *  only sets this at creation. See Organization.isDemo's doc comment. */
+export const orgDemoSchema = z.object({ isDemo: z.boolean() });
+export type OrgDemoUpdate = z.infer<typeof orgDemoSchema>;
+
 export interface OrganizationHeadView {
   id: string;
   name: string | null;

@@ -159,6 +159,29 @@ export class OrganizationsService {
     return { id: orgId, status };
   }
 
+  /** Marks an existing institution as a permanent demo sandbox (or reverts a
+   *  mistaken flag) — e.g. repurposing an institution that already has
+   *  realistic-looking content/subscription history as the standing sales
+   *  demo, rather than building a fresh one from scratch. Once genuinely used
+   *  as a demo it's meant to stay that way (see Organization.isDemo's doc
+   *  comment) — this endpoint exists for Super Admin to set that up and to
+   *  correct a mistaken flag, not as a routine toggle. */
+  async setDemo(actor: Principal, orgId: string, isDemo: boolean) {
+    const org = await this.prisma.organization.findUnique({ where: { id: orgId } });
+    if (!org) throw AppError.notFound('Institution not found.');
+    await this.prisma.organization.update({ where: { id: orgId }, data: { isDemo } });
+    await this.audit.record({
+      actorUserId: actor.userId,
+      action: 'org.demo_flag_change',
+      targetType: 'Organization',
+      targetId: orgId,
+      result: 'SUCCESS',
+      before: { isDemo: org.isDemo },
+      after: { isDemo },
+    });
+    return { id: orgId, isDemo };
+  }
+
   /** Issue (or rotate) the institute's price-redemption code. Not a secret —
    *  shared with the institute to hand to students, like a coupon code. */
   async regenerateAccessCode(actor: Principal, orgId: string) {

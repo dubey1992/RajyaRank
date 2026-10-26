@@ -83,6 +83,20 @@ export function OrganizationsManager({ initial, locale }: { initial: Organizatio
     }
   }
 
+  async function toggleDemo(o: OrganizationView) {
+    const next = !o.isDemo;
+    setRowBusy(o.id);
+    try {
+      await apiFetch(`/admin/organizations/${o.id}/demo`, { method: 'PATCH', body: JSON.stringify({ isDemo: next }) });
+      setRows((r) => r.map((x) => (x.id === o.id ? { ...x, isDemo: next } : x)));
+      setToast(next ? L('डेमो संस्थान के रूप में चिह्नित किया गया।', 'Marked as a demo institution.') : L('डेमो चिह्न हटाया गया।', 'Demo flag removed.'));
+    } catch (e) {
+      setToast((e as ApiError).message);
+    } finally {
+      setRowBusy(null);
+    }
+  }
+
   async function removeOrg() {
     if (!del) return;
     setRowBusy(del.id);
@@ -294,6 +308,12 @@ export function OrganizationsManager({ initial, locale }: { initial: Organizatio
                             label: o.status === 'ACTIVE' ? L('निष्क्रिय करें', 'Deactivate') : L('सक्रिय करें', 'Activate'),
                             disabled: rowBusy === o.id,
                             onClick: () => void toggleStatus(o),
+                          },
+                          {
+                            key: 'demo',
+                            label: o.isDemo ? L('डेमो चिह्न हटाएँ', 'Unmark as demo') : L('डेमो के रूप में चिह्नित करें', 'Mark as demo'),
+                            disabled: rowBusy === o.id,
+                            onClick: () => void toggleDemo(o),
                           },
                           {
                             key: 'delete',
