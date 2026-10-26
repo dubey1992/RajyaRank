@@ -257,17 +257,28 @@ export class BillingService {
    *  else needs to special-case isDemo. A no-op if the org already has an
    *  active-or-trialing subscription (don't clobber a real one by mistake). */
   async grantLifetimeDemoSubscription(orgId: string): Promise<void> {
-    const existing = await this.prisma.organizationSubscription.findUnique({ where: { orgId } });
-    // isSubscriptionUsable, not a hand-rolled status check — TRIALING (a
-    // self-serve checkout started but never completed, no access granted at
-    // all) is NOT the same as TRIAL (a real, working free-access period) and
-    // must NOT be treated as "already fine, leave it alone": a demo org
-    // stuck in TRIALING otherwise keeps zero working access forever even
-    // after being marked demo.
-    if (existing && isSubscriptionUsable(existing.status, existing.currentPeriodEnd)) return;
-
-    const topPlan = await this.prisma.subscriptionPlan.findFirst({ where: { active: true }, orderBy: { sequence: 'desc' } });
+    // `sequence` is a display/creation-order field, not a tier ranking — a
+    // low-seat promotional plan created later (e.g. a ₹10 "Welcome" plan)
+    // can easily have a HIGHER sequence than Pro, so ordering by it picked
+    // the wrong plan entirely (maxStaffSeats: 1, immediately blocking the
+    // demo from adding staff). priceMonthlyMinor actually tracks capacity
+    // in this plan catalog (Starter < Growth < Pro, and any promotional
+    // plan prices well below all three), so order by that instead.
+    const topPlan = await this.prisma.subscriptionPlan.findFirst({ where: { active: true }, orderBy: { priceMonthlyMinor: 'desc' } });
     if (!topPlan) return; // no plans configured yet — nothing to grant
+
+    const existing = await this.prisma.organizationSubscription.findUnique({ where: { orgId } });
+    // Skip only if it's both usable (see isSubscriptionUsable's note on
+    // TRIALING vs TRIAL below) AND already on the intended top plan —
+    // otherwise (re)grant. This makes the method self-correcting: re-running
+    // it (e.g. after fixing which plan counts as "top") upgrades an org
+    // that's already demo instead of leaving it stuck on a wrong-but-still-
+    // "usable" plan forever. TRIALING (a self-serve checkout started but
+    // never completed, no access granted at all) is NOT the same as TRIAL
+    // (a real, working free-access period) and must NOT be treated as
+    // "already fine, leave it alone" — a demo org stuck in TRIALING
+    // otherwise keeps zero working access even after being marked demo.
+    if (existing && existing.planId === topPlan.id && isSubscriptionUsable(existing.status, existing.currentPeriodEnd)) return;
 
     const now = new Date();
     const farFuture = new Date(now.getFullYear() + 100, now.getMonth(), now.getDate());
