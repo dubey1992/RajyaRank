@@ -273,6 +273,33 @@ export class StudentsService {
     };
   }
 
+  /** Edits a student's name only — deliberately NOT email/phone (login
+   *  credentials, out of scope here). studentProfile is upserted since,
+   *  unlike StaffProfile, it's not guaranteed to exist for every student row
+   *  (see the `u.studentProfile?.fullName ?? u.displayName` fallback used
+   *  throughout this file) — same upsert this service's own enroll() already
+   *  uses for the identical reason. */
+  async updateStudent(actor: Principal, id: string, fullName: string) {
+    const student = await this.requireStudent(actor, id);
+    await this.prisma.user.update({
+      where: { id },
+      data: {
+        displayName: fullName,
+        studentProfile: { upsert: { create: { fullName, onboardedAt: new Date() }, update: { fullName } } },
+      },
+    });
+    await this.audit.record({
+      actorUserId: actor.userId,
+      action: 'student.profile_update',
+      targetType: 'User',
+      targetId: id,
+      result: 'SUCCESS',
+      before: { fullName: student.studentProfile?.fullName ?? student.displayName },
+      after: { fullName },
+    });
+    return { id, fullName };
+  }
+
   async patchStatus(actor: Principal, id: string, status: 'ACTIVE' | 'SUSPENDED' | 'DISABLED', reason?: string) {
     const student = await this.requireStudent(actor, id);
     await this.prisma.user.update({ where: { id }, data: { status } });

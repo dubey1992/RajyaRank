@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
-import type { Principal } from '@rajyarank/auth';
+import type { Principal, RoleKey } from '@rajyarank/auth';
+import { STAFF_ASSIGNABLE_ROLES } from '@rajyarank/auth';
 import type { AssignmentInput, StaffDetail, StaffListItem } from '@rajyarank/contracts';
 import { ENV } from '../config/config.module';
 import type { ApiEnv } from '@rajyarank/config/env';
@@ -178,6 +179,57 @@ export class StaffAdminService {
       after: { status, reason: reason ?? null },
     });
     return { id, status };
+  }
+
+  /** Edits a staff member's name and role — deliberately NOT email/phone
+   *  (login credentials, out of scope here). Replaces their entire role set
+   *  with the one chosen key, matching how invite-time assignment already
+   *  only ever grants one role (UserRole is technically M:N, but nothing in
+   *  this product's UX assigns more than one role to a staff member). Two
+   *  guards mirror existing ones elsewhere in this file: SUPER_ADMIN can't be
+   *  assigned or edited away from this screen (same reasoning as
+   *  updateRolePermissions above — editing your own access from the screen
+   *  that controls it), and an institution's accepted primary Head
+   *  (Organization.headUserId) can't be edited off the ACADEMIC_HEAD role,
+   *  since that would orphan the institution the same way disabling/revoking
+   *  them is already blocked for (see the isPrimaryHead checks in
+   *  apps/admin/components/StaffTable.tsx). */
+  async updateStaff(actor: Principal, id: string, fullName: string, roleKey: RoleKey) {
+    await this.requireStaff(actor, id);
+    if (!STAFF_ASSIGNABLE_ROLES.includes(roleKey)) {
+      throw AppError.permissionDenied(`${roleKey} cannot be assigned from this screen.`);
+    }
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id },
+      include: { roles: { include: { role: true } }, staffProfile: true, org: { select: { headUserId: true } } },
+    });
+    if (user.roles.some((r) => r.role.key === 'SUPER_ADMIN')) {
+      throw AppError.permissionDenied('The Super Admin role cannot be edited from this screen.');
+    }
+    const isPrimaryHead = !!user.orgId && user.org?.headUserId === id;
+    if (isPrimaryHead && roleKey !== 'ACADEMIC_HEAD') {
+      throw AppError.conflict("This institution's primary Head must keep the Academic Head role — transfer headship to a co-Head first.");
+    }
+
+    const role = await this.prisma.role.findUniqueOrThrow({ where: { key: roleKey } });
+    const beforeRoleKeys = user.roles.map((r) => r.role.key);
+    await this.prisma.$transaction([
+      this.prisma.staffProfile.update({ where: { userId: id }, data: { fullName } }),
+      this.prisma.user.update({ where: { id }, data: { displayName: fullName } }),
+      this.prisma.userRole.deleteMany({ where: { userId: id } }),
+      this.prisma.userRole.create({ data: { userId: id, roleId: role.id, createdBy: actor.userId } }),
+    ]);
+    await this.authz.invalidate(id);
+    await this.audit.record({
+      actorUserId: actor.userId,
+      action: 'staff.profile_update',
+      targetType: 'User',
+      targetId: id,
+      result: 'SUCCESS',
+      before: { fullName: user.staffProfile?.fullName ?? user.displayName, roleKeys: beforeRoleKeys },
+      after: { fullName, roleKeys: [roleKey] },
+    });
+    return { id, fullName, roleKeys: [roleKey] };
   }
 
   /** Course/Subject/Batch assignment fields accept either a real ID or the

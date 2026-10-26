@@ -4,8 +4,10 @@ import {
   enrollStudentSchema,
   patchStaffStatusSchema,
   linkStudentToInstitutionSchema,
+  updateStudentSchema,
   type EnrollStudent,
   type LinkStudentToInstitution,
+  type UpdateStudent,
 } from '@rajyarank/contracts';
 import { CurrentPrincipal } from '../common/decorators/current-principal.decorator';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
@@ -56,6 +58,16 @@ export class StudentsController {
     @Body(new ZodValidationPipe(enrollStudentSchema)) body: EnrollStudent,
   ) {
     return this.students.enroll(principal, body);
+  }
+
+  @Patch(':id')
+  @RequirePermission('user.manage')
+  updateStudent(
+    @CurrentPrincipal() principal: Principal,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(updateStudentSchema)) body: UpdateStudent,
+  ) {
+    return this.students.updateStudent(principal, id, body.fullName);
   }
 
   @Patch(':id/status')

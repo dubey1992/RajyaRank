@@ -4,8 +4,10 @@ import {
   patchStaffStatusSchema,
   setAssignmentsSchema,
   updateRolePermissionsSchema,
+  updateStaffSchema,
   type AssignmentInput,
   type UpdateRolePermissions,
+  type UpdateStaff,
 } from '@rajyarank/contracts';
 import { CurrentPrincipal } from '../common/decorators/current-principal.decorator';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
@@ -26,6 +28,16 @@ export class StaffAdminController {
   @RequirePermission('user.manage')
   getOne(@CurrentPrincipal() principal: Principal, @Param('id') id: string) {
     return this.staff.getOne(principal, id);
+  }
+
+  @Patch('staff/:id')
+  @RequirePermission('user.manage')
+  updateStaff(
+    @CurrentPrincipal() principal: Principal,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(updateStaffSchema)) body: UpdateStaff,
+  ) {
+    return this.staff.updateStaff(principal, id, body.fullName, body.roleKey);
   }
 
   @Patch('staff/:id/status')

@@ -28,6 +28,13 @@ export const studentListItemSchema = z.object({
 });
 export type StudentListItem = z.infer<typeof studentListItemSchema>;
 
+// Name only — deliberately not email/phone (login credentials, out of scope
+// for a simple profile edit).
+export const updateStudentSchema = z.object({
+  fullName: z.string().trim().min(2).max(120),
+});
+export type UpdateStudent = z.infer<typeof updateStudentSchema>;
+
 // ── Independent students (support.manage, read-only + link action) ──────────
 // Students who signed up directly ("Create new account") and have never
 // joined an institute via an access code — orgId stays null until they do.
@@ -62,6 +69,17 @@ export const patchStaffStatusSchema = z.object({
   status: staffStatusSchema,
   reason: z.string().max(500).optional(),
 });
+
+// Name + role only — deliberately not email/phone (those are login
+// credentials with their own verification/notification implications, out of
+// scope for a simple profile edit). Server-side also restricts roleKey to
+// STAFF_ASSIGNABLE_ROLES (never SUPER_ADMIN/STUDENT) — see
+// StaffAdminService.updateStaff.
+export const updateStaffSchema = z.object({
+  fullName: z.string().trim().min(2).max(120),
+  roleKey: roleKeySchema,
+});
+export type UpdateStaff = z.infer<typeof updateStaffSchema>;
 
 export const staffListItemSchema = z.object({
   id: z.string().uuid(),

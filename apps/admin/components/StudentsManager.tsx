@@ -57,6 +57,10 @@ export function StudentsManager({
   const [rowError, setRowError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
+  // Edit-name modal state — name only (see updateStudentSchema).
+  const [editFor, setEditFor] = useState<StudentListItem | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editErrors, setEditErrors] = useState<Record<string, string>>({});
 
   function reportRow(e: unknown) {
     const err = e as ApiError;
@@ -165,6 +169,25 @@ export function StudentsManager({
     });
   }
 
+  async function submitEdit() {
+    if (!editFor) return;
+    const errs: Record<string, string> = {};
+    if (editName.trim().length < 2) errs.fullName = L('कृपया छात्र का नाम दर्ज करें।', 'Please enter the student’s name.');
+    setEditErrors(errs);
+    if (Object.keys(errs).length) return;
+    setBusyId(editFor.id);
+    try {
+      await apiFetch(`/admin/students/${editFor.id}`, { method: 'PATCH', body: JSON.stringify({ fullName: editName.trim() }) });
+      setRows((r) => r.map((row) => (row.id === editFor.id ? { ...row, fullName: editName.trim() } : row)));
+      setToast(L('विवरण अपडेट हो गया।', 'Details updated.'));
+      setEditFor(null);
+    } catch (e) {
+      setEditErrors(serverFieldErrors(e as ApiError));
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   async function confirmRun() {
     if (!pending) return;
     setBusyId(pending.id);
@@ -218,6 +241,12 @@ export function StudentsManager({
                       <RowActionsMenu
                         locale={locale}
                         actions={[
+                          {
+                            key: 'edit',
+                            label: L('संपादित करें', 'Edit'),
+                            disabled: busyId === s.id,
+                            onClick: () => { setEditFor(s); setEditName(s.fullName); setEditErrors({}); },
+                          },
                           ...(canDisable
                             ? (['ACTIVE', 'SUSPENDED', 'DISABLED'] as const)
                                 .filter((st) => st !== s.status)
@@ -301,6 +330,24 @@ export function StudentsManager({
           <Button type="submit" loading={busy} className="w-full">{L('नामांकित करें', 'Enroll student')}</Button>
         </form>
       </section>
+
+      {/* Edit-name modal — name only, never email/phone (login credentials). */}
+      {editFor ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/50 p-4" onClick={() => setEditFor(null)}>
+          <div className="w-full max-w-md rounded-lg border border-line bg-white p-5" onClick={(e) => e.stopPropagation()}>
+            <h3 className="mb-1 text-lg font-black text-navy-900">{L('छात्र संपादित करें', 'Edit student')}</h3>
+            <p className="mb-3 text-xs text-muted">{editFor.email ?? editFor.phone}</p>
+            {editErrors._form ? <div className="mb-3"><Alert tone="error">{editErrors._form}</Alert></div> : null}
+            <form noValidate onSubmit={(e) => { e.preventDefault(); void submitEdit(); }}>
+              <Field label={L('पूरा नाम', 'Full name')} name="fullName" value={editName} error={editErrors.fullName} onChange={(e) => setEditName(e.target.value)} />
+              <div className="mt-2 flex justify-end gap-2">
+                <button type="button" className="rounded-md border border-line px-3 py-2 text-sm font-bold" onClick={() => setEditFor(null)}>{L('रद्द करें', 'Cancel')}</button>
+                <Button type="submit" loading={busyId === editFor.id}>{L('सहेजें', 'Save')}</Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
 
       <ConfirmDialog
         open={!!pending}

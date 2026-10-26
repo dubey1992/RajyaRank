@@ -33,6 +33,10 @@ interface Pending {
   run: () => Promise<void>;
 }
 
+// Same restricted set InviteStaff.tsx offers — never SUPER_ADMIN/STUDENT,
+// matching the backend's STAFF_ASSIGNABLE_ROLES guard on the edit endpoint.
+const EDITABLE_ROLES = ['CONTENT_ADMIN', 'ACADEMIC_REVIEWER', 'ACADEMIC_HEAD'] as const;
+
 export function StaffTable({
   initial,
   locale,
@@ -60,6 +64,11 @@ export function StaffTable({
   const [pwFor, setPwFor] = useState<StaffListItem | null>(null);
   const [pwValue, setPwValue] = useState('');
   const [pwErrors, setPwErrors] = useState<Record<string, string>>({});
+  // Edit-profile modal state — name + role only (see updateStaffSchema).
+  const [editFor, setEditFor] = useState<StaffListItem | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editRole, setEditRole] = useState<(typeof EDITABLE_ROLES)[number]>('CONTENT_ADMIN');
+  const [editErrors, setEditErrors] = useState<Record<string, string>>({});
 
   function report(e: unknown) {
     const err = e as ApiError;
@@ -161,6 +170,28 @@ export function StaffTable({
     }
   }
 
+  async function submitEdit() {
+    if (!editFor) return;
+    const errs: Record<string, string> = {};
+    if (editName.trim().length < 2) errs.fullName = L('कृपया पूरा नाम दर्ज करें।', 'Please enter the full name.');
+    setEditErrors(errs);
+    if (Object.keys(errs).length) return;
+    setBusyId(editFor.id);
+    try {
+      await apiFetch(`/admin/staff/${editFor.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ fullName: editName.trim(), roleKey: editRole }),
+      });
+      setRows((r) => r.map((row) => (row.id === editFor.id ? { ...row, fullName: editName.trim(), roleKeys: [editRole] } : row)));
+      setToast(L('विवरण अपडेट हो गया।', 'Details updated.'));
+      setEditFor(null);
+    } catch (e) {
+      setEditErrors(serverFieldErrors(e as ApiError));
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   async function confirmRun() {
     if (!pending) return;
     setBusyId(pending.id);
@@ -225,6 +256,17 @@ export function StaffTable({
                               { key: 'set-password', label: L('पासवर्ड सेट करें', 'Set password'), disabled: busyId === s.id, onClick: () => { setPwFor(s); setPwValue(''); setPwErrors({}); } },
                             ]
                           : ([
+                              {
+                                key: 'edit',
+                                label: L('संपादित करें', 'Edit'),
+                                disabled: busyId === s.id,
+                                onClick: () => {
+                                  setEditFor(s);
+                                  setEditName(s.fullName);
+                                  setEditRole((s.roleKeys[0] as (typeof EDITABLE_ROLES)[number]) ?? 'CONTENT_ADMIN');
+                                  setEditErrors({});
+                                },
+                              },
                               ...(canDisable && !s.isPrimaryHead
                                 ? (['ACTIVE', 'SUSPENDED', 'DISABLED'] as const)
                                     .filter((st) => st !== s.status)
@@ -295,6 +337,46 @@ export function StaffTable({
               <div className="mt-2 flex justify-end gap-2">
                 <button type="button" className="rounded-md border border-line px-3 py-2 text-sm font-bold" onClick={() => setPwFor(null)}>{L('रद्द करें', 'Cancel')}</button>
                 <Button type="submit" loading={busyId === pwFor.id}>{L('पासवर्ड सेट करें', 'Set password')}</Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Edit-profile modal — name + role only, never email/phone (see
+          updateStaffSchema's doc comment). Primary Head's role is locked to
+          ACADEMIC_HEAD (backend rejects anything else for that row too). */}
+      {editFor ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/50 p-4" onClick={() => setEditFor(null)}>
+          <div className="w-full max-w-md rounded-lg border border-line bg-white p-5" onClick={(e) => e.stopPropagation()}>
+            <h3 className="mb-1 text-lg font-black text-navy-900">{L('स्टाफ़ संपादित करें', 'Edit staff member')}</h3>
+            <p className="mb-3 text-xs text-muted">{editFor.email}</p>
+            {editErrors._form ? <div className="mb-3"><Alert tone="error">{editErrors._form}</Alert></div> : null}
+            <form noValidate onSubmit={(e) => { e.preventDefault(); void submitEdit(); }}>
+              <Field label={L('पूरा नाम', 'Full name')} name="fullName" value={editName} error={editErrors.fullName} onChange={(e) => setEditName(e.target.value)} />
+              <label className="mb-1 block text-sm font-extrabold text-ink" htmlFor="editRole">{L('भूमिका', 'Role')}</label>
+              {editFor.isPrimaryHead ? (
+                <p className="mb-4 rounded-md border border-line bg-surface-soft px-3 py-2 text-xs text-muted">
+                  {L(
+                    'यह संस्थान का प्राथमिक प्रमुख है — भूमिका हमेशा "Academic Head" रहेगी।',
+                    'This is the institution\'s primary Head — the role stays Academic Head.',
+                  )}
+                </p>
+              ) : (
+                <select
+                  id="editRole"
+                  className="mb-4 w-full rounded-md border border-line bg-white px-3 py-3"
+                  value={editRole}
+                  onChange={(e) => setEditRole(e.target.value as (typeof EDITABLE_ROLES)[number])}
+                >
+                  {EDITABLE_ROLES.map((r) => (
+                    <option key={r} value={r}>{roleLabel(r, locale)}</option>
+                  ))}
+                </select>
+              )}
+              <div className="mt-2 flex justify-end gap-2">
+                <button type="button" className="rounded-md border border-line px-3 py-2 text-sm font-bold" onClick={() => setEditFor(null)}>{L('रद्द करें', 'Cancel')}</button>
+                <Button type="submit" loading={busyId === editFor.id}>{L('सहेजें', 'Save')}</Button>
               </div>
             </form>
           </div>
