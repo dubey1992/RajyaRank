@@ -281,6 +281,13 @@ export class BillingService {
     };
     if (existing) await this.prisma.organizationSubscription.update({ where: { orgId }, data });
     else await this.prisma.organizationSubscription.create({ data: { orgId, ...data } });
+
+    // Without this, the Head (and any staff) of this org stays stuck behind
+    // the "subscription isn't active" gate for up to 300s — the cached
+    // Principal's orgSubscriptionActive flag doesn't otherwise refresh until
+    // its Redis TTL expires. Identical fix to activateChargedSubscription's
+    // real-payment path above — missed it here the first time.
+    await this.authz.invalidateOrg(orgId);
   }
 
   async cancelSubscription(actor: Principal, orgId: string) {
