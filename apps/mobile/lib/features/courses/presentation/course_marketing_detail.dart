@@ -118,6 +118,7 @@ class _CourseMarketingDetailState extends ConsumerState<CourseMarketingDetail> {
                 ),
                 if (widget.signedIn)
                   IconButton(
+                    tooltip: wishlisted ? 'Remove from wishlist' : 'Add to wishlist',
                     icon: Icon(
                       wishlisted ? Icons.favorite : Icons.favorite_border,
                       color: wishlisted ? AppColors.orange500 : AppColors.muted,

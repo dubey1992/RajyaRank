@@ -269,6 +269,7 @@ class _ResetStepState extends State<_ResetStep> {
           decoration: InputDecoration(
             labelText: 'New password',
             suffixIcon: IconButton(
+              tooltip: widget.obscure ? 'Show password' : 'Hide password',
               icon: Icon(
                 widget.obscure
                     ? Icons.visibility_outlined

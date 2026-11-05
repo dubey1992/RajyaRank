@@ -161,6 +161,7 @@ class _CourseCatalogueScreenState extends ConsumerState<CourseCatalogueScreen> {
                       child: Text(title, style: Theme.of(context).textTheme.titleMedium),
                     ),
                     IconButton(
+                      tooltip: 'Close',
                       icon: const Icon(Icons.close),
                       onPressed: () => Navigator.of(context).pop(_Sentinel.none),
                     ),
@@ -272,6 +273,7 @@ class _CourseCatalogueScreenState extends ConsumerState<CourseCatalogueScreen> {
                           suffixIcon: _query.isEmpty
                               ? null
                               : IconButton(
+                                  tooltip: 'Clear search',
                                   icon: const Icon(Icons.clear, size: 18),
                                   onPressed: () {
                                     _searchController.clear();

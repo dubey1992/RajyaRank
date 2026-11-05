@@ -168,6 +168,7 @@ class _PasswordTabState extends ConsumerState<_PasswordTab> {
             decoration: InputDecoration(
               labelText: 'Password',
               suffixIcon: IconButton(
+                tooltip: _obscure ? 'Show password' : 'Hide password',
                 icon: Icon(
                   _obscure
                       ? Icons.visibility_outlined

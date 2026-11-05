@@ -75,6 +75,7 @@ class _OwnedCourseDetail extends ConsumerWidget {
         title: const Text('Course'),
         actions: [
           IconButton(
+            tooltip: wishlisted ? 'Remove from wishlist' : 'Add to wishlist',
             icon: Icon(wishlisted ? Icons.favorite : Icons.favorite_border),
             onPressed: () async {
               await ref.read(wishlistRepositoryProvider).toggle(courseId);

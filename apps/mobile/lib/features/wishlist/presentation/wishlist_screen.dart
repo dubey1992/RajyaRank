@@ -42,6 +42,7 @@ class WishlistScreen extends ConsumerWidget {
                       child: ListTile(
                         title: Text(course.titleEn),
                         trailing: IconButton(
+                          tooltip: 'Remove from wishlist',
                           icon: const Icon(Icons.favorite, color: AppColors.danger),
                           onPressed: () async {
                             await ref

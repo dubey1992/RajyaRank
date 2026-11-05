@@ -26,9 +26,8 @@ class _StudyPlanScreenState extends ConsumerState<StudyPlanScreen> {
       setState(() => _selectedDay = 0);
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(apiErrorMessage(error))));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(apiErrorMessage(error))));
       }
     } finally {
       if (mounted) setState(() => _regenerating = false);
@@ -62,18 +61,28 @@ class _StudyPlanScreenState extends ConsumerState<StudyPlanScreen> {
                   )
                 : OutlinedButton.icon(
                     onPressed: _regenerate,
-                    icon: const Icon(Icons.refresh, size: 16, color: Colors.white),
+                    icon: const Icon(
+                      Icons.refresh,
+                      size: 16,
+                      color: Colors.white,
+                    ),
                     label: const Text('Regenerate plan'),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.white,
                       side: const BorderSide(color: Colors.white70),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(20),
                       ),
                       minimumSize: Size.zero,
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                      textStyle: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
           ),
@@ -106,44 +115,52 @@ class _StudyPlanScreenState extends ConsumerState<StudyPlanScreen> {
                   itemBuilder: (context, i) {
                     final date = DateTime.tryParse(days[i].date);
                     final selected = i == index;
-                    return GestureDetector(
-                      onTap: () => setState(() => _selectedDay = i),
-                      child: Container(
-                        width: 56,
-                        decoration: BoxDecoration(
-                          color: selected ? AppColors.navy900 : Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: selected
-                                ? AppColors.navy900
-                                : AppColors.line,
+                    final dayLabel = i == 0
+                        ? 'Today'
+                        : (date != null ? _weekdayLabel(date) : 'Day ${i + 1}');
+                    return Semantics(
+                      button: true,
+                      selected: selected,
+                      label: date != null ? '$dayLabel, ${date.day}' : dayLabel,
+                      child: GestureDetector(
+                        onTap: () => setState(() => _selectedDay = i),
+                        child: Container(
+                          width: 56,
+                          decoration: BoxDecoration(
+                            color: selected ? AppColors.navy900 : Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: selected
+                                  ? AppColors.navy900
+                                  : AppColors.line,
+                            ),
                           ),
-                        ),
-                        alignment: Alignment.center,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              i == 0
-                                  ? 'Today'
-                                  : (date != null ? _weekdayLabel(date) : ''),
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: selected
-                                    ? Colors.white70
-                                    : AppColors.muted,
+                          alignment: Alignment.center,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                i == 0
+                                    ? 'Today'
+                                    : (date != null ? _weekdayLabel(date) : ''),
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: selected
+                                      ? Colors.white70
+                                      : AppColors.muted,
+                                ),
                               ),
-                            ),
-                            Text(
-                              date != null ? '${date.day}' : '-',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w700,
-                                color: selected
-                                    ? Colors.white
-                                    : AppColors.ink,
+                              Text(
+                                date != null ? '${date.day}' : '-',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  color: selected
+                                      ? Colors.white
+                                      : AppColors.ink,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                     );
@@ -211,9 +228,8 @@ class _PlanItemCardState extends ConsumerState<_PlanItemCard> {
     } catch (error) {
       if (mounted) {
         setState(() => _optimisticStatus = null);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(apiErrorMessage(error))));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(apiErrorMessage(error))));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -234,17 +250,19 @@ class _PlanItemCardState extends ConsumerState<_PlanItemCard> {
       // Server validates `toDate` with zod's `.datetime()`, which requires a
       // full ISO-8601 UTC string ("...T00:00:00.000Z") — a bare date like
       // "2026-08-25" fails that check with a 422 VALIDATION_FAILED.
-      final iso = DateTime.utc(picked.year, picked.month, picked.day)
-          .toIso8601String();
+      final iso = DateTime.utc(
+        picked.year,
+        picked.month,
+        picked.day,
+      ).toIso8601String();
       await ref
           .read(studyPlanRepositoryProvider)
           .reschedule(widget.item.id, iso);
       ref.invalidate(studyPlanWeekProvider);
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(apiErrorMessage(error))));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(apiErrorMessage(error))));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -345,7 +363,11 @@ class _StatusPill extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600),
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }

@@ -78,7 +78,9 @@ class _TestRunnerScreenState extends ConsumerState<TestRunnerScreen> {
 
   void _tick() {
     if (_submitted) return;
-    setState(() => _remainingSeconds = (_remainingSeconds - 1).clamp(0, 1 << 30));
+    setState(
+      () => _remainingSeconds = (_remainingSeconds - 1).clamp(0, 1 << 30),
+    );
     if (_remainingSeconds <= 0) {
       _timer?.cancel();
       _submit(auto: true);
@@ -126,7 +128,8 @@ class _TestRunnerScreenState extends ConsumerState<TestRunnerScreen> {
   bool get _allAnswered =>
       _flat.every((f) => _responses[f.question.questionVersionId] != null);
 
-  bool get _canSubmit => _allAnswered || _remainingSeconds <= _submitGraceSeconds;
+  bool get _canSubmit =>
+      _allAnswered || _remainingSeconds <= _submitGraceSeconds;
 
   Future<void> _submit({bool auto = false}) async {
     if (_submitted || _submitting) return;
@@ -144,16 +147,18 @@ class _TestRunnerScreenState extends ConsumerState<TestRunnerScreen> {
     } catch (error) {
       if (mounted) {
         setState(() => _submitting = false);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(apiErrorMessage(error))));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(apiErrorMessage(error))));
       }
     }
   }
 
   Future<void> _confirmSubmit() async {
-    final unanswered = _flat.length -
-        _flat.where((f) => _responses[f.question.questionVersionId] != null).length;
+    final unanswered =
+        _flat.length -
+        _flat
+            .where((f) => _responses[f.question.questionVersionId] != null)
+            .length;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -228,7 +233,10 @@ class _TestRunnerScreenState extends ConsumerState<TestRunnerScreen> {
               height: 56,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
                 itemCount: _flat.length,
                 separatorBuilder: (_, _) => const SizedBox(width: 6),
                 itemBuilder: (context, i) {
@@ -244,23 +252,36 @@ class _TestRunnerScreenState extends ConsumerState<TestRunnerScreen> {
                       : isAnswered
                       ? AppColors.teal500
                       : Colors.white;
-                  final Color textColor =
-                      isCurrent || isMarked || isAnswered
+                  final Color textColor = isCurrent || isMarked || isAnswered
                       ? Colors.white
                       : AppColors.ink;
-                  return GestureDetector(
-                    onTap: () => _goTo(i),
-                    child: Container(
-                      width: 40,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: color,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: AppColors.line),
-                      ),
-                      child: Text(
-                        '${i + 1}',
-                        style: TextStyle(color: textColor, fontWeight: FontWeight.w600),
+                  final statusLabel = isCurrent
+                      ? 'current'
+                      : isMarked
+                      ? 'marked for review'
+                      : isAnswered
+                      ? 'answered'
+                      : 'not answered';
+                  return Semantics(
+                    button: true,
+                    label: 'Question ${i + 1}, $statusLabel',
+                    child: GestureDetector(
+                      onTap: () => _goTo(i),
+                      child: Container(
+                        width: 40,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: color,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: AppColors.line),
+                        ),
+                        child: Text(
+                          '${i + 1}',
+                          style: TextStyle(
+                            color: textColor,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ),
                     ),
                   );
@@ -305,8 +326,11 @@ class _TestRunnerScreenState extends ConsumerState<TestRunnerScreen> {
                     _AnswerInput(
                       question: current.question,
                       response: _responses[qid],
-                      onChanged: (value) =>
-                          _save(qid, response: value, marked: _marked[qid] ?? false),
+                      onChanged: (value) => _save(
+                        qid,
+                        response: value,
+                        marked: _marked[qid] ?? false,
+                      ),
                     ),
                   ],
                 ),
@@ -319,6 +343,7 @@ class _TestRunnerScreenState extends ConsumerState<TestRunnerScreen> {
                 children: [
                   if (_currentIndex > 0)
                     IconButton(
+                      tooltip: 'Previous question',
                       onPressed: () => _goTo(_currentIndex - 1),
                       icon: const Icon(Icons.chevron_left),
                     ),
@@ -399,7 +424,8 @@ class _AnswerInputState extends State<_AnswerInput> {
   @override
   void didUpdateWidget(covariant _AnswerInput oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.question.questionVersionId != widget.question.questionVersionId) {
+    if (oldWidget.question.questionVersionId !=
+        widget.question.questionVersionId) {
       _numericController.text = widget.response?.toString() ?? '';
     }
   }
@@ -566,7 +592,9 @@ class _ResultSummaryScreen extends StatelessWidget {
                     Text(
                       result.passed! ? 'Passed' : 'Not passed',
                       style: TextStyle(
-                        color: result.passed! ? AppColors.success : AppColors.danger,
+                        color: result.passed!
+                            ? AppColors.success
+                            : AppColors.danger,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -670,7 +698,11 @@ class _ResultSummaryScreen extends StatelessWidget {
 }
 
 class _StatBox extends StatelessWidget {
-  const _StatBox({required this.label, required this.value, required this.color});
+  const _StatBox({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
 
   final String label;
   final String value;
@@ -692,7 +724,10 @@ class _StatBox extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 4),
-            Text(label, style: const TextStyle(color: AppColors.muted, fontSize: 12)),
+            Text(
+              label,
+              style: const TextStyle(color: AppColors.muted, fontSize: 12),
+            ),
           ],
         ),
       ),
@@ -714,7 +749,10 @@ class _MiniStat extends StatelessWidget {
           value,
           style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
         ),
-        Text(label, style: const TextStyle(color: AppColors.muted, fontSize: 12)),
+        Text(
+          label,
+          style: const TextStyle(color: AppColors.muted, fontSize: 12),
+        ),
       ],
     );
   }

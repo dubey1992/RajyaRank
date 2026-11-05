@@ -272,6 +272,7 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
         actions: [
           if (lessonAsync.hasValue)
             IconButton(
+              tooltip: _bookmarked ? 'Remove bookmark' : 'Bookmark this lesson',
               icon: Icon(_bookmarked ? Icons.bookmark : Icons.bookmark_border),
               onPressed: _toggleBookmark,
             ),
