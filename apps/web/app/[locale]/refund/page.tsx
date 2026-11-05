@@ -1,7 +1,30 @@
+import type { Metadata } from 'next';
 import { resolveLocale } from '@/lib/i18n';
 import { LegalPageLayout } from '@/components/LegalPageLayout';
 
 export const dynamic = 'force-static';
+
+// NEXT_PUBLIC_ deliberately, not WEB_PUBLIC_URL — see the comment in robots.ts.
+const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
+
+export function generateMetadata({ params }: { params: { locale: string } }): Metadata {
+  const locale = resolveLocale(params.locale);
+  const hi = locale === 'hi';
+  const title = hi ? 'रिफ़ंड नीति' : 'Refund Policy';
+  const description = hi
+    ? 'RajyaRank कोर्स, टेस्ट सीरीज़ और सदस्यता योजनाओं के लिए रिफ़ंड नीति।'
+    : 'RajyaRank’s refund policy for courses, test series, and subscription plans.';
+  return {
+    title,
+    description,
+    alternates: {
+      canonical: `/${locale}/refund`,
+      languages: { 'hi-IN': '/hi/refund', 'en-IN': '/en/refund', 'x-default': '/hi/refund' },
+    },
+    openGraph: { type: 'website', title, description, url: `${SITE}/${locale}/refund`, images: [`${SITE}/opengraph-image`] },
+    twitter: { card: 'summary_large_image', title, description },
+  };
+}
 
 export default function RefundPage({ params }: { params: { locale: string } }) {
   const locale = resolveLocale(params.locale);

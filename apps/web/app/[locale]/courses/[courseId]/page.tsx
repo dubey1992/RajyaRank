@@ -55,8 +55,9 @@ export async function generateMetadata({
       title,
       description,
       url: `${SITE}/${locale}/courses/${params.courseId}`,
+      images: [`${SITE}/opengraph-image`],
     },
-    twitter: { card: 'summary', title, description },
+    twitter: { card: 'summary_large_image', title, description },
   };
 }
 

@@ -6,6 +6,7 @@ import { resolveLocale, getT } from '@/lib/i18n';
 import { RegisterSW } from '@/components/RegisterSW';
 import { GoogleAnalytics } from '@/components/GoogleAnalytics';
 import { AttributionCapture } from '@/components/AttributionCapture';
+import { WhatsAppButton } from '@/components/WhatsAppButton';
 import '@rajyarank/ui/styles.css';
 import './globals.css';
 
@@ -61,7 +62,7 @@ export function generateMetadata({ params }: { params: { locale: string } }): Me
     // pages previously had none at all — only blog posts did). A page-level
     // `metadata`/`generateMetadata` export can still override this.
     twitter: {
-      card: 'summary',
+      card: 'summary_large_image',
       title: 'RajyaRank',
       description,
     },
@@ -93,6 +94,7 @@ export default function LocaleLayout({
           {t('common.appName')}
         </a>
         {children}
+        <WhatsAppButton locale={locale} />
         <RegisterSW />
         <GoogleAnalytics />
         <AttributionCapture />

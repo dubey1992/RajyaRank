@@ -27,8 +27,8 @@ export function generateMetadata({ params }: { params: { locale: string } }): Me
       canonical: `/${locale}/pricing`,
       languages: { 'hi-IN': '/hi/pricing', 'en-IN': '/en/pricing', 'x-default': '/hi/pricing' },
     },
-    openGraph: { type: 'website', title, description, url: `${SITE}/${locale}/pricing` },
-    twitter: { card: 'summary', title, description },
+    openGraph: { type: 'website', title, description, url: `${SITE}/${locale}/pricing`, images: [`${SITE}/opengraph-image`] },
+    twitter: { card: 'summary_large_image', title, description },
   };
 }
 

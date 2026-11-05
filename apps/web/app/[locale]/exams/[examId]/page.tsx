@@ -46,8 +46,9 @@ export async function generateMetadata({ params }: { params: { locale: string; e
       title: nm,
       description,
       url: `${SITE}/${locale}/exams/${params.examId}`,
+      images: [`${SITE}/opengraph-image`],
     },
-    twitter: { card: 'summary', title: nm, description },
+    twitter: { card: 'summary_large_image', title: nm, description },
   };
 }
 
