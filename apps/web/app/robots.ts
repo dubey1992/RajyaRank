@@ -24,6 +24,16 @@ export default function robots(): MetadataRoute.Robots {
           '/*/doubts',
           '/*/learn',
           '/*/tests',
+          // Authenticated-only, personalized student surfaces — no content
+          // value to a crawler, and would otherwise index as thin/duplicate
+          // pages (every visitor sees the same empty/login-redirect state).
+          // /pyq and /exam-notices deliberately NOT here — those are public
+          // browse pages with real indexable content, unlike these.
+          '/*/my-courses',
+          '/*/wishlist',
+          '/*/revision',
+          '/*/study-plan',
+          '/*/support',
         ],
       },
     ],

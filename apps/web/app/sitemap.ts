@@ -26,18 +26,26 @@ interface Ref { id: string }
 interface BlogRef { slug: string; updatedAt: string }
 interface CurrentAffairRef { id: string; publishedAt: string | null }
 
-function entry(path: string, priority: number, lastModified?: string): MetadataRoute.Sitemap[number] {
-  return {
-    url: `${SITE}/en${path}`,
+/** One sitemap <url> entry per language, each carrying BOTH languages as
+ *  reciprocal hreflang alternates (including itself, per Google's hreflang
+ *  sitemap guidance). Previously this emitted only the /en URL as the <loc>,
+ *  with /hi mentioned solely inside that one entry's alternates — the /hi
+ *  page never appeared as its own primary sitemap entry at all. For a site
+ *  whose whole positioning is Hindi-native (not English-with-a-toggle),
+ *  that under-signals the Hindi pages to Google. Returns two entries. */
+function entries(path: string, priority: number, lastModified?: string): MetadataRoute.Sitemap {
+  const languages = { hi: `${SITE}/hi${path}`, en: `${SITE}/en${path}` };
+  return (['en', 'hi'] as const).map((locale) => ({
+    url: languages[locale],
     ...(lastModified ? { lastModified: new Date(lastModified) } : {}),
-    changeFrequency: 'weekly',
+    changeFrequency: 'weekly' as const,
     priority,
-    alternates: { languages: { hi: `${SITE}/hi${path}`, en: `${SITE}/en${path}` } },
-  };
+    alternates: { languages },
+  }));
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const entries: MetadataRoute.Sitemap = STATIC_PATHS.map((p) => entry(p.path, p.priority));
+  const result: MetadataRoute.Sitemap = STATIC_PATHS.flatMap((p) => entries(p.path, p.priority));
 
   // Dynamic exam + course + blog post + current-affairs URLs (best-effort —
   // skipped if the API is unreachable at build).
@@ -50,10 +58,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // silently age out of the sitemap while their detail pages stay live.
     apiFetchServer<CurrentAffairRef[]>('/current-affairs/sitemap-ids', ''),
   ]);
-  for (const e of exams ?? []) entries.push(entry(`/exams/${e.id}`, 0.7));
-  for (const c of courses ?? []) entries.push(entry(`/courses/${c.id}`, 0.7));
-  for (const p of posts ?? []) entries.push(entry(`/blog/${p.slug}`, 0.6, p.updatedAt));
-  for (const c of currentAffairs ?? []) entries.push(entry(`/current-affairs/${c.id}`, 0.6, c.publishedAt ?? undefined));
+  for (const e of exams ?? []) result.push(...entries(`/exams/${e.id}`, 0.7));
+  for (const c of courses ?? []) result.push(...entries(`/courses/${c.id}`, 0.7));
+  for (const p of posts ?? []) result.push(...entries(`/blog/${p.slug}`, 0.6, p.updatedAt));
+  for (const c of currentAffairs ?? []) result.push(...entries(`/current-affairs/${c.id}`, 0.6, c.publishedAt ?? undefined));
 
-  return entries;
+  return result;
 }

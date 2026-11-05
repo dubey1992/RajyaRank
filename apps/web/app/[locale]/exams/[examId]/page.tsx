@@ -11,6 +11,9 @@ import type { StateRef, ExamRef } from '@/components/ExamExplorer';
 
 export const dynamic = 'force-dynamic';
 
+// NEXT_PUBLIC_ deliberately, not WEB_PUBLIC_URL — see the comment in robots.ts.
+const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
+
 interface CourseRef {
   id: string;
   code: string;
@@ -26,9 +29,10 @@ export async function generateMetadata({ params }: { params: { locale: string; e
   const exams = await apiFetchServer<ExamRef[]>('/exams', '');
   const exam = exams?.find((e) => e.id === params.examId);
   const nm = exam ? (hi ? exam.nameHi : exam.nameEn) : hi ? 'परीक्षा' : 'Exam';
+  const description = hi ? `${nm} की तैयारी के लिए कोर्स और सिलेबस।` : `Courses and syllabus to prepare for ${nm}.`;
   return {
     title: nm,
-    description: hi ? `${nm} की तैयारी के लिए कोर्स और सिलेबस।` : `Courses and syllabus to prepare for ${nm}.`,
+    description,
     alternates: {
       canonical: `/${locale}/exams/${params.examId}`,
       languages: {
@@ -37,6 +41,13 @@ export async function generateMetadata({ params }: { params: { locale: string; e
         'x-default': `/hi/exams/${params.examId}`,
       },
     },
+    openGraph: {
+      type: 'website',
+      title: nm,
+      description,
+      url: `${SITE}/${locale}/exams/${params.examId}`,
+    },
+    twitter: { card: 'summary', title: nm, description },
   };
 }
 

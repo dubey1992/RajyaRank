@@ -50,6 +50,13 @@ export async function generateMetadata({
         'x-default': `/hi/courses/${params.courseId}`,
       },
     },
+    openGraph: {
+      type: 'website',
+      title,
+      description,
+      url: `${SITE}/${locale}/courses/${params.courseId}`,
+    },
+    twitter: { card: 'summary', title, description },
   };
 }
 

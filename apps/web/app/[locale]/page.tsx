@@ -12,6 +12,9 @@ import { apiFetchServer } from '@/lib/api';
 import { getMe } from '@/lib/student';
 import type { ProductView, PartnerInstituteView, PlatformStatsView, State, Exam, TestimonialView, FaqView, StudyContentTeaserView, MobileAppLatestReleaseView, MarketingBannerView } from '@rajyarank/contracts';
 
+// NEXT_PUBLIC_ deliberately, not WEB_PUBLIC_URL — see the comment in robots.ts.
+const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
+
 const TEASER_STYLE: Record<StudyContentTeaserView['kind'], { icon: string; color: string; fg: string }> = {
   VIDEO: { icon: '▶', color: 'edf4ff', fg: '2e69ba' },
   PDF: { icon: '📄', color: 'fff5e9', fg: 'd96b17' },
@@ -87,6 +90,29 @@ export default async function LandingPage({ params }: { params: { locale: string
         }
       : null;
 
+  // Organization + WebSite — the homepage had no site-level structured data
+  // at all (only the FAQPage block below). Organization is what powers a
+  // branded knowledge-panel entry; WebSite + SearchAction is what enables
+  // Google's sitelinks search box under the site's own search result.
+  const orgJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Organization',
+    name: 'RajyaRank',
+    url: SITE,
+    logo: `${SITE}/logo.svg`,
+  };
+  const websiteJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    name: 'RajyaRank',
+    url: SITE,
+    potentialAction: {
+      '@type': 'SearchAction',
+      target: `${SITE}/${locale}/search?q={search_term_string}`,
+      'query-input': 'required name=search_term_string',
+    },
+  };
+
   return (
     <main id="main" className="bg-[#fffdfb]">
       {/* Announcement — dynamic, Super-Admin-managed (Marketing → Homepage banner) */}
@@ -94,6 +120,8 @@ export default async function LandingPage({ params }: { params: { locale: string
 
       {/* Header */}
       <PublicHeader locale={locale} showInstitutesLink={!!(institutes && institutes.length)} me={me} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }} />
       {faqJsonLd ? <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} /> : null}
 
       {/* Hero */}

@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
 import { resolveLocale, getT } from '@/lib/i18n';
 import { apiFetchServer } from '@/lib/api';
@@ -8,6 +9,28 @@ import type { ProductView, EntitlementView } from '@rajyarank/contracts';
 import { formatDate } from '@rajyarank/ui';
 
 export const dynamic = 'force-dynamic';
+
+// NEXT_PUBLIC_ deliberately, not WEB_PUBLIC_URL — see the comment in robots.ts.
+const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
+
+export function generateMetadata({ params }: { params: { locale: string } }): Metadata {
+  const locale = resolveLocale(params.locale);
+  const hi = locale === 'hi';
+  const title = hi ? 'मूल्य निर्धारण' : 'Pricing';
+  const description = hi
+    ? 'कोर्स और परीक्षा प्लान की कीमतें — पारदर्शी, बिना छुपे शुल्क के।'
+    : 'Course and exam plan pricing — transparent, no hidden fees.';
+  return {
+    title,
+    description,
+    alternates: {
+      canonical: `/${locale}/pricing`,
+      languages: { 'hi-IN': '/hi/pricing', 'en-IN': '/en/pricing', 'x-default': '/hi/pricing' },
+    },
+    openGraph: { type: 'website', title, description, url: `${SITE}/${locale}/pricing` },
+    twitter: { card: 'summary', title, description },
+  };
+}
 
 function isLive(e: EntitlementView): boolean {
   return e.status === 'ACTIVE' && (!e.endsAt || new Date(e.endsAt) > new Date());

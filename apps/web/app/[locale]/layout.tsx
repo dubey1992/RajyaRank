@@ -32,9 +32,13 @@ const notoSansDevanagari = Noto_Sans_Devanagari({
 export function generateMetadata({ params }: { params: { locale: string } }): Metadata {
   const locale = resolveLocale(params.locale);
   const hi = locale === 'hi';
+  // Pan-India positioning, not Bihar/Jharkhand-only — this is the exact text
+  // Google shows as the search-result snippet, so it must match the site's
+  // actual positioning everywhere else (e.g. the homepage hero already says
+  // "All Over India" / "देश भर में" — this previously didn't match it).
   const description = hi
-    ? 'बिहार व झारखंड की सरकारी परीक्षा तैयारी — BPSC, SSC, रेलवे व पुलिस के लिए वीडियो क्लास, नोट्स, मॉक टेस्ट, दैनिक करेंट अफेयर्स और व्यक्तिगत अध्ययन योजना।'
-    : 'Bihar & Jharkhand government exam prep for BPSC, SSC, Railways & Police — video classes, notes, mock tests, daily current affairs and a personalised study plan.';
+    ? 'देश भर में सरकारी परीक्षा तैयारी — BPSC, SSC, रेलवे व पुलिस के लिए वीडियो क्लास, नोट्स, मॉक टेस्ट, दैनिक करेंट अफेयर्स और व्यक्तिगत अध्ययन योजना।'
+    : 'Government exam prep for students All Over India — BPSC, SSC, Railways & Police — video classes, notes, mock tests, daily current affairs and a personalised study plan.';
   return {
     metadataBase: new URL(SITE),
     title: { default: 'RajyaRank', template: '%s · RajyaRank' },
@@ -50,6 +54,14 @@ export function generateMetadata({ params }: { params: { locale: string } }): Me
       siteName: 'RajyaRank',
       locale: hi ? 'hi_IN' : 'en_IN',
       url: `${SITE}/${locale}`,
+      title: 'RajyaRank',
+      description,
+    },
+    // Fallback Twitter card for every page that doesn't set its own (most
+    // pages previously had none at all — only blog posts did). A page-level
+    // `metadata`/`generateMetadata` export can still override this.
+    twitter: {
+      card: 'summary',
       title: 'RajyaRank',
       description,
     },
