@@ -159,7 +159,7 @@ export default async function LandingPage({ params }: { params: { locale: string
           <div className="overflow-hidden rounded-[28px] border border-orange-100 bg-white shadow-[0_14px_35px_rgba(15,23,42,0.08)] md:rotate-[1.2deg]" aria-label={L('छात्र डैशबोर्ड झलक', 'Student dashboard preview')}>
             <div className="bg-gradient-to-br from-navy-900 to-navy-800 p-6 text-white">
               <small className="text-white/75">{L('आज का अध्ययन लक्ष्य', "Today's study goal")}</small>
-              <h2 className="mb-3 mt-1.5 text-2xl font-black">{L('नमस्ते, रवि 👋', 'Hello, Ravi 👋')}</h2>
+              <h2 className="mb-3 mt-1.5 text-2xl font-black">{L('नमस्ते, प्रिया 👋', 'Hello, Priya 👋')}</h2>
               <div className="mb-2 flex items-center justify-between text-xs">
                 <span>{L('साप्ताहिक प्रगति', 'Weekly progress')}</span>
                 <strong>64%</strong>

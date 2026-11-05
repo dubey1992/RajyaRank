@@ -13,6 +13,7 @@
 .env.staging
 .env.production
 .env.preproduction
+.env.prodCreds
 !.env.example
 !.env.*.example
 *.pem

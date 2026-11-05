@@ -1,13 +1,28 @@
+'use client';
+import { usePathname } from 'next/navigation';
+
 /** Site-wide floating WhatsApp contact — fixed bottom-left (the homepage's
  *  BackToTopButton already owns bottom-right) so visitors on any page can
  *  reach support/demo requests directly. +91 92053 13831, fixed number per
  *  product request — not sourced from env since it's a single support line,
- *  not environment-specific config. */
+ *  not environment-specific config.
+ *
+ *  The prefilled message is audience-specific: the one public page clearly
+ *  aimed at institutions (/request-demo) gets the institute-pitch quote;
+ *  every other page — the default student-facing site — gets the student
+ *  quote. 'use client' only for usePathname; no other interactivity. */
 export function WhatsAppButton({ locale }: { locale: string }) {
   const hi = locale === 'hi';
-  const message = hi
-    ? 'नमस्ते, मुझे RajyaRank के बारे में सहायता चाहिए / डेमो देखना है।'
-    : "Hi, I'd like some help with RajyaRank / to see a demo.";
+  const pathname = usePathname();
+  const forInstitute = pathname?.includes('/request-demo') ?? false;
+
+  const message = forInstitute
+    ? hi
+      ? 'नमस्ते RajyaRank! मैं एक कोचिंग संस्थान चलाता/चलाती हूं और अपने छात्रों को एक असली ऑनलाइन बढ़त देने के लिए तैयार हूं — मुझे अपने प्लेटफ़ॉर्म का लाइव डेमो दिखाइए। 🚀'
+      : "Hi RajyaRank! I run a coaching institute and I'm ready to give my students a real online edge — show me a live demo of your platform. 🚀"
+    : hi
+      ? 'नमस्ते RajyaRank! मैं अपनी सरकारी परीक्षा पास करने के लिए तैयार हूं — मुझे दिखाइए कि आपका प्लेटफ़ॉर्म मेरी तैयारी को कैसे बेहतर और तेज़ बना सकता है। 🚀'
+      : "Hi RajyaRank! I'm ready to crack my government exam — show me how your platform can help me prepare smarter and faster. 🚀";
   const href = `https://wa.me/919205313831?text=${encodeURIComponent(message)}`;
 
   return (
