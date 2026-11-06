@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/auth_repository.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/empty_state.dart';
+import '../../../core/widgets/pill_badge.dart';
 import '../../wishlist/data/wishlist_repository.dart';
 import '../data/catalogue_models.dart';
 import '../data/catalogue_repository.dart';
@@ -39,7 +41,10 @@ class _CourseCatalogueScreenState extends ConsumerState<CourseCatalogueScreen> {
   _SortBy _sort = _SortBy.newest;
 
   bool get _hasActiveFilters =>
-      _examId != null || _stateId != null || _audience != _Audience.all || _sort != _SortBy.newest;
+      _examId != null ||
+      _stateId != null ||
+      _audience != _Audience.all ||
+      _sort != _SortBy.newest;
 
   void _resetFilters() {
     setState(() {
@@ -91,7 +96,8 @@ class _CourseCatalogueScreenState extends ConsumerState<CourseCatalogueScreen> {
       title: 'Exam',
       options: [
         const _PickerOption(value: null, label: 'All exams'),
-        for (final exam in exams) _PickerOption(value: exam.id, label: exam.nameEn),
+        for (final exam in exams)
+          _PickerOption(value: exam.id, label: exam.nameEn),
       ],
       selected: _examId,
     );
@@ -103,7 +109,8 @@ class _CourseCatalogueScreenState extends ConsumerState<CourseCatalogueScreen> {
       title: 'State',
       options: [
         const _PickerOption(value: null, label: 'All states'),
-        for (final state in states) _PickerOption(value: state.id, label: state.nameEn),
+        for (final state in states)
+          _PickerOption(value: state.id, label: state.nameEn),
       ],
       selected: _stateId,
     );
@@ -116,11 +123,16 @@ class _CourseCatalogueScreenState extends ConsumerState<CourseCatalogueScreen> {
       options: const [
         _PickerOption(value: _Audience.all, label: 'All access types'),
         _PickerOption(value: _Audience.public, label: 'Public'),
-        _PickerOption(value: _Audience.institute, label: 'Institute-affiliated'),
+        _PickerOption(
+          value: _Audience.institute,
+          label: 'Institute-affiliated',
+        ),
       ],
       selected: _audience,
     );
-    if (picked != _Sentinel.none) setState(() => _audience = picked as _Audience);
+    if (picked != _Sentinel.none) {
+      setState(() => _audience = picked as _Audience);
+    }
   }
 
   Future<void> _pickSort() async {
@@ -158,12 +170,16 @@ class _CourseCatalogueScreenState extends ConsumerState<CourseCatalogueScreen> {
                 child: Row(
                   children: [
                     Expanded(
-                      child: Text(title, style: Theme.of(context).textTheme.titleMedium),
+                      child: Text(
+                        title,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
                     ),
                     IconButton(
                       tooltip: 'Close',
                       icon: const Icon(Icons.close),
-                      onPressed: () => Navigator.of(context).pop(_Sentinel.none),
+                      onPressed: () =>
+                          Navigator.of(context).pop(_Sentinel.none),
                     ),
                   ],
                 ),
@@ -176,7 +192,10 @@ class _CourseCatalogueScreenState extends ConsumerState<CourseCatalogueScreen> {
                       ListTile(
                         title: Text(option.label),
                         trailing: option.value == selected
-                            ? const Icon(Icons.check_circle, color: AppColors.teal500)
+                            ? const Icon(
+                                Icons.check_circle,
+                                color: AppColors.teal500,
+                              )
                             : null,
                         onTap: () => Navigator.of(context).pop(option.value),
                       ),
@@ -198,16 +217,17 @@ class _CourseCatalogueScreenState extends ConsumerState<CourseCatalogueScreen> {
     final exams = ref.watch(examsProvider);
     final states = ref.watch(statesProvider);
     final ownedIds = signedIn
-        ? ref.watch(myCoursesProvider).maybeWhen(
-            data: (list) => list.map((c) => c.courseId).toSet(),
-            orElse: () => const <String>{},
-          )
+        ? ref
+              .watch(myCoursesProvider)
+              .maybeWhen(
+                data: (list) => list.map((c) => c.courseId).toSet(),
+                orElse: () => const <String>{},
+              )
         : const <String>{};
     final wishlistIds = signedIn
-        ? ref.watch(wishlistCourseIdsProvider).maybeWhen(
-            data: (ids) => ids,
-            orElse: () => const <String>{},
-          )
+        ? ref
+              .watch(wishlistCourseIdsProvider)
+              .maybeWhen(data: (ids) => ids, orElse: () => const <String>{})
         : const <String>{};
 
     return Scaffold(
@@ -241,12 +261,21 @@ class _CourseCatalogueScreenState extends ConsumerState<CourseCatalogueScreen> {
           ),
           data: (all) {
             final visible = _apply(all);
-            final examList = exams.maybeWhen(data: (l) => l, orElse: () => const <ExamRef>[]);
-            final stateList = states.maybeWhen(data: (l) => l, orElse: () => const <StateRef>[]);
+            final examList = exams.maybeWhen(
+              data: (l) => l,
+              orElse: () => const <ExamRef>[],
+            );
+            final stateList = states.maybeWhen(
+              data: (l) => l,
+              orElse: () => const <StateRef>[],
+            );
             return ListView(
               padding: const EdgeInsets.all(20),
               children: [
-                Text('All courses', style: Theme.of(context).textTheme.headlineSmall),
+                Text(
+                  'All courses',
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
                 const SizedBox(height: 4),
                 const Text(
                   'Browse all available courses, filter them, and buy right here.',
@@ -290,14 +319,18 @@ class _CourseCatalogueScreenState extends ConsumerState<CourseCatalogueScreen> {
                           _FilterChip(
                             label: _examId == null
                                 ? 'Exam'
-                                : examList.firstWhere((e) => e.id == _examId).nameEn,
+                                : examList
+                                      .firstWhere((e) => e.id == _examId)
+                                      .nameEn,
                             active: _examId != null,
                             onTap: () => _pickExam(examList),
                           ),
                           _FilterChip(
                             label: _stateId == null
                                 ? 'State'
-                                : stateList.firstWhere((s) => s.id == _stateId).nameEn,
+                                : stateList
+                                      .firstWhere((s) => s.id == _stateId)
+                                      .nameEn,
                             active: _stateId != null,
                             onTap: () => _pickState(stateList),
                           ),
@@ -322,8 +355,18 @@ class _CourseCatalogueScreenState extends ConsumerState<CourseCatalogueScreen> {
                           ),
                           if (_hasActiveFilters)
                             ActionChip(
-                              avatar: const Icon(Icons.refresh_rounded, size: 16, color: AppColors.orange600),
-                              label: const Text('Reset', style: TextStyle(color: AppColors.orange600, fontWeight: FontWeight.w700)),
+                              avatar: const Icon(
+                                Icons.refresh_rounded,
+                                size: 16,
+                                color: AppColors.orange600,
+                              ),
+                              label: const Text(
+                                'Reset',
+                                style: TextStyle(
+                                  color: AppColors.orange600,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
                               backgroundColor: AppColors.orange100,
                               side: BorderSide.none,
                               onPressed: _resetFilters,
@@ -341,12 +384,11 @@ class _CourseCatalogueScreenState extends ConsumerState<CourseCatalogueScreen> {
                 const SizedBox(height: 8),
                 if (visible.isEmpty)
                   const Padding(
-                    padding: EdgeInsets.only(top: 40),
-                    child: Center(
-                      child: Text(
-                        'No courses match these filters.',
-                        style: TextStyle(color: AppColors.muted),
-                      ),
+                    padding: EdgeInsets.only(top: 24),
+                    child: EmptyState(
+                      icon: Icons.filter_alt_off_outlined,
+                      title: 'No courses match these filters',
+                      message: 'Try clearing a filter or searching a different term.',
                     ),
                   )
                 else
@@ -358,7 +400,10 @@ class _CourseCatalogueScreenState extends ConsumerState<CourseCatalogueScreen> {
                       signedIn: signedIn,
                       examName: examList
                           .cast<ExamRef?>()
-                          .firstWhere((e) => e?.id == item.course.examId, orElse: () => null)
+                          .firstWhere(
+                            (e) => e?.id == item.course.examId,
+                            orElse: () => null,
+                          )
                           ?.nameEn,
                     ),
               ],
@@ -408,13 +453,19 @@ class _FilterChip extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: active ? AppColors.navy900 : AppColors.line),
+            border: Border.all(
+              color: active ? AppColors.navy900 : AppColors.line,
+            ),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               if (icon != null) ...[
-                Icon(icon, size: 15, color: active ? Colors.white : AppColors.muted),
+                Icon(
+                  icon,
+                  size: 15,
+                  color: active ? Colors.white : AppColors.muted,
+                ),
                 const SizedBox(width: 6),
               ],
               Text(
@@ -462,15 +513,13 @@ class _CourseCard extends ConsumerWidget {
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(22),
         border: Border.all(color: AppColors.line),
-        boxShadow: const [
-          BoxShadow(color: Color(0x0D0F172A), blurRadius: 28, offset: Offset(0, 10)),
-        ],
+        boxShadow: AppGradients.cardShadow,
       ),
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(22),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: () => context.push('/courses/${course.id}'),
@@ -487,35 +536,52 @@ class _CourseCard extends ConsumerWidget {
                         spacing: 6,
                         runSpacing: 6,
                         children: [
-                          if (examName != null) _Pill(text: examName!),
-                          _Pill(
-                            text: course.isInstitute ? (course.orgName ?? 'Institute') : 'Public',
-                            color: course.isInstitute ? AppColors.orange100 : AppColors.teal100,
-                            textColor: course.isInstitute ? AppColors.orange600 : AppColors.teal600,
+                          if (examName != null)
+                            PillBadge(label: examName!, tone: PillTone.navy),
+                          PillBadge(
+                            label: course.isInstitute
+                                ? (course.orgName ?? 'Institute')
+                                : 'Public',
+                            tone: course.isInstitute
+                                ? PillTone.orange
+                                : PillTone.teal,
                           ),
                           if (course.isNew)
-                            _Pill(text: 'New', color: AppColors.navy100, textColor: AppColors.navy800),
+                            const PillBadge(label: 'New', tone: PillTone.navy),
                         ],
                       ),
                     ),
                     const SizedBox(height: 10),
-                    Text(course.titleEn, style: Theme.of(context).textTheme.titleMedium),
+                    Text(
+                      course.titleEn,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
                     const SizedBox(height: 6),
                     Row(
                       children: [
                         if (course.ratingCount > 0) ...[
-                          const Icon(Icons.star_rounded, size: 15, color: AppColors.orange500),
+                          const Icon(
+                            Icons.star_rounded,
+                            size: 15,
+                            color: AppColors.orange500,
+                          ),
                           const SizedBox(width: 3),
                           Text(
                             '${course.avgRating.toStringAsFixed(1)} (${course.ratingCount})',
-                            style: const TextStyle(color: AppColors.muted, fontSize: 12),
+                            style: const TextStyle(
+                              color: AppColors.muted,
+                              fontSize: 12,
+                            ),
                           ),
                           const SizedBox(width: 10),
                         ],
                         if (course.enrollmentCount > 0)
                           Text(
                             '${course.enrollmentCount} enrolled',
-                            style: const TextStyle(color: AppColors.muted, fontSize: 12),
+                            style: const TextStyle(
+                              color: AppColors.muted,
+                              fontSize: 12,
+                            ),
                           ),
                       ],
                     ),
@@ -529,16 +595,28 @@ class _CourseCard extends ConsumerWidget {
                       child: owned
                           ? Row(
                               children: [
-                                const Icon(Icons.check_circle, size: 16, color: AppColors.success),
+                                const Icon(
+                                  Icons.check_circle,
+                                  size: 16,
+                                  color: AppColors.success,
+                                ),
                                 const SizedBox(width: 6),
                                 const Text(
                                   'Enrolled',
-                                  style: TextStyle(color: AppColors.success, fontWeight: FontWeight.w600, fontSize: 13),
+                                  style: TextStyle(
+                                    color: AppColors.success,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13,
+                                  ),
                                 ),
                                 const Spacer(),
                                 const Text(
                                   'Continue learning →',
-                                  style: TextStyle(color: AppColors.navy900, fontWeight: FontWeight.w600, fontSize: 13),
+                                  style: TextStyle(
+                                    color: AppColors.navy900,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13,
+                                  ),
                                 ),
                               ],
                             )
@@ -549,17 +627,25 @@ class _CourseCard extends ConsumerWidget {
                                   crossAxisAlignment: CrossAxisAlignment.end,
                                   children: [
                                     Text(
-                                      product.isFree ? 'Free' : '₹${product.priceRupees.toStringAsFixed(0)}',
-                                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.navy900),
+                                      product.isFree
+                                          ? 'Free'
+                                          : '₹${product.priceRupees.toStringAsFixed(0)}',
+                                      style: const TextStyle(
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.w800,
+                                        color: AppColors.navy900,
+                                      ),
                                     ),
-                                    if (product.originalPriceRupees != null) ...[
+                                    if (product.originalPriceRupees !=
+                                        null) ...[
                                       const SizedBox(width: 6),
                                       Text(
                                         '₹${product.originalPriceRupees!.toStringAsFixed(0)}',
                                         style: const TextStyle(
                                           color: AppColors.muted,
                                           fontSize: 13,
-                                          decoration: TextDecoration.lineThrough,
+                                          decoration:
+                                              TextDecoration.lineThrough,
                                         ),
                                       ),
                                     ],
@@ -568,17 +654,20 @@ class _CourseCard extends ConsumerWidget {
                                 const SizedBox(height: 6),
                                 Row(
                                   children: [
-                                    _Pill(
-                                      text: product.validityDays == null
+                                    PillBadge(
+                                      label: product.validityDays == null
                                           ? 'Lifetime'
                                           : '${product.validityDays} days validity',
-                                      color: AppColors.surfaceSoft,
-                                      textColor: AppColors.muted,
+                                      tone: PillTone.muted,
                                     ),
                                     const Spacer(),
                                     const Text(
                                       'View syllabus →',
-                                      style: TextStyle(color: AppColors.navy900, fontWeight: FontWeight.w600, fontSize: 13),
+                                      style: TextStyle(
+                                        color: AppColors.navy900,
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 13,
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -599,7 +688,9 @@ class _CourseCard extends ConsumerWidget {
                     child: InkWell(
                       customBorder: const CircleBorder(),
                       onTap: () async {
-                        await ref.read(wishlistRepositoryProvider).toggle(course.id);
+                        await ref
+                            .read(wishlistRepositoryProvider)
+                            .toggle(course.id);
                         ref.invalidate(wishlistCourseIdsProvider);
                       },
                       child: Padding(
@@ -607,7 +698,9 @@ class _CourseCard extends ConsumerWidget {
                         child: Icon(
                           wishlisted ? Icons.favorite : Icons.favorite_border,
                           size: 18,
-                          color: wishlisted ? AppColors.orange500 : AppColors.muted,
+                          color: wishlisted
+                              ? AppColors.orange500
+                              : AppColors.muted,
                         ),
                       ),
                     ),
@@ -615,33 +708,6 @@ class _CourseCard extends ConsumerWidget {
                 ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _Pill extends StatelessWidget {
-  const _Pill({required this.text, this.color, this.textColor});
-
-  final String text;
-  final Color? color;
-  final Color? textColor;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: color ?? AppColors.navy100,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          color: textColor ?? AppColors.navy800,
         ),
       ),
     );

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/auth/auth_repository.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/app_card.dart';
 import '../data/test_models.dart';
 import '../data/test_repository.dart';
 
@@ -62,10 +63,9 @@ class _ReviewQuestionCard extends StatelessWidget {
     final correctKeys = ResultQuestion.asKeySet(question.correctAnswer);
     final unanswered = responseKeys.isEmpty;
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 14),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: AppCard(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -74,10 +74,13 @@ class _ReviewQuestionCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     'Q${index + 1}. ${question.textEn}',
-                    style: const TextStyle(fontWeight: FontWeight.w600),
+                    style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
                 ),
-                _VerdictPill(isCorrect: question.isCorrect, unanswered: unanswered),
+                _VerdictPill(
+                  isCorrect: question.isCorrect,
+                  unanswered: unanswered,
+                ),
               ],
             ),
             const SizedBox(height: 12),
@@ -199,7 +202,11 @@ class _VerdictPill extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600),
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }

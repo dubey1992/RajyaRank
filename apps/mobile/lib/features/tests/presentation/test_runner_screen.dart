@@ -6,6 +6,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/auth_repository.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/app_card.dart';
+import '../../../core/widgets/pill_badge.dart';
 import '../data/test_models.dart';
 import '../data/test_repository.dart';
 
@@ -563,45 +565,46 @@ class _ResultSummaryScreen extends StatelessWidget {
         body: ListView(
           padding: const EdgeInsets.all(20),
           children: [
-            Center(
-              child: Column(
-                children: [
-                  Container(
-                    width: 120,
-                    height: 120,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: result.passed == false
-                            ? AppColors.danger
-                            : AppColors.teal500,
-                        width: 6,
+            AppCard(
+              variant: AppCardVariant.hero,
+              padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 20),
+              child: Center(
+                child: Column(
+                  children: [
+                    Container(
+                      width: 120,
+                      height: 120,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white.withValues(alpha: 0.08),
+                        border: Border.all(
+                          color: result.passed == false
+                              ? AppColors.danger
+                              : AppColors.teal500,
+                          width: 6,
+                        ),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        '$percent%',
+                        style: const TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      '$percent%',
-                      style: const TextStyle(
-                        fontSize: 26,
-                        fontWeight: FontWeight.w700,
+                    const SizedBox(height: 14),
+                    if (result.passed != null)
+                      PillBadge(
+                        label: result.passed! ? 'Passed' : 'Not passed',
+                        tone: result.passed! ? PillTone.teal : PillTone.orange,
                       ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  if (result.passed != null)
-                    Text(
-                      result.passed! ? 'Passed' : 'Not passed',
-                      style: TextStyle(
-                        color: result.passed!
-                            ? AppColors.success
-                            : AppColors.danger,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                ],
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
             Row(
               children: [
                 Expanded(
@@ -631,25 +634,23 @@ class _ResultSummaryScreen extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             if (result.rank != null || result.percentile != null)
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(14),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      if (result.rank != null)
-                        _MiniStat(label: 'Rank', value: '#${result.rank}'),
-                      if (result.percentile != null)
-                        _MiniStat(
-                          label: 'Percentile',
-                          value: result.percentile!.toStringAsFixed(0),
-                        ),
+              AppCard(
+                padding: const EdgeInsets.all(14),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    if (result.rank != null)
+                      _MiniStat(label: 'Rank', value: '#${result.rank}'),
+                    if (result.percentile != null)
                       _MiniStat(
-                        label: 'Attempts',
-                        value: '${result.totalAttempts}',
+                        label: 'Percentile',
+                        value: result.percentile!.toStringAsFixed(0),
                       ),
-                    ],
-                  ),
+                    _MiniStat(
+                      label: 'Attempts',
+                      value: '${result.totalAttempts}',
+                    ),
+                  ],
                 ),
               ),
             if (result.subjectAnalysis.isNotEmpty) ...[
@@ -710,26 +711,24 @@ class _StatBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        child: Column(
-          children: [
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-                color: color,
-              ),
+    return AppCard(
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              color: color,
             ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: const TextStyle(color: AppColors.muted, fontSize: 12),
-            ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: const TextStyle(color: AppColors.muted, fontSize: 12),
+          ),
+        ],
       ),
     );
   }

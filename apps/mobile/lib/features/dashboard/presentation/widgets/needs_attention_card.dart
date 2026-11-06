@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/navigation/home_shell.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/app_card.dart';
 import '../../data/dashboard_repository.dart';
 
 /// Top-3 weak topics — mirrors dashboard/page.tsx:251-274 on web. Hidden
@@ -16,27 +17,28 @@ class NeedsAttentionCard extends ConsumerWidget {
     return weakTopics.maybeWhen(
       data: (topics) {
         if (topics.isEmpty) return const SizedBox.shrink();
-        return Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.line),
-          ),
+        return AppCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
                   const Expanded(
-                    child: Text('Needs attention', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                    child: Text(
+                      'Needs attention',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                      ),
+                    ),
                   ),
                   TextButton(
                     style: TextButton.styleFrom(
                       padding: EdgeInsets.zero,
                       minimumSize: const Size(0, 30),
                     ),
-                    onPressed: () => ref.read(homeTabIndexProvider.notifier).state = 4,
+                    onPressed: () =>
+                        ref.read(homeTabIndexProvider.notifier).state = 4,
                     child: const Text('Revise'),
                   ),
                 ],
@@ -50,8 +52,19 @@ class NeedsAttentionCard extends ConsumerWidget {
                     children: [
                       Row(
                         children: [
-                          Expanded(child: Text(topic.nameEn, style: const TextStyle(fontSize: 13))),
-                          Text('${topic.accuracy}%', style: const TextStyle(color: AppColors.muted, fontSize: 12)),
+                          Expanded(
+                            child: Text(
+                              topic.nameEn,
+                              style: const TextStyle(fontSize: 13),
+                            ),
+                          ),
+                          Text(
+                            '${topic.accuracy}%',
+                            style: const TextStyle(
+                              color: AppColors.muted,
+                              fontSize: 12,
+                            ),
+                          ),
                         ],
                       ),
                       const SizedBox(height: 4),

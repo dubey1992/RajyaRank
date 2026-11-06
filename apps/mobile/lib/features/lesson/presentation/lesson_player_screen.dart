@@ -11,6 +11,9 @@ import 'package:webview_flutter/webview_flutter.dart';
 
 import '../../../core/auth/auth_repository.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/app_card.dart';
+import '../../../core/widgets/empty_state.dart';
+import '../../../core/widgets/pill_badge.dart';
 import '../data/lesson_models.dart';
 import '../data/lesson_repository.dart';
 
@@ -22,8 +25,7 @@ class LessonPlayerScreen extends ConsumerStatefulWidget {
   final String lessonId;
 
   @override
-  ConsumerState<LessonPlayerScreen> createState() =>
-      _LessonPlayerScreenState();
+  ConsumerState<LessonPlayerScreen> createState() => _LessonPlayerScreenState();
 }
 
 class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
@@ -95,9 +97,7 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
           unawaited(_markStarted());
         case PlaybackKind.document:
           final bytes = await _downloadPdf(token.url);
-          _pdfController = PdfController(
-            document: PdfDocument.openData(bytes),
-          );
+          _pdfController = PdfController(document: PdfDocument.openData(bytes));
           unawaited(_markStarted());
       }
       if (!mounted) return;
@@ -239,7 +239,8 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
           ? "Spend a little more time on this lesson before marking it complete."
           : apiErrorMessage(error);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(message)));
       }
     } finally {
       if (mounted) setState(() => _completing = false);
@@ -264,10 +265,7 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          lessonAsync.maybeWhen(
-            data: (l) => l.titleEn,
-            orElse: () => 'Lesson',
-          ),
+          lessonAsync.maybeWhen(data: (l) => l.titleEn, orElse: () => 'Lesson'),
         ),
         actions: [
           if (lessonAsync.hasValue)
@@ -290,7 +288,9 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
           if (!lesson.accessible) {
             return const _LockedState();
           }
-          if (_positionSeconds == 0 && _percentComplete == 0 && _token == null) {
+          if (_positionSeconds == 0 &&
+              _percentComplete == 0 &&
+              _token == null) {
             _primeFrom(lesson);
           }
           return ListView(
@@ -307,56 +307,70 @@ class _LessonPlayerScreenState extends ConsumerState<LessonPlayerScreen> {
                 pdfController: _pdfController,
               ),
               Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (lesson.summaryEn != null &&
-                        lesson.summaryEn!.isNotEmpty) ...[
-                      Text(
-                        lesson.summaryEn!,
-                        style: const TextStyle(color: AppColors.muted),
+                padding: const EdgeInsets.all(16),
+                child: AppCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (lesson.summaryEn != null &&
+                          lesson.summaryEn!.isNotEmpty) ...[
+                        Text(
+                          lesson.summaryEn!,
+                          style: const TextStyle(color: AppColors.muted),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: LinearProgressIndicator(
+                          value: _percentComplete / 100,
+                          minHeight: 8,
+                          backgroundColor: AppColors.line,
+                          color: _completed
+                              ? AppColors.success
+                              : AppColors.teal500,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            _completed
+                                ? 'Completed'
+                                : '$_percentComplete% watched',
+                            style: const TextStyle(
+                              color: AppColors.muted,
+                              fontSize: 12,
+                            ),
+                          ),
+                          if (_completed)
+                            const PillBadge(
+                              label: 'Completed',
+                              tone: PillTone.teal,
+                            ),
+                        ],
                       ),
                       const SizedBox(height: 16),
-                    ],
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(6),
-                      child: LinearProgressIndicator(
-                        value: _percentComplete / 100,
-                        minHeight: 8,
-                        backgroundColor: AppColors.line,
-                        color: _completed
-                            ? AppColors.success
-                            : AppColors.teal500,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      _completed ? 'Completed' : '$_percentComplete% watched',
-                      style: const TextStyle(
-                        color: AppColors.muted,
-                        fontSize: 12,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    ElevatedButton(
-                      onPressed: (_completed || _completing || _token == null)
-                          ? null
-                          : _markComplete,
-                      child: _completing
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2.4,
-                                color: Colors.white,
+                      ElevatedButton(
+                        onPressed: (_completed || _completing || _token == null)
+                            ? null
+                            : _markComplete,
+                        child: _completing
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.4,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : Text(
+                                _completed ? 'Completed ✓' : 'Mark as complete',
                               ),
-                            )
-                          : Text(
-                              _completed ? 'Completed ✓' : 'Mark as complete',
-                            ),
-                    ),
-                  ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -372,20 +386,10 @@ class _LockedState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.lock_outline, size: 40, color: AppColors.muted),
-            const SizedBox(height: 12),
-            const Text(
-              "This lesson isn't included in your current plan.",
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
+    return const Center(
+      child: EmptyState(
+        icon: Icons.lock_outline,
+        title: "This lesson isn't included in your current plan.",
       ),
     );
   }

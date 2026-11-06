@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/app_card.dart';
 import '../../data/dashboard_models.dart';
 import '../../data/dashboard_repository.dart';
 
@@ -11,14 +12,7 @@ class MistakeDnaCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final mistakeDna = ref.watch(mistakeDnaProvider);
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.line),
-      ),
+    return AppCard(
       child: mistakeDna.when(
         loading: () => const SizedBox(
           height: 100,
@@ -75,11 +69,17 @@ class _Body extends ConsumerWidget {
                 Row(
                   children: [
                     Expanded(
-                      child: Text(item.label, style: const TextStyle(fontSize: 13)),
+                      child: Text(
+                        item.label,
+                        style: const TextStyle(fontSize: 13),
+                      ),
                     ),
                     Text(
                       '${item.count} · ${item.percent}%',
-                      style: const TextStyle(color: AppColors.muted, fontSize: 12),
+                      style: const TextStyle(
+                        color: AppColors.muted,
+                        fontSize: 12,
+                      ),
                     ),
                   ],
                 ),
@@ -126,7 +126,10 @@ class _Body extends ConsumerWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Mistake Coach', style: Theme.of(context).textTheme.titleMedium),
+                Text(
+                  'Mistake Coach',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
                 const SizedBox(height: 4),
                 const Text(
                   'Up to 3 pending drills targeting your recent mistakes.',
@@ -143,8 +146,10 @@ class _Body extends ConsumerWidget {
                     style: TextStyle(color: AppColors.muted),
                   ),
                   data: (items) {
-                    final coachItems =
-                        items.where((i) => i.isPendingMistakeDrill).take(3).toList();
+                    final coachItems = items
+                        .where((i) => i.isPendingMistakeDrill)
+                        .take(3)
+                        .toList();
                     if (coachItems.isEmpty) {
                       return const Text(
                         'No drills scheduled yet.',
@@ -184,9 +189,16 @@ class _Title extends StatelessWidget {
   Widget build(BuildContext context) {
     return const Row(
       children: [
-        Icon(Icons.psychology_alt_outlined, size: 18, color: AppColors.orange500),
+        Icon(
+          Icons.psychology_alt_outlined,
+          size: 18,
+          color: AppColors.orange500,
+        ),
         SizedBox(width: 8),
-        Text('Mistake DNA', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+        Text(
+          'Mistake DNA',
+          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+        ),
       ],
     );
   }

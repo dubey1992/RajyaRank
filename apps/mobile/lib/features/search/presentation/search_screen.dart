@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/auth_repository.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/empty_state.dart';
 import '../data/search_models.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
@@ -82,7 +83,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           decoration: InputDecoration(
             hintText: 'Search exams and courses…',
             hintStyle: const TextStyle(color: AppColors.muted),
-            prefixIcon: const Icon(Icons.search, color: AppColors.muted, size: 20),
+            prefixIcon: const Icon(
+              Icons.search,
+              color: AppColors.muted,
+              size: 20,
+            ),
             filled: true,
             fillColor: Colors.white,
             contentPadding: const EdgeInsets.symmetric(vertical: 12),
@@ -109,7 +114,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             )
           : _results!.isEmpty
           ? const Center(
-              child: Text('No results found.', style: TextStyle(color: AppColors.muted)),
+              child: EmptyState(
+                icon: Icons.search_off_rounded,
+                title: 'No results found',
+                message: 'Try a different search term.',
+              ),
             )
           : ListView(
               padding: const EdgeInsets.all(16),
@@ -131,7 +140,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   const SizedBox(height: 16),
                 ],
                 if (_results!.courses.isNotEmpty) ...[
-                  Text('Courses', style: Theme.of(context).textTheme.titleMedium),
+                  Text(
+                    'Courses',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
                   const SizedBox(height: 8),
                   for (final course in _results!.courses)
                     Card(

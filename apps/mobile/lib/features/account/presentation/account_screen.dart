@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/auth_repository.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/app_buttons.dart';
+import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/confirm_logout.dart';
 import '../../onboarding/data/onboarding_repository.dart';
 import '../../support/data/support_models.dart';
@@ -34,46 +36,83 @@ class AccountScreen extends ConsumerWidget {
         data: (data) => ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      (data.fullName?.isNotEmpty ?? false)
-                          ? data.fullName!
-                          : (data.displayName ?? 'Student'),
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    if (data.email != null) ...[
-                      const SizedBox(height: 4),
-                      Text(data.email!, style: const TextStyle(color: AppColors.muted)),
-                    ],
-                    if (data.phone != null) ...[
-                      const SizedBox(height: 2),
-                      Text(data.phone!, style: const TextStyle(color: AppColors.muted)),
-                    ],
-                    const SizedBox(height: 10),
-                    OutlinedButton(
-                      onPressed: () async {
-                        final saved = await Navigator.of(context).push<bool>(
-                          MaterialPageRoute(
-                            builder: (_) => EditProfileScreen(profile: data),
+            AppCard(
+              variant: AppCardVariant.hero,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 26,
+                        backgroundColor: Colors.white24,
+                        child: Text(
+                          _initialOf(
+                            data.fullName?.isNotEmpty ?? false
+                                ? data.fullName
+                                : data.displayName,
                           ),
-                        );
-                        if (saved == true) ref.invalidate(profileProvider);
-                      },
-                      child: const Text('Edit profile'),
-                    ),
-                  ],
-                ),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 20,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              (data.fullName?.isNotEmpty ?? false)
+                                  ? data.fullName!
+                                  : (data.displayName ?? 'Student'),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 18,
+                              ),
+                            ),
+                            if (data.email != null) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                data.email!,
+                                style: const TextStyle(color: Colors.white70),
+                              ),
+                            ],
+                            if (data.phone != null) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                data.phone!,
+                                style: const TextStyle(color: Colors.white70),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  OutlineBrandButton(
+                    label: 'Edit profile',
+                    onPressed: () async {
+                      final saved = await Navigator.of(context).push<bool>(
+                        MaterialPageRoute(
+                          builder: (_) => EditProfileScreen(profile: data),
+                        ),
+                      );
+                      if (saved == true) ref.invalidate(profileProvider);
+                    },
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 12),
             _InstitutionCard(profile: data),
             const SizedBox(height: 12),
-            Card(
+            AppCard(
+              padding: EdgeInsets.zero,
               child: ListTile(
                 title: const Text('Study goals'),
                 subtitle: const Text('Target exam, qualification, daily time'),
@@ -91,7 +130,8 @@ class AccountScreen extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 12),
-            Card(
+            AppCard(
+              padding: EdgeInsets.zero,
               child: Column(
                 children: [
                   ListTile(
@@ -118,7 +158,8 @@ class AccountScreen extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 12),
-            Card(
+            AppCard(
+              padding: EdgeInsets.zero,
               child: Column(
                 children: [
                   ListTile(
@@ -160,7 +201,8 @@ class AccountScreen extends ConsumerWidget {
             ),
             if (data.hasPassword) ...[
               const SizedBox(height: 12),
-              Card(
+              AppCard(
+                padding: EdgeInsets.zero,
                 child: ListTile(
                   leading: const Icon(Icons.lock_outline),
                   title: const Text('Change password'),
@@ -176,7 +218,9 @@ class AccountScreen extends ConsumerWidget {
             const SizedBox(height: 20),
             OutlinedButton(
               onPressed: () => confirmLogout(context, ref),
-              style: OutlinedButton.styleFrom(foregroundColor: AppColors.danger),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.danger,
+              ),
               child: const Text('Sign out'),
             ),
             const SizedBox(height: 24),
@@ -184,7 +228,10 @@ class AccountScreen extends ConsumerWidget {
             const SizedBox(height: 12),
             const Text(
               'Danger zone',
-              style: TextStyle(fontWeight: FontWeight.w700, color: AppColors.danger),
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                color: AppColors.danger,
+              ),
             ),
             const SizedBox(height: 6),
             const Text(
@@ -196,7 +243,9 @@ class AccountScreen extends ConsumerWidget {
             const SizedBox(height: 10),
             OutlinedButton(
               onPressed: () => _requestAccountDeletion(context, ref),
-              style: OutlinedButton.styleFrom(foregroundColor: AppColors.danger),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.danger,
+              ),
               child: const Text('Delete my account'),
             ),
           ],
@@ -206,12 +255,20 @@ class AccountScreen extends ConsumerWidget {
   }
 }
 
+String _initialOf(String? name) {
+  final trimmed = name?.trim() ?? '';
+  return trimmed.isNotEmpty ? trimmed[0].toUpperCase() : 'S';
+}
+
 /// Doesn't delete anything itself — files an ACCOUNT_DELETION support ticket
 /// (same infra every other ticket category uses) so staff can verify and
 /// action it via `StudentsService.deleteAccount`. Matches the "delete from
 /// your profile page, or via our Contact page" process the public privacy
 /// policy already promises.
-Future<void> _requestAccountDeletion(BuildContext context, WidgetRef ref) async {
+Future<void> _requestAccountDeletion(
+  BuildContext context,
+  WidgetRef ref,
+) async {
   final confirmed = await showDialog<bool>(
     context: context,
     builder: (context) => AlertDialog(
@@ -259,9 +316,8 @@ Future<void> _requestAccountDeletion(BuildContext context, WidgetRef ref) async 
     }
   } catch (error) {
     if (context.mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(apiErrorMessage(error))));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(apiErrorMessage(error))));
     }
   }
 }
@@ -330,9 +386,8 @@ class _InstitutionCardState extends ConsumerState<_InstitutionCard> {
       ref.invalidate(profileProvider);
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(apiErrorMessage(error))));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(apiErrorMessage(error))));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -342,63 +397,63 @@ class _InstitutionCardState extends ConsumerState<_InstitutionCard> {
   @override
   Widget build(BuildContext context) {
     final institution = widget.profile.institution;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: institution != null
-            ? Row(
-                children: [
-                  const Icon(Icons.apartment, color: AppColors.navy800),
-                  const SizedBox(width: 10),
-                  Expanded(child: Text(institution.name)),
-                  _busy
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : TextButton(onPressed: _leave, child: const Text('Leave')),
-                ],
-              )
-            : Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Joining through an institute?',
-                    style: TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _codeController,
-                          textCapitalization: TextCapitalization.characters,
-                          decoration: const InputDecoration(
-                            labelText: 'Access code',
-                          ),
+    return AppCard(
+      child: institution != null
+          ? Row(
+              children: [
+                const Icon(Icons.apartment, color: AppColors.navy800),
+                const SizedBox(width: 10),
+                Expanded(child: Text(institution.name)),
+                _busy
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : TextButton(onPressed: _leave, child: const Text('Leave')),
+              ],
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Joining through an institute?',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _codeController,
+                        textCapitalization: TextCapitalization.characters,
+                        decoration: const InputDecoration(
+                          labelText: 'Access code',
                         ),
                       ),
-                      const SizedBox(width: 10),
-                      OutlinedButton(
-                        onPressed: _busy ? null : _join,
-                        child: _busy
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : const Text('Join'),
-                      ),
-                    ],
-                  ),
-                  if (_error != null) ...[
-                    const SizedBox(height: 8),
-                    Text(_error!, style: const TextStyle(color: AppColors.danger)),
+                    ),
+                    const SizedBox(width: 10),
+                    OutlinedButton(
+                      onPressed: _busy ? null : _join,
+                      child: _busy
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text('Join'),
+                    ),
                   ],
+                ),
+                if (_error != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    _error!,
+                    style: const TextStyle(color: AppColors.danger),
+                  ),
                 ],
-              ),
-      ),
+              ],
+            ),
     );
   }
 }

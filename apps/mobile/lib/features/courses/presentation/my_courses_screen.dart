@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/auth_repository.dart';
+import '../../../core/widgets/empty_state.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../payments/data/payment_models.dart';
 import '../../payments/data/payment_repository.dart';
@@ -46,7 +47,12 @@ class MyCoursesScreen extends ConsumerWidget {
               orElse: () => const <InstituteCourseSummary>[],
             );
             if (courses.isEmpty && instituteOnly.isEmpty) {
-              return const _EmptyState();
+              return const Center(
+                child: EmptyState(
+                  icon: Icons.menu_book_outlined,
+                  title: "You haven't enrolled in any courses yet",
+                ),
+              );
             }
             return ListView(
               padding: const EdgeInsets.all(16),
@@ -156,19 +162,29 @@ class _InstituteCourseCard extends ConsumerWidget {
                 Expanded(
                   child: Text(
                     course.titleEn,
-                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                    ),
                   ),
                 ),
                 if (!course.isPubliclyLinkable)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.orange100,
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: const Text(
                       'Institute only',
-                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.orange600),
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.orange600,
+                      ),
                     ),
                   ),
               ],
@@ -184,7 +200,9 @@ class _InstituteCourseCard extends ConsumerWidget {
                 style: TextStyle(color: AppColors.muted, fontSize: 12),
               ),
               data: (resolved) {
-                final view = (resolved.qualifiesForInstitute && resolved.institute != null)
+                final view =
+                    (resolved.qualifiesForInstitute &&
+                        resolved.institute != null)
                     ? resolved.institute!
                     : resolved.public;
                 if (view == null) {
@@ -203,7 +221,9 @@ class _InstituteCourseCard extends ConsumerWidget {
                   currency: view.currency,
                   validityDays: null,
                   accessType: '',
-                  audience: resolved.qualifiesForInstitute ? 'INSTITUTE' : 'PUBLIC',
+                  audience: resolved.qualifiesForInstitute
+                      ? 'INSTITUTE'
+                      : 'PUBLIC',
                 );
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -212,8 +232,14 @@ class _InstituteCourseCard extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         Text(
-                          product.isFree ? 'Free' : '₹${product.priceRupees.toStringAsFixed(0)}',
-                          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.navy900),
+                          product.isFree
+                              ? 'Free'
+                              : '₹${product.priceRupees.toStringAsFixed(0)}',
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.navy900,
+                          ),
                         ),
                         if (product.originalPriceRupees != null) ...[
                           const SizedBox(width: 6),
@@ -234,7 +260,10 @@ class _InstituteCourseCard extends ConsumerWidget {
                         Expanded(
                           child: ElevatedButton(
                             onPressed: () async {
-                              final bought = await showCheckoutSheet(context, product);
+                              final bought = await showCheckoutSheet(
+                                context,
+                                product,
+                              );
                               if (bought == true) {
                                 ref.invalidate(myCoursesProvider);
                                 ref.invalidate(instituteCoursesProvider);
@@ -246,7 +275,8 @@ class _InstituteCourseCard extends ConsumerWidget {
                         if (course.isPubliclyLinkable) ...[
                           const SizedBox(width: 10),
                           TextButton(
-                            onPressed: () => context.push('/courses/${course.courseId}'),
+                            onPressed: () =>
+                                context.push('/courses/${course.courseId}'),
                             child: const Text('Details'),
                           ),
                         ],
@@ -255,34 +285,6 @@ class _InstituteCourseCard extends ConsumerWidget {
                   ],
                 );
               },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _EmptyState extends StatelessWidget {
-  const _EmptyState();
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.menu_book_outlined,
-              size: 40,
-              color: AppColors.muted,
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              "You haven't enrolled in any courses yet.",
-              textAlign: TextAlign.center,
             ),
           ],
         ),

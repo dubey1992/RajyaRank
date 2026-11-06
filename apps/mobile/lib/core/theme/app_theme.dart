@@ -60,13 +60,33 @@ class AppGradients {
       offset: const Offset(0, 8),
     ),
   ];
+
+  /// The soft, low-contrast shadow used on ordinary white cards across the
+  /// website (`rgba(15,23,42,0.05)`, blur 28, offset (0,10)) — already used
+  /// correctly, inline, by course_catalogue_screen.dart's course card.
+  /// Named here so every other white card can share the exact same value.
+  static const cardShadow = [
+    BoxShadow(color: Color(0x0D0F172A), blurRadius: 28, offset: Offset(0, 10)),
+  ];
 }
 
 class AppTheme {
   AppTheme._();
 
   static ThemeData light() {
-    final textTheme = GoogleFonts.interTextTheme();
+    // Poppins, not Inter — the website's actual typeface
+    // (apps/web/app/[locale]/layout.tsx). Headings get the extra-bold/black
+    // weights the website uses (Poppins ships 400-900, no asset work needed).
+    final textTheme = GoogleFonts.poppinsTextTheme().copyWith(
+      displayLarge: GoogleFonts.poppins(fontWeight: FontWeight.w900),
+      displayMedium: GoogleFonts.poppins(fontWeight: FontWeight.w900),
+      displaySmall: GoogleFonts.poppins(fontWeight: FontWeight.w800),
+      headlineLarge: GoogleFonts.poppins(fontWeight: FontWeight.w800),
+      headlineMedium: GoogleFonts.poppins(fontWeight: FontWeight.w800),
+      headlineSmall: GoogleFonts.poppins(fontWeight: FontWeight.w800),
+      titleLarge: GoogleFonts.poppins(fontWeight: FontWeight.w800),
+      titleMedium: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+    );
     final colorScheme = ColorScheme.fromSeed(
       seedColor: AppColors.navy900,
       brightness: Brightness.light,
@@ -99,7 +119,7 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
           ),
-          textStyle: const TextStyle(fontWeight: FontWeight.w600),
+          textStyle: const TextStyle(fontWeight: FontWeight.w800),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
