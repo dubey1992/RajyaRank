@@ -41,7 +41,7 @@ class ExamCoverageSection extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         SizedBox(
-          height: 236,
+          height: 196,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -138,24 +138,6 @@ class _ExamCardTile extends StatelessWidget {
                       ),
                     ),
                   ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  card.price,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 13,
-                    color: AppColors.navy900,
-                  ),
-                ),
-                Text(
-                  card.validity,
-                  style: const TextStyle(fontSize: 10, color: AppColors.muted),
-                ),
               ],
             ),
           ],
