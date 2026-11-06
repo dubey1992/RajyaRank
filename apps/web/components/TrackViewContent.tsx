@@ -39,7 +39,6 @@ export function TrackViewContent({
         fbc,
       }),
     }).catch(() => {}); // best-effort — never blocks or breaks the page
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contentId]);
 
   return null;
