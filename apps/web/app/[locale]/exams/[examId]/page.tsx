@@ -71,8 +71,18 @@ export default async function ExamDetailPage({ params }: { params: { locale: str
   const state = states?.find((s) => s.id === exam.stateId);
   const isStudent = !!me && me.kind === 'STUDENT';
 
+  const breadcrumbJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: L('परीक्षाएँ', 'Exams'), item: `${SITE}/${locale}/exams` },
+      { '@type': 'ListItem', position: 2, name: nm(exam), item: `${SITE}/${locale}/exams/${exam.id}` },
+    ],
+  };
+
   const content = (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
       <nav className="mb-4 text-sm text-muted">
         <Link href={`/${locale}/exams`} className="hover:underline">{L('परीक्षाएँ', 'Exams')}</Link> / <span className="text-ink">{nm(exam)}</span>
       </nav>

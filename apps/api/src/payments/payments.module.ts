@@ -9,9 +9,10 @@ import { RazorpayModule } from './razorpay.module';
 import { BillingModule } from '../billing/billing.module';
 import { SettlementsModule } from '../settlements/settlements.module';
 import { PaymentMethodsModule } from '../payment-methods/payment-methods.module';
+import { MetaConversionsApiModule } from '../integrations/meta-conversions-api.module';
 
 @Module({
-  imports: [RazorpayModule, BillingModule, SettlementsModule, PaymentMethodsModule],
+  imports: [RazorpayModule, BillingModule, SettlementsModule, PaymentMethodsModule, MetaConversionsApiModule],
   controllers: [PaymentsController, WebhookController, AdminPaymentsController, AcademicPaymentsController],
   providers: [EntitlementService, PaymentsService],
   exports: [EntitlementService],

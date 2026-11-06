@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Alert, Button, ConfirmDialog } from '@rajyarank/ui';
 import { apiFetch, type ApiError } from '@/lib/api';
+import { getFacebookBrowserIds, newEventId, trackPixelEvent } from '@/lib/analytics';
 import type { CreateOrderResponse, PreviewCouponResponse } from '@rajyarank/contracts';
 
 // Razorpay's checkout.js attaches a global constructor.
@@ -97,8 +98,15 @@ export function BuyButton({
     setBusy(true);
     setMsg(null);
     try {
+      // Generated up front and sent WITH the order-creation request, not
+      // after — the server fires "checkout started" (InitiateCheckout) as
+      // part of creating the order itself, so the Conversions API call and
+      // this eventId have to travel together in the same request.
+      const checkoutEventId = newEventId();
+      const { fbp: checkoutFbp, fbc: checkoutFbc } = getFacebookBrowserIds();
       const order = await apiFetch<CreateOrderResponse>('/orders', {
         method: 'POST',
+        headers: { 'x-fb-event-id': checkoutEventId, 'x-fb-fbp': checkoutFbp ?? '', 'x-fb-fbc': checkoutFbc ?? '' },
         body: JSON.stringify({
           productId,
           ...(accessCode ? { accessCode } : {}),
@@ -110,7 +118,8 @@ export function BuyButton({
         // Free product (or a coupon that zeroed it out) — the backend
         // already granted the entitlement; there's nothing to pay, so never
         // touch Razorpay. Same post-purchase navigation as a real payment,
-        // for the same stale-Router-Cache reason noted below.
+        // for the same stale-Router-Cache reason noted below. No checkout
+        // was actually "started" here (nothing to pay), so no Pixel event.
         window.location.assign(`/${locale}/account`);
         return;
       }
@@ -126,6 +135,16 @@ export function BuyButton({
         return;
       }
 
+      // "Checkout started" — the order above is real and Razorpay is about
+      // to open, so this is genuinely InitiateCheckout, matching the server
+      // event the /orders call above just triggered (same checkoutEventId).
+      trackPixelEvent('InitiateCheckout', checkoutEventId, {
+        value: order.amountMinor / 100,
+        currency: order.currency,
+        content_ids: [productId],
+        content_name: order.productTitle,
+      });
+
       const rzp = new window.Razorpay({
         key: order.razorpayKeyId,
         order_id: order.providerOrderId,
@@ -139,13 +158,24 @@ export function BuyButton({
         ...(order.razorpayCustomerId ? { customer_id: order.razorpayCustomerId } : {}),
         handler: async (resp: { razorpay_payment_id: string; razorpay_signature: string }) => {
           try {
+            const paymentEventId = newEventId();
+            const { fbp, fbc } = getFacebookBrowserIds();
             await apiFetch('/payments/razorpay/verify', {
               method: 'POST',
+              headers: { 'x-fb-event-id': paymentEventId, 'x-fb-fbp': fbp ?? '', 'x-fb-fbc': fbc ?? '' },
               body: JSON.stringify({
                 orderId: order.orderId,
                 razorpayPaymentId: resp.razorpay_payment_id,
                 razorpaySignature: resp.razorpay_signature,
               }),
+            });
+            // "Payment done" — mirrors the server-side Purchase event
+            // markPaid() just fired (same paymentEventId, for dedup).
+            trackPixelEvent('Purchase', paymentEventId, {
+              value: order.amountMinor / 100,
+              currency: order.currency,
+              content_ids: [productId],
+              content_name: order.productTitle,
             });
             // Full navigation, not router.push: /account (or wherever this
             // page is embedded) may already be sitting in the client Router

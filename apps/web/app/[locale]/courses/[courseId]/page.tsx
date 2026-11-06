@@ -14,6 +14,7 @@ import { CourseRatings } from '@/components/CourseRatings';
 import { WishlistToggle } from '@/components/WishlistToggle';
 import { CourseCurriculumPanel } from '@/components/CourseCurriculumPanel';
 import { CourseProgressCard } from '@/components/CourseProgressCard';
+import { TrackViewContent } from '@/components/TrackViewContent';
 import type { ProductView, CoursePricingResolved, CourseOutlineView, CoursePreviewResponse, StudentCourseSummary } from '@rajyarank/contracts';
 
 export const dynamic = 'force-dynamic';
@@ -106,8 +107,25 @@ export default async function CourseDetailPage({
   // whether the student already owns the course, inviting a repeat purchase.
   const owned = (myCourses ?? []).some((c) => c.courseId === course.id);
 
+  const breadcrumbJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: L('परीक्षाएँ', 'Exams'), item: `${SITE}/${locale}/exams` },
+      { '@type': 'ListItem', position: 2, name: L('परीक्षा', 'Exam'), item: `${SITE}/${locale}/exams/${course.examId}` },
+      { '@type': 'ListItem', position: 3, name: title, item: `${SITE}/${locale}/courses/${course.id}` },
+    ],
+  };
+
   const content = (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
+      <TrackViewContent
+        contentId={course.id}
+        contentName={title}
+        value={publicProduct ? publicProduct.priceMinor / 100 : undefined}
+        currency={publicProduct?.currency}
+      />
       <nav className="mb-4 text-sm text-muted">
         <Link href={`/${locale}/exams`} className="hover:underline">{L('परीक्षाएँ', 'Exams')}</Link> /{' '}
         <Link href={`/${locale}/exams/${course.examId}`} className="hover:underline">{L('परीक्षा', 'Exam')}</Link> /{' '}

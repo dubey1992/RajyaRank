@@ -1,11 +1,38 @@
 'use client';
 import { useState } from 'react';
+import { getFacebookBrowserIds, newEventId, trackPixelEvent } from '@/lib/analytics';
+import { apiFetch } from '@/lib/api';
 
 /** No-login sample question — the "free demo" destination. Purely client-side. */
 export function DemoQuiz({ locale }: { locale: 'hi' | 'en' }) {
   const hi = locale === 'hi';
   const [picked, setPicked] = useState<string | null>(null);
   const correct = 'C';
+
+  // "Quiz finished" — fires once, on the first answer (changing your answer
+  // afterwards doesn't count as a second lead). Both the client-side Pixel
+  // event and a server-side Conversions API mirror (via the generic
+  // /tracking/meta-event relay, since this quiz has no backend request of
+  // its own at all).
+  function pick(key: string) {
+    if (!picked) {
+      const eventId = newEventId();
+      trackPixelEvent('Lead', eventId, { content_name: 'Homepage demo quiz' });
+      const { fbp, fbc } = getFacebookBrowserIds();
+      void apiFetch('/tracking/meta-event', {
+        method: 'POST',
+        body: JSON.stringify({
+          eventName: 'Lead',
+          eventId,
+          eventSourceUrl: window.location.href,
+          contentName: 'Homepage demo quiz',
+          fbp,
+          fbc,
+        }),
+      }).catch(() => {});
+    }
+    setPicked(key);
+  }
   const options: [string, string][] = hi
     ? [['A', 'भाग I'], ['B', 'भाग II'], ['C', 'भाग III'], ['D', 'भाग IV']]
     : [['A', 'Part I'], ['B', 'Part II'], ['C', 'Part III'], ['D', 'Part IV']];
@@ -34,7 +61,7 @@ export function DemoQuiz({ locale }: { locale: 'hi' | 'en' }) {
             <button
               key={key}
               type="button"
-              onClick={() => setPicked(key)}
+              onClick={() => pick(key)}
               className={`rounded-md border px-4 py-3 text-left font-medium text-ink ${state}`}
             >
               <span className="mr-2 font-black">{key}.</span>

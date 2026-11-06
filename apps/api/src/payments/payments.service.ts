@@ -13,6 +13,21 @@ import { BillingService } from '../billing/billing.service';
 import { SettlementsService } from '../settlements/settlements.service';
 import { renderOrderReceiptPdf } from '../common/pdf/pdf.util';
 import { AppError } from '../common/errors/app-error';
+import { MetaConversionsApiService } from '../integrations/meta-conversions-api.service';
+
+/** Browser-side identifiers threaded from the controller for a specific
+ *  checkout/payment call, so the matching server-side Meta Conversions API
+ *  event dedupes against the client-side fbq() report of the same action
+ *  (shared eventId) and matches to the same browser (fbp/fbc). All optional
+ *  — e.g. the payment webhook path has none of this, and still reports a
+ *  Purchase, just with lower match quality (email/phone only). */
+export interface ClientFbMeta {
+  eventId?: string;
+  fbp?: string;
+  fbc?: string;
+  clientIp?: string;
+  userAgent?: string;
+}
 
 // Academic Head refund requests at or below this auto-approve; above it (or
 // on an already-settled order) always escalates to Super Admin — matches the
@@ -32,6 +47,7 @@ export class PaymentsService {
     private readonly billing: BillingService,
     private readonly settlements: SettlementsService,
     private readonly paymentMethods: PaymentMethodsService,
+    private readonly metaCapi: MetaConversionsApiService,
   ) {}
 
   /** Public, unauthenticated listing — PUBLIC-audience only. Institute prices
@@ -55,7 +71,7 @@ export class PaymentsService {
     }));
   }
 
-  async createOrder(principal: Principal, dto: CreateOrder): Promise<CreateOrderResponse> {
+  async createOrder(principal: Principal, dto: CreateOrder, fbMeta?: ClientFbMeta): Promise<CreateOrderResponse> {
     if (principal.kind !== 'STUDENT') throw AppError.permissionDenied('Student account required.');
 
     // Ensured (not just looked up) and threaded into every return below —
@@ -220,11 +236,25 @@ export class PaymentsService {
     ]);
     await this.audit.record({ actorUserId: principal.userId, action: 'order.created', targetType: 'Order', targetId: order.id, result: 'SUCCESS', after: { amountMinor, productId: product.id } });
 
+    // "Checkout started" — fires here, not earlier, because a real Razorpay
+    // order now exists and the buyer is about to see the payment sheet.
+    // Never thrown on failure (send() itself never throws) — a Pixel outage
+    // must not block a real checkout.
+    void this.metaCapi.send({
+      eventName: 'InitiateCheckout',
+      eventId: fbMeta?.eventId,
+      user: { fbp: fbMeta?.fbp, fbc: fbMeta?.fbc, clientIp: fbMeta?.clientIp, userAgent: fbMeta?.userAgent },
+      value: amountMinor / 100,
+      currency: product.currency,
+      contentIds: [product.id],
+      contentName: product.titleEn,
+    });
+
     return { orderId: order.id, providerOrderId, amountMinor, currency: product.currency, razorpayKeyId: this.razorpay.keyId, productTitle: product.titleEn, razorpayCustomerId };
   }
 
   /** Backend re-verifies the HMAC — the frontend callback alone is never trusted. */
-  async verify(principal: Principal, dto: VerifyPayment) {
+  async verify(principal: Principal, dto: VerifyPayment, fbMeta?: ClientFbMeta) {
     const order = await this.prisma.order.findFirst({
       where: { id: dto.orderId, userId: principal.userId },
       include: { product: true, payments: true },
@@ -237,7 +267,7 @@ export class PaymentsService {
       await this.audit.record({ actorUserId: principal.userId, action: 'payment.verify', targetType: 'Order', targetId: order.id, result: 'FAILED', reasonCode: 'PAYMENT_SIGNATURE_INVALID' });
       throw AppError.paymentSignatureInvalid();
     }
-    await this.markPaid(order.id, dto.razorpayPaymentId);
+    await this.markPaid(order.id, dto.razorpayPaymentId, fbMeta);
     return { status: 'PAID' };
   }
 
@@ -579,7 +609,7 @@ export class PaymentsService {
     }));
   }
 
-  private async markPaid(orderId: string, providerPaymentId?: string) {
+  private async markPaid(orderId: string, providerPaymentId?: string, fbMeta?: ClientFbMeta) {
     // Row-lock the order for this check-and-transition. The client's /verify
     // call and Razorpay's payment.captured + order.paid webhooks (sent as two
     // SEPARATE events for one successful charge, so the PaymentEvent
@@ -625,14 +655,39 @@ export class PaymentsService {
     });
     await this.audit.record({ actorUserId: order.userId, action: 'payment.paid', targetType: 'Order', targetId: orderId, result: 'SUCCESS' });
 
+    // Email/phone give the "Purchase" Conversions API event below real match
+    // quality even on the webhook path, which has no browser context
+    // (fbp/fbc/eventId) at all.
+    const buyer = await this.prisma.user.findUnique({ where: { id: order.userId }, select: { razorpayCustomerId: true, email: true, phone: true } });
+
     if (providerPaymentId) {
       // Picks up Checkout's own "save this card" checkbox — createOrder()
       // always ensures a customer_id up front, so this can actually read
       // the resulting token back. Best-effort: the purchase above is already
       // final regardless of whether this succeeds.
-      const buyer = await this.prisma.user.findUnique({ where: { id: order.userId }, select: { razorpayCustomerId: true } });
       await this.paymentMethods.trySaveFromPayment(order.userId, buyer?.razorpayCustomerId ?? null, providerPaymentId);
     }
+
+    // "Payment done" — this method is the single de-duped choke point for
+    // both the browser /verify call and Razorpay's webhook, so exactly one
+    // Purchase event fires per order no matter which caller wins the race.
+    // Never thrown on failure — a Pixel outage must not affect a real sale.
+    void this.metaCapi.send({
+      eventName: 'Purchase',
+      eventId: fbMeta?.eventId,
+      user: {
+        email: buyer?.email ?? undefined,
+        phone: buyer?.phone ?? undefined,
+        fbp: fbMeta?.fbp,
+        fbc: fbMeta?.fbc,
+        clientIp: fbMeta?.clientIp,
+        userAgent: fbMeta?.userAgent,
+      },
+      value: order.amountMinor / 100,
+      currency: order.currency,
+      contentIds: [order.productId],
+      contentName: order.product.titleEn,
+    });
 
     // Marketplace split/payout to the owning institute, if any — never lets a
     // settlement problem affect the payment/entitlement already granted above.

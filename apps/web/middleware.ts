@@ -12,8 +12,8 @@ const IS_DEV = process.env.NODE_ENV !== 'production';
 function buildCsp(nonce: string): string {
   const api = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
   const scriptSrc = IS_DEV
-    ? "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://checkout.razorpay.com https://www.googletagmanager.com"
-    : `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://checkout.razorpay.com https://www.googletagmanager.com`;
+    ? "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://checkout.razorpay.com https://www.googletagmanager.com https://connect.facebook.net"
+    : `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://checkout.razorpay.com https://www.googletagmanager.com https://connect.facebook.net`;
   return [
     "default-src 'self'",
     // https: (not just 'self'/data:/blob:) because blog cover images are a
@@ -24,7 +24,7 @@ function buildCsp(nonce: string): string {
     "font-src 'self' data:",
     "style-src 'self' 'unsafe-inline'",
     scriptSrc,
-    `connect-src 'self' ${api} https://api.razorpay.com https://*.google-analytics.com https://*.analytics.google.com`,
+    `connect-src 'self' ${api} https://api.razorpay.com https://*.google-analytics.com https://*.analytics.google.com https://www.facebook.com https://connect.facebook.net`,
     // Lesson playback renders VIDEO-embed and PDF-notes assets in an <iframe>
     // (LessonPlayer.tsx) — those need their own frame-src entries or the
     // browser silently blocks the frame with no visible error beyond the

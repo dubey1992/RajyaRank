@@ -5,6 +5,7 @@ import NextTopLoader from 'nextjs-toploader';
 import { resolveLocale, getT } from '@/lib/i18n';
 import { RegisterSW } from '@/components/RegisterSW';
 import { GoogleAnalytics } from '@/components/GoogleAnalytics';
+import { MetaPixel } from '@/components/MetaPixel';
 import { AttributionCapture } from '@/components/AttributionCapture';
 import { WhatsAppButton } from '@/components/WhatsAppButton';
 import '@rajyarank/ui/styles.css';
@@ -97,6 +98,7 @@ export default function LocaleLayout({
         <WhatsAppButton locale={locale} />
         <RegisterSW />
         <GoogleAnalytics />
+        <MetaPixel />
         <AttributionCapture />
       </body>
     </html>

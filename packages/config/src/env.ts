@@ -106,6 +106,14 @@ export const apiEnvSchema = z.object({
   // by the Firebase console (Project settings → Service accounts).
   FCM_SERVICE_ACCOUNT_JSON: z.string().optional().default(''),
 
+  // Meta (Facebook) Conversions API — server-side half of the web Pixel.
+  // Same degrade-gracefully-when-empty contract as FCM/VAPID above. The
+  // Pixel ID itself isn't secret (apps/web also has it, as
+  // NEXT_PUBLIC_META_PIXEL_ID, baked into the client-side snippet) — only
+  // the access token is.
+  META_PIXEL_ID: z.string().optional().default(''),
+  META_CONVERSIONS_API_ACCESS_TOKEN: z.string().optional().default(''),
+
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
 }).refine((env) => !(env.COOKIE_SAME_SITE === 'none' && !env.COOKIE_SECURE), {
   message: 'COOKIE_SAME_SITE=none requires COOKIE_SECURE=true — browsers silently reject SameSite=None cookies that are not Secure.',
