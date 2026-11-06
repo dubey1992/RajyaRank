@@ -7,6 +7,11 @@ import '../../courses/data/catalogue_models.dart';
 import '../../courses/data/catalogue_repository.dart';
 import '../../current_affairs/data/current_affairs_models.dart';
 import '../../current_affairs/data/current_affairs_repository.dart';
+import '../data/marketing_repository.dart';
+import 'widgets/exam_coverage_section.dart';
+import 'widgets/faq_section.dart';
+import 'widgets/feature_grid_section.dart';
+import 'widgets/testimonials_section.dart';
 
 /// The pre-login landing screen (`/explore`) — courses, current affairs and
 /// live platform stats are all browsable immediately; "Log in" is a button,
@@ -42,6 +47,8 @@ class ExploreScreen extends ConsumerWidget {
           ref.invalidate(platformStatsProvider);
           ref.invalidate(filterableCoursesProvider);
           ref.invalidate(publicCurrentAffairsProvider);
+          ref.invalidate(testimonialsProvider);
+          ref.invalidate(faqsProvider);
         },
         child: ListView(
           padding: const EdgeInsets.only(bottom: 28),
@@ -54,18 +61,26 @@ class ExploreScreen extends ConsumerWidget {
                 orElse: () => null,
               ),
             ),
+            const SizedBox(height: 20),
+            const FeatureGridSection(),
             const SizedBox(height: 8),
             _SectionHeader(
               title: 'Popular courses',
               onSeeAll: () => context.push('/courses'),
             ),
             _CourseCarousel(courses: courses),
+            const SizedBox(height: 20),
+            const ExamCoverageSection(),
+            const SizedBox(height: 20),
+            const TestimonialsSection(),
             const SizedBox(height: 8),
             _SectionHeader(
               title: 'From current affairs',
               onSeeAll: () => context.go('/login'),
             ),
             _AffairsPreview(affairs: affairs),
+            const SizedBox(height: 20),
+            const FaqSection(),
             const SizedBox(height: 16),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -283,9 +298,8 @@ class _SectionHeader extends StatelessWidget {
         children: [
           Text(
             title,
-            style: Theme.of(
-              context,
-            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+            style: Theme.of(context).textTheme.titleMedium
+                ?.copyWith(fontWeight: FontWeight.w700),
           ),
           TextButton(
             onPressed: onSeeAll,
@@ -312,11 +326,14 @@ class _CourseCarousel extends StatelessWidget {
       error: (_, _) => const _InlineError(message: "Couldn't load courses."),
       data: (all) {
         if (all.isEmpty) {
-          return const _InlineEmpty(message: 'No courses live yet — check back soon.');
+          return const _InlineEmpty(
+            message: 'No courses live yet — check back soon.',
+          );
         }
         final popular = [...all]
           ..sort(
-            (a, b) => b.course.enrollmentCount.compareTo(a.course.enrollmentCount),
+            (a, b) =>
+                b.course.enrollmentCount.compareTo(a.course.enrollmentCount),
           );
         final top = popular.take(8).toList();
         return SizedBox(
@@ -454,15 +471,15 @@ class _AffairsPreview extends StatelessWidget {
           const _InlineError(message: "Couldn't load current affairs."),
       data: (all) {
         if (all.isEmpty) {
-          return const _InlineEmpty(message: 'Nothing published yet — check back soon.');
+          return const _InlineEmpty(
+            message: 'Nothing published yet — check back soon.',
+          );
         }
         final top = all.take(3).toList();
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Column(
-            children: [
-              for (final item in top) _AffairRow(item: item),
-            ],
+            children: [for (final item in top) _AffairRow(item: item)],
           ),
         );
       },
@@ -537,7 +554,10 @@ class _AffairRow extends StatelessWidget {
                 const SizedBox(width: 8),
                 Text(
                   _timeAgo(item.publishedAt),
-                  style: const TextStyle(fontSize: 10.5, color: AppColors.muted),
+                  style: const TextStyle(
+                    fontSize: 10.5,
+                    color: AppColors.muted,
+                  ),
                 ),
               ],
             ),
@@ -564,7 +584,10 @@ class _InlineError extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-      child: Text(message, style: const TextStyle(color: AppColors.muted, fontSize: 12.5)),
+      child: Text(
+        message,
+        style: const TextStyle(color: AppColors.muted, fontSize: 12.5),
+      ),
     );
   }
 }
@@ -578,7 +601,10 @@ class _InlineEmpty extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-      child: Text(message, style: const TextStyle(color: AppColors.muted, fontSize: 12.5)),
+      child: Text(
+        message,
+        style: const TextStyle(color: AppColors.muted, fontSize: 12.5),
+      ),
     );
   }
 }
