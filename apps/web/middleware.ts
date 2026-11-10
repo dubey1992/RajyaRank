@@ -123,12 +123,16 @@ export async function middleware(req: NextRequest) {
   // sits behind an internal proxy that normalizes the Host header before
   // Next.js ever sees it, so url.hostname never actually reflects
   // www.rajyarank.com even when that's the domain the browser requested
-  // (confirmed live: deploy succeeded, yet www never redirected). The
-  // original requested host survives in x-forwarded-host, which CloudFront
-  // sets precisely for this situation — check that first.
-  const requestedHost = req.headers.get('x-forwarded-host') ?? req.headers.get('host') ?? url.hostname;
+  // (confirmed live: deploy succeeded, yet www never redirected). x-
+  // forwarded-host isn't set either in this setup, so this falls back to
+  // the raw `host` header — which carries the compute container's own
+  // internal port (e.g. "www.rajyarank.com:3000"), hence the `.split(':')`
+  // strip (confirmed live: without it the redirect's Location header leaked
+  // ":3000" into the public URL).
+  const requestedHost = (req.headers.get('x-forwarded-host') ?? req.headers.get('host') ?? url.hostname).split(':')[0];
   if (requestedHost.startsWith('www.')) {
     url.hostname = requestedHost.slice(4);
+    url.port = ''; // req.nextUrl's own port is the internal container port (e.g. 3000), never public-facing
     needsRedirect = true;
   }
 
