@@ -119,8 +119,16 @@ export async function middleware(req: NextRequest) {
   // own "Redirect error" risk.
   const url = req.nextUrl.clone();
   let needsRedirect = false;
-  if (url.hostname.startsWith('www.')) {
-    url.hostname = url.hostname.slice(4);
+  // req.nextUrl.hostname is NOT reliable here: Amplify's WEB_COMPUTE layer
+  // sits behind an internal proxy that normalizes the Host header before
+  // Next.js ever sees it, so url.hostname never actually reflects
+  // www.rajyarank.com even when that's the domain the browser requested
+  // (confirmed live: deploy succeeded, yet www never redirected). The
+  // original requested host survives in x-forwarded-host, which CloudFront
+  // sets precisely for this situation — check that first.
+  const requestedHost = req.headers.get('x-forwarded-host') ?? req.headers.get('host') ?? url.hostname;
+  if (requestedHost.startsWith('www.')) {
+    url.hostname = requestedHost.slice(4);
     needsRedirect = true;
   }
 
