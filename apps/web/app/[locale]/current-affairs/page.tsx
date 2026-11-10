@@ -35,7 +35,7 @@ export function generateMetadata({ params }: { params: { locale: string } }): Me
     description,
     alternates: {
       canonical: `/${locale}/current-affairs`,
-      languages: { 'hi-IN': '/hi/current-affairs', 'en-IN': '/en/current-affairs', 'x-default': '/hi/current-affairs' },
+      languages: { 'hi-IN': '/hi/current-affairs', 'en-IN': '/en/current-affairs', 'x-default': '/en/current-affairs' },
     },
   };
 }

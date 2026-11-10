@@ -23,7 +23,7 @@ export function generateMetadata({ params }: { params: { locale: string } }): Me
     description,
     alternates: {
       canonical: `/${locale}/courses`,
-      languages: { 'hi-IN': '/hi/courses', 'en-IN': '/en/courses', 'x-default': '/hi/courses' },
+      languages: { 'hi-IN': '/hi/courses', 'en-IN': '/en/courses', 'x-default': '/en/courses' },
     },
   };
 }

@@ -20,7 +20,7 @@ export function generateMetadata({ params }: { params: { locale: string } }): Me
     description,
     alternates: {
       canonical: `/${locale}/faq`,
-      languages: { 'hi-IN': '/hi/faq', 'en-IN': '/en/faq', 'x-default': '/hi/faq' },
+      languages: { 'hi-IN': '/hi/faq', 'en-IN': '/en/faq', 'x-default': '/en/faq' },
     },
   };
 }

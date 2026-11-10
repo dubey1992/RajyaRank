@@ -52,7 +52,7 @@ export async function generateMetadata({ params }: { params: { locale: string; i
       languages: {
         'hi-IN': `/hi/current-affairs/${params.id}`,
         'en-IN': `/en/current-affairs/${params.id}`,
-        'x-default': `/hi/current-affairs/${params.id}`,
+        'x-default': `/en/current-affairs/${params.id}`,
       },
     },
     openGraph: {

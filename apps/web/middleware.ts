@@ -105,14 +105,34 @@ export async function middleware(req: NextRequest) {
   const csp = buildCsp(nonce);
   const { pathname } = req.nextUrl;
 
+  // Collapse www -> bare apex and add the missing locale prefix in the SAME
+  // redirect, not two sequential ones. Both rajyarank.com and
+  // www.rajyarank.com serve the full site live today with no redirect
+  // between them (see apps/api/src/main.ts's withWwwVariants — added for
+  // CORS, since Amplify serves both hosts independently) — Google crawls
+  // both as fully duplicate sites and has to fall back to the canonical tag
+  // alone to reconcile them, which it doesn't always honour (this showed up
+  // in Search Console as "Duplicate, Google chose different canonical than
+  // user"). A single 308 (permanent, method-preserving) redirect per request
+  // — never stacking this host-normalization redirect with the locale one —
+  // also avoids turning every crawled URL into a 2-hop chain, which is its
+  // own "Redirect error" risk.
+  const url = req.nextUrl.clone();
+  let needsRedirect = false;
+  if (url.hostname.startsWith('www.')) {
+    url.hostname = url.hostname.slice(4);
+    needsRedirect = true;
+  }
+
   const hasLocale = LOCALES.some((l) => pathname === `/${l}` || pathname.startsWith(`/${l}/`));
   if (!hasLocale) {
     const cookieLocale = req.cookies.get('NEXT_LOCALE')?.value;
     const locale = cookieLocale && LOCALES.includes(cookieLocale) ? cookieLocale : DEFAULT;
-    const url = req.nextUrl.clone();
     url.pathname = `/${locale}${pathname === '/' ? '' : pathname}`;
-    return NextResponse.redirect(url);
+    needsRedirect = true;
   }
+
+  if (needsRedirect) return NextResponse.redirect(url, 308);
 
   if (MAINTENANCE_MODE) {
     const locale = LOCALES.find((l) => pathname === `/${l}` || pathname.startsWith(`/${l}/`))!;
@@ -146,4 +166,15 @@ export async function middleware(req: NextRequest) {
   return res;
 }
 
-export const config = { matcher: ['/((?!_next|.*\\..*).*)'] };
+// The base pattern excludes any dotted path (static assets, _next build
+// output) from this middleware entirely — correct for those, but it also
+// silently excluded /[locale]/feed.xml, a real content route. That route
+// never got the www->apex host-collapse redirect above as a result: both
+// hosts served byte-identical RSS XML with zero de-duplication signal (RSS
+// has no canonical-tag mechanism at all), which is exactly the shape of a
+// Search Console "Duplicate, Google chose different canonical" finding.
+// Explicitly re-included here so it gets the same host redirect as every
+// HTML page; sitemap.xml/robots.txt are deliberately left excluded — those
+// are crawl-control files Google fetches independently per-host by
+// protocol, not content that should be redirect-consolidated.
+export const config = { matcher: ['/((?!_next|.*\\..*).*)', '/(en|hi)/feed.xml'] };

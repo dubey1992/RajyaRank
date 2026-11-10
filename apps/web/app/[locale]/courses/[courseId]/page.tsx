@@ -48,7 +48,7 @@ export async function generateMetadata({
       languages: {
         'hi-IN': `/hi/courses/${params.courseId}`,
         'en-IN': `/en/courses/${params.courseId}`,
-        'x-default': `/hi/courses/${params.courseId}`,
+        'x-default': `/en/courses/${params.courseId}`,
       },
     },
     openGraph: {

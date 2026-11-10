@@ -19,7 +19,7 @@ export function generateMetadata({ params }: { params: { locale: string } }): Me
     description,
     alternates: {
       canonical: `/${locale}/refund`,
-      languages: { 'hi-IN': '/hi/refund', 'en-IN': '/en/refund', 'x-default': '/hi/refund' },
+      languages: { 'hi-IN': '/hi/refund', 'en-IN': '/en/refund', 'x-default': '/en/refund' },
     },
     openGraph: { type: 'website', title, description, url: `${SITE}/${locale}/refund`, images: [`${SITE}/opengraph-image`] },
     twitter: { card: 'summary_large_image', title, description },

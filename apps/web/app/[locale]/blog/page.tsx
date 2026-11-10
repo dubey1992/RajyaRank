@@ -22,7 +22,7 @@ export function generateMetadata({ params }: { params: { locale: string } }): Me
     description,
     alternates: {
       canonical: `/${locale}/blog`,
-      languages: { 'hi-IN': '/hi/blog', 'en-IN': '/en/blog', 'x-default': '/hi/blog' },
+      languages: { 'hi-IN': '/hi/blog', 'en-IN': '/en/blog', 'x-default': '/en/blog' },
       types: { 'application/rss+xml': `/${locale}/feed.xml` },
     },
   };

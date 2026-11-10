@@ -12,14 +12,21 @@ const STATIC_PATHS: { path: string; priority: number }[] = [
   { path: '/current-affairs', priority: 0.8 },
   { path: '/pricing', priority: 0.8 },
   { path: '/blog', priority: 0.8 },
+  { path: '/pyq', priority: 0.7 },
+  { path: '/exam-notices', priority: 0.7 },
   { path: '/faq', priority: 0.5 },
-  { path: '/search', priority: 0.5 },
   { path: '/login', priority: 0.5 },
+  { path: '/signup', priority: 0.5 },
   { path: '/contact', priority: 0.4 },
   { path: '/request-demo', priority: 0.4 },
   { path: '/terms', priority: 0.3 },
   { path: '/privacy', priority: 0.3 },
   { path: '/refund', priority: 0.3 },
+  // /search deliberately NOT listed — search/page.tsx sets `robots: {index:
+  // false}` (it's a query-driven utility page, not indexable content), and
+  // listing a noindex page in the sitemap is a direct contradictory signal
+  // (this exact combination showed up as a Search Console "Duplicate,
+  // Google chose different canonical" / soft-404 pairing).
 ];
 
 interface Ref { id: string }

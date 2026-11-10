@@ -17,7 +17,7 @@ export function generateMetadata({ params }: { params: { locale: string } }): Me
     description,
     alternates: {
       canonical: `/${locale}/login`,
-      languages: { 'hi-IN': '/hi/login', 'en-IN': '/en/login', 'x-default': '/hi/login' },
+      languages: { 'hi-IN': '/hi/login', 'en-IN': '/en/login', 'x-default': '/en/login' },
     },
     openGraph: { type: 'website', title, description, url: `${SITE}/${locale}/login`, images: [`${SITE}/opengraph-image`] },
     twitter: { card: 'summary_large_image', title, description },

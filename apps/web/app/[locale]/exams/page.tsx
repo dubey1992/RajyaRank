@@ -21,7 +21,7 @@ export function generateMetadata({ params }: { params: { locale: string } }): Me
     description,
     alternates: {
       canonical: `/${locale}/exams`,
-      languages: { 'hi-IN': '/hi/exams', 'en-IN': '/en/exams', 'x-default': '/hi/exams' },
+      languages: { 'hi-IN': '/hi/exams', 'en-IN': '/en/exams', 'x-default': '/en/exams' },
     },
   };
 }

@@ -34,7 +34,7 @@ export async function generateMetadata({ params }: { params: { locale: string; s
     description,
     alternates: {
       canonical: `/${locale}/blog/${params.slug}`,
-      languages: { 'hi-IN': `/hi/blog/${params.slug}`, 'en-IN': `/en/blog/${params.slug}`, 'x-default': `/hi/blog/${params.slug}` },
+      languages: { 'hi-IN': `/hi/blog/${params.slug}`, 'en-IN': `/en/blog/${params.slug}`, 'x-default': `/en/blog/${params.slug}` },
     },
     openGraph: {
       type: 'article',

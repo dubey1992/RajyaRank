@@ -38,7 +38,7 @@ export async function generateMetadata({ params }: { params: { locale: string; e
       languages: {
         'hi-IN': `/hi/exams/${params.examId}`,
         'en-IN': `/en/exams/${params.examId}`,
-        'x-default': `/hi/exams/${params.examId}`,
+        'x-default': `/en/exams/${params.examId}`,
       },
     },
     openGraph: {

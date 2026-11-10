@@ -19,7 +19,7 @@ export function generateMetadata({ params }: { params: { locale: string } }): Me
     description,
     alternates: {
       canonical: `/${locale}/terms`,
-      languages: { 'hi-IN': '/hi/terms', 'en-IN': '/en/terms', 'x-default': '/hi/terms' },
+      languages: { 'hi-IN': '/hi/terms', 'en-IN': '/en/terms', 'x-default': '/en/terms' },
     },
     openGraph: { type: 'website', title, description, url: `${SITE}/${locale}/terms`, images: [`${SITE}/opengraph-image`] },
     twitter: { card: 'summary_large_image', title, description },
