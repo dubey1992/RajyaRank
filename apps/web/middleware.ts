@@ -129,7 +129,8 @@ export async function middleware(req: NextRequest) {
   // internal port (e.g. "www.rajyarank.com:3000"), hence the `.split(':')`
   // strip (confirmed live: without it the redirect's Location header leaked
   // ":3000" into the public URL).
-  const requestedHost = (req.headers.get('x-forwarded-host') ?? req.headers.get('host') ?? url.hostname).split(':')[0];
+  const rawHost = req.headers.get('x-forwarded-host') ?? req.headers.get('host') ?? url.hostname;
+  const requestedHost = rawHost.split(':')[0] ?? rawHost;
   if (requestedHost.startsWith('www.')) {
     url.hostname = requestedHost.slice(4);
     url.port = ''; // req.nextUrl's own port is the internal container port (e.g. 3000), never public-facing
