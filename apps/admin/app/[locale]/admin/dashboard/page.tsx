@@ -9,8 +9,19 @@ import { RevenueDashboard, type RevenueOverview } from '@/components/RevenueDash
 import { InstitutionOverviewCards } from '@/components/InstitutionOverviewCards';
 import { ContentPipelineCards, type ContentPipelineOverview } from '@/components/ContentPipelineCards';
 import { ReviewOverviewCards, type ReviewOverview } from '@/components/ReviewOverviewCards';
+import { PerformanceDashboard } from '@/components/PerformanceDashboard';
 import { can } from '@/lib/permissions';
-import type { OrganizationView, SettlementSummaryView, InstitutionEarningsView, InstitutionOverview } from '@rajyarank/contracts';
+import type {
+  OrganizationView,
+  SettlementSummaryView,
+  InstitutionEarningsView,
+  InstitutionOverview,
+  PerformanceOverview,
+  PerformanceTrendPoint,
+  SubjectPerformanceRow,
+  InstitutionLeaderboardRow,
+  StudentLeaderboardRow,
+} from '@rajyarank/contracts';
 
 function rupees(minor: number) {
   return `₹${(minor / 100).toLocaleString('en-IN')}`;
@@ -46,8 +57,14 @@ export default async function AdminDashboard({ params }: { params: { locale: str
   // otherwise, so one flag correctly serves both roles.
   const showsContentPipeline = can(me, 'content.edit_all');
   const isReviewer = can(me, 'content.review');
+  // Super Admin (no orgId) gets the institution leaderboard; Academic Head
+  // (has orgId) gets the student leaderboard instead — same orgId-branch the
+  // backend itself enforces (institutionLeaderboard 403s if orgId is set,
+  // studentLeaderboard 403s if it's absent), so this mirrors it rather than
+  // guessing which one would succeed.
+  const showsReports = can(me, 'reports.view');
 
-  const [orgs, overview, revenueOverview, institution, contentPipeline, reviewOverview, financeSummary, institutionEarnings] = await Promise.all([
+  const [orgs, overview, revenueOverview, institution, contentPipeline, reviewOverview, financeSummary, institutionEarnings, perfOverview, perfTrend, perfBySubject, institutionLeaderboard, studentLeaderboard] = await Promise.all([
     isSuper ? apiFetchServer<OrganizationView[]>('/admin/organizations', cookie) : Promise.resolve(null),
     can(me, 'audit.view') ? apiFetchServer<Overview>('/admin/analytics/overview', cookie) : Promise.resolve(null),
     can(me, 'payment.manage') ? apiFetchServer<RevenueOverview>('/admin/analytics/revenue-overview', cookie) : Promise.resolve(null),
@@ -56,6 +73,11 @@ export default async function AdminDashboard({ params }: { params: { locale: str
     isReviewer ? apiFetchServer<ReviewOverview>('/admin/analytics/review-overview', cookie) : Promise.resolve(null),
     can(me, 'org.manage') ? apiFetchServer<SettlementSummaryView>('/admin/settlements/summary', cookie) : Promise.resolve(null),
     isOrgAcademicHead ? apiFetchServer<InstitutionEarningsView>('/academic/settlements/earnings', cookie) : Promise.resolve(null),
+    showsReports ? apiFetchServer<PerformanceOverview>('/admin/analytics/performance-overview', cookie) : Promise.resolve(null),
+    showsReports ? apiFetchServer<PerformanceTrendPoint[]>('/admin/analytics/performance-trend', cookie) : Promise.resolve(null),
+    showsReports ? apiFetchServer<SubjectPerformanceRow[]>('/admin/analytics/performance-by-subject', cookie) : Promise.resolve(null),
+    showsReports && isSuper ? apiFetchServer<InstitutionLeaderboardRow[]>('/admin/analytics/institution-leaderboard', cookie) : Promise.resolve(null),
+    showsReports && !isSuper ? apiFetchServer<StudentLeaderboardRow[]>('/admin/analytics/student-leaderboard', cookie) : Promise.resolve(null),
   ]);
 
   const quickLinks: { href: string; label: string; show: boolean }[] = [
@@ -160,6 +182,18 @@ export default async function AdminDashboard({ params }: { params: { locale: str
             ))}
           </div>
         </section>
+      ) : null}
+
+      {/* Performance reports: Super Admin platform-wide, Academic Head their own org */}
+      {perfOverview && perfTrend && perfBySubject ? (
+        <PerformanceDashboard
+          locale={locale}
+          overview={perfOverview}
+          trend={perfTrend}
+          subjects={perfBySubject}
+          institutionLeaderboard={institutionLeaderboard}
+          studentLeaderboard={studentLeaderboard}
+        />
       ) : null}
 
       {/* Content Admin (and Academic Head): production pipeline */}

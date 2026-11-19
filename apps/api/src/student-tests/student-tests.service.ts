@@ -198,6 +198,11 @@ export class StudentTestsService {
     // Concept-mastery signal (Exam Readiness OS): one row per answered
     // question's linked concept(s) — a question can map to multiple concepts.
     const conceptUpdates: { conceptId: string; isCorrect: boolean }[] = [];
+    // Per-subject rollup for the Reports feature — same per-answered-question
+    // grain as conceptUpdates above, aggregated by subjectId before writing
+    // (a test can have many questions in the same subject; one upsert per
+    // subject, not one per question).
+    const subjectDeltas = new Map<string, { attempts: number; correct: number }>();
 
     for (const section of tv.sections) {
       for (const tq of section.questions) {
@@ -225,6 +230,10 @@ export class StudentTestsService {
             });
         perAnswerUpdates.push({ id: ans!.id, isCorrect: ok, awarded, mistakeType });
         for (const qc of qv.question.concepts) conceptUpdates.push({ conceptId: qc.conceptId, isCorrect: ok });
+        const subjectDelta = subjectDeltas.get(qv.question.subjectId) ?? { attempts: 0, correct: 0 };
+        subjectDelta.attempts += 1;
+        if (ok) subjectDelta.correct += 1;
+        subjectDeltas.set(qv.question.subjectId, subjectDelta);
       }
     }
 
@@ -262,6 +271,41 @@ export class StudentTestsService {
           where: { studentId_conceptId: { studentId, conceptId: cu.conceptId } },
           create: { studentId, conceptId: cu.conceptId, attemptsCount: 1, correctCount: cu.isCorrect ? 1 : 0, lastPracticedAt: now },
           update: { attemptsCount: { increment: 1 }, correctCount: { increment: cu.isCorrect ? 1 : 0 }, lastPracticedAt: now },
+        }),
+      ),
+      // Reports feature rollups — lifetime snapshot (one row/student) and
+      // per-subject accuracy (one row/student/subject), both incrementally
+      // upserted here so institution/platform reports are cheap groupBy
+      // queries over these small tables, never a live loop over attempts.
+      // orgId is the STUDENT's own org (p.orgId), not the test's org —
+      // matches institutionOverview/atRiskStudents' existing User.orgId scope.
+      this.prisma.studentPerformanceSnapshot.upsert({
+        where: { studentId },
+        create: {
+          studentId,
+          orgId: p.orgId ?? null,
+          totalAttempts: 1,
+          totalQuestionsAnswered: correct + incorrect,
+          totalCorrect: correct,
+          totalScore: score,
+          totalMaxScore: attempt.maxScore,
+          lastAttemptAt: now,
+        },
+        update: {
+          orgId: p.orgId ?? null,
+          totalAttempts: { increment: 1 },
+          totalQuestionsAnswered: { increment: correct + incorrect },
+          totalCorrect: { increment: correct },
+          totalScore: { increment: score },
+          totalMaxScore: { increment: attempt.maxScore },
+          lastAttemptAt: now,
+        },
+      }),
+      ...Array.from(subjectDeltas, ([subjectId, d]) =>
+        this.prisma.studentSubjectPerformance.upsert({
+          where: { studentId_subjectId: { studentId, subjectId } },
+          create: { studentId, subjectId, orgId: p.orgId ?? null, attemptsCount: d.attempts, correctCount: d.correct },
+          update: { orgId: p.orgId ?? null, attemptsCount: { increment: d.attempts }, correctCount: { increment: d.correct } },
         }),
       ),
     ]);

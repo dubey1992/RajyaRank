@@ -33,6 +33,7 @@ export const PERMISSION_CODES = [
   'org.manage',
   'marketing.manage',
   'app.manage',
+  'reports.view',
 ] as const;
 
 export type PermissionCode = (typeof PERMISSION_CODES)[number];
@@ -64,6 +65,7 @@ export const PERMISSION_CATEGORY: Record<PermissionCode, string> = {
   'org.manage': 'org',
   'marketing.manage': 'marketing',
   'app.manage': 'app',
+  'reports.view': 'reports',
 };
 
 /**
@@ -148,6 +150,7 @@ export const ROLE_PERMISSIONS: Record<RoleKey, PermissionCode[]> = {
     'user.disable',
     'support.manage',
     'doubt.respond',
+    'reports.view',
   ],
   // Super Admin is deliberately restricted to platform oversight only —
   // the sections its nav shows (Dashboard/Manage Institutions/
@@ -160,7 +163,7 @@ export const ROLE_PERMISSIONS: Record<RoleKey, PermissionCode[]> = {
   // teaser) and mobile app release management are the exceptions kept with
   // Super Admin rather than Content Admin/Academic Head: both are
   // platform-wide, not scoped to any institution.
-  SUPER_ADMIN: ['org.manage', 'role.manage', 'payment.manage', 'support.manage', 'audit.view', 'marketing.manage', 'app.manage'],
+  SUPER_ADMIN: ['org.manage', 'role.manage', 'payment.manage', 'support.manage', 'audit.view', 'marketing.manage', 'app.manage', 'reports.view'],
 };
 
 export function isHighRisk(code: string): boolean {

@@ -231,6 +231,74 @@ export function ConfirmDialog({
   );
 }
 
+/** Shared white bordered card — the shape every admin dashboard section has
+ *  been hand-rolling as `rounded-lg border border-line bg-white p-4/p-5`.
+ *  `padded=false` opts out of the default padding for callers that need
+ *  their own (e.g. a card with a colored header strip). */
+export function Card({ className, padded = true, children, ...rest }: React.HTMLAttributes<HTMLDivElement> & { padded?: boolean }) {
+  return (
+    <div className={cx('rounded-lg border border-line bg-white', padded && 'p-4', className)} {...rest}>
+      {children}
+    </div>
+  );
+}
+
+/** KPI tile: label + big number + optional colored trend delta. `trend`'s
+ *  sign drives the ▲/▼ arrow and success/danger color — pass `null` to omit
+ *  it (e.g. no prior-period data yet, matching RevenueDashboard's existing
+ *  "No prior-month data" fallback). */
+export function StatTile({
+  label,
+  value,
+  trend,
+  trendSuffix = '%',
+  valueClassName,
+}: {
+  label: string;
+  value: React.ReactNode;
+  trend?: number | null;
+  trendSuffix?: string;
+  valueClassName?: string;
+}) {
+  return (
+    <Card>
+      <div className="text-xs font-extrabold uppercase text-muted">{label}</div>
+      <div className={cx('mt-1 text-2xl font-black text-navy-950', valueClassName)}>{value}</div>
+      {trend !== undefined && trend !== null ? (
+        <div className={cx('text-xs font-bold', trend >= 0 ? 'text-success' : 'text-danger')}>
+          {trend >= 0 ? '▲' : '▼'} {Math.abs(trend)}
+          {trendSuffix}
+        </div>
+      ) : null}
+    </Card>
+  );
+}
+
+/** Chart container: title + optional right-side action/link + a fixed-height
+ *  slot for a recharts `ResponsiveContainer`. Matches RevenueDashboard's
+ *  existing `<Card><h3>...</h3><div className="h-64">...</div></Card>` shape. */
+export function ChartCard({
+  title,
+  action,
+  height = 256,
+  children,
+}: {
+  title: string;
+  action?: React.ReactNode;
+  height?: number;
+  children: React.ReactNode;
+}) {
+  return (
+    <Card>
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="text-sm font-extrabold text-navy-900">{title}</h3>
+        {action}
+      </div>
+      <div style={{ height }}>{children}</div>
+    </Card>
+  );
+}
+
 /** Lightweight auto-dismissing toast (bottom-right). Render when `message` is set. */
 export function Toast({ message, tone = 'success', onDismiss }: { message: string | null; tone?: 'success' | 'error'; onDismiss?: () => void }) {
   React.useEffect(() => {

@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Param } from '@nestjs/common';
 import type { Principal } from '@rajyarank/auth';
 import { CurrentPrincipal } from '../common/decorators/current-principal.decorator';
 import { RequirePermission } from '../authz/decorators';
@@ -49,5 +49,47 @@ export class AnalyticsController {
   @RequirePermission('content.review')
   reviewOverview(@CurrentPrincipal() principal: Principal) {
     return this.analytics.reviewOverview(principal);
+  }
+
+  // ── Performance Reports — Super Admin (platform-wide) / Academic Head
+  // (their own org), branching internally on principal.orgId exactly like
+  // contentPipeline above. ──────────────────────────────────────────────
+
+  @Get('performance-overview')
+  @RequirePermission('reports.view')
+  performanceOverview(@CurrentPrincipal() principal: Principal) {
+    return this.analytics.performanceOverview(principal);
+  }
+
+  @Get('performance-trend')
+  @RequirePermission('reports.view')
+  performanceTrend(@CurrentPrincipal() principal: Principal) {
+    return this.analytics.performanceTrend(principal);
+  }
+
+  @Get('performance-by-subject')
+  @RequirePermission('reports.view')
+  performanceBySubject(@CurrentPrincipal() principal: Principal) {
+    return this.analytics.performanceBySubject(principal);
+  }
+
+  /** Super Admin only — the service throws if the caller has an orgId. */
+  @Get('institution-leaderboard')
+  @RequirePermission('reports.view')
+  institutionLeaderboard(@CurrentPrincipal() principal: Principal) {
+    return this.analytics.institutionLeaderboard(principal);
+  }
+
+  /** Academic Head only — the service throws if the caller has no orgId. */
+  @Get('student-leaderboard')
+  @RequirePermission('reports.view')
+  studentLeaderboard(@CurrentPrincipal() principal: Principal) {
+    return this.analytics.studentLeaderboard(principal);
+  }
+
+  @Get('student-performance/:studentId')
+  @RequirePermission('reports.view')
+  studentPerformanceDetail(@CurrentPrincipal() principal: Principal, @Param('studentId') studentId: string) {
+    return this.analytics.studentPerformanceDetail(principal, studentId);
   }
 }

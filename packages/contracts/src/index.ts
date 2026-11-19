@@ -27,3 +27,4 @@ export * from './official-notices';
 export * from './previous-year-papers';
 export * from './mobile-app';
 export * from './tracking';
+export * from './reports';

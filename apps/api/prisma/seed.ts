@@ -6,7 +6,7 @@
 import { PrismaClient } from '@prisma/client';
 import * as argon2 from 'argon2';
 import { authenticator } from 'otplib';
-import { randomBytes, createCipheriv } from 'node:crypto';
+import { randomBytes, createCipheriv, createHash } from 'node:crypto';
 import {
   PERMISSION_CODES,
   PERMISSION_CATEGORY,
@@ -22,7 +22,12 @@ const isProd = process.env.NODE_ENV === 'production';
 
 function encryptSecret(plain: string): string {
   const keyRaw = process.env.FIELD_ENCRYPTION_KEY ?? 'dev-only-insecure-key-please-change-32b';
-  const key = Buffer.from(keyRaw).subarray(0, 32);
+  // Must match crypto.util.ts#keyFrom exactly (SHA-256 of the raw string) —
+  // this used to derive the key differently (truncated raw UTF-8 bytes),
+  // which silently produced an incompatible AES key: every seeded demo
+  // account's MFA secret encrypted fine here but failed to decrypt at real
+  // login time with "Unsupported state or unable to authenticate data".
+  const key = createHash('sha256').update(keyRaw).digest();
   const iv = randomBytes(12);
   const cipher = createCipheriv('aes-256-gcm', key, iv);
   const enc = Buffer.concat([cipher.update(plain, 'utf8'), cipher.final()]);

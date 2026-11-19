@@ -28,6 +28,7 @@ name alone never grants access. `✓ = granted`, `own = only owned + editable st
 | payment.manage | — | — | — | — | — | ✓ (AAL2) |
 | support.manage | — | — | — | — | ✓ | ✓ |
 | audit.view | — | — | — | — | — | ✓ |
+| reports.view | — | — | — | — | — | ✓ |
 
 **Scope rule (broader covers narrower):** a `STATE` assignment covers any resource in that state; a
 `SUBJECT` assignment must match state+exam+course+subject. Global endpoints (e.g. `user.invite`) have
@@ -41,3 +42,10 @@ no resource scope and depend only on the permission code.
 the `PermissionsGuard` calls the engine and, on denial, writes `AuditLog(result=DENIED,
 reasonCode=PERMISSION_DENIED)` and returns HTTP 403. Frontend hints (`apps/admin/lib/permissions.ts`)
 are UX only.
+
+**Note:** this table predates the `ACADEMIC_HEAD` role (per-institution admin) and is missing several
+real codes (`org.manage`, `marketing.manage`, `app.manage`, `doubt.respond`) — the actual source of
+truth is `packages/auth/src/permissions.ts`'s `ROLE_PERMISSIONS`. For the row just added:
+`reports.view` (Student & Institution Performance Reports) is held by `SUPER_ADMIN` (platform-wide,
+all institutions) and `ACADEMIC_HEAD` (their own institution's students only, org-scoped) — not by
+any other role.

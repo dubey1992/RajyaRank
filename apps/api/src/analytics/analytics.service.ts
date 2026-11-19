@@ -1,6 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import type { Principal } from '@rajyarank/auth';
-import type { AtRiskStudentView, RiskLevel } from '@rajyarank/contracts';
+import type {
+  AtRiskStudentView,
+  RiskLevel,
+  PerformanceOverview,
+  PerformanceTrendPoint,
+  SubjectPerformanceRow,
+  InstitutionLeaderboardRow,
+  StudentLeaderboardRow,
+  StudentPerformanceDetail,
+} from '@rajyarank/contracts';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthorizationService } from '../authz/authorization.service';
 import { AppError } from '../common/errors/app-error';
@@ -303,5 +312,237 @@ export class AnalyticsService {
     ]);
 
     return { pendingReview: submitted + underReview, submitted, underReview, approvedByMeTotal, approvedByMeThisWeek, openDoubts };
+  }
+
+  // ── Student & Institution Performance Reports ───────────────────────────
+  // Backed by StudentPerformanceSnapshot/StudentSubjectPerformance, both
+  // incrementally upserted in student-tests.service.ts#submit — these are
+  // cheap groupBy/aggregate reads over small flat tables, never a live loop
+  // over raw Attempt/AttemptAnswer rows. Every platform-wide query (no orgId)
+  // excludes demo orgs, same convention as revenueOverview above.
+
+  private pct(numerator: number, denominator: number): number | null {
+    return denominator > 0 ? Math.round((numerator / denominator) * 1000) / 10 : null;
+  }
+
+  /** Platform-wide scope must include independent (no-org) students, not just
+   *  exclude demo orgs — a naive `{ organization: { isDemo: false } }` filter
+   *  on a nullable relation silently drops every student with orgId=null. */
+  private snapshotScope(orgId: string | undefined) {
+    return orgId ? { orgId } : { OR: [{ orgId: null }, { organization: { isDemo: false } }] };
+  }
+  private attemptStudentScope(orgId: string | undefined) {
+    return orgId ? { orgId } : { OR: [{ orgId: null }, { org: { isDemo: false } }] };
+  }
+
+  async performanceOverview(principal: Principal): Promise<PerformanceOverview> {
+    const orgId = principal.orgId;
+    const snapshotScope = this.snapshotScope(orgId);
+    const studentScope = this.attemptStudentScope(orgId);
+    const weekAgo = new Date(Date.now() - 7 * 86_400_000);
+    const priorWeekAgo = new Date(Date.now() - 14 * 86_400_000);
+
+    const [agg, studentsAssessed, passFailRows, recentAgg, priorAgg] = await Promise.all([
+      this.prisma.studentPerformanceSnapshot.aggregate({ where: snapshotScope, _sum: { totalAttempts: true, totalScore: true, totalMaxScore: true } }),
+      this.prisma.studentPerformanceSnapshot.count({ where: snapshotScope }),
+      // Pass rate needs each test's own passingScore (not a fixed threshold),
+      // so this is a bounded flat select (newest 5000 submitted attempts in
+      // scope, matching reviewOverview's own take-bound style above) rather
+      // than a single aggregate — Prisma can't compare two columns of the
+      // same row in a `where` clause.
+      this.prisma.attempt.findMany({
+        where: { status: { in: ['SUBMITTED', 'AUTO_SUBMITTED', 'EVALUATED'] }, student: studentScope },
+        select: { score: true, testVersion: { select: { passingScore: true } } },
+        orderBy: { submittedAt: 'desc' },
+        take: 5000,
+      }),
+      this.prisma.attempt.aggregate({ where: { submittedAt: { gte: weekAgo }, student: studentScope }, _sum: { score: true, maxScore: true } }),
+      this.prisma.attempt.aggregate({ where: { submittedAt: { gte: priorWeekAgo, lt: weekAgo }, student: studentScope }, _sum: { score: true, maxScore: true } }),
+    ]);
+
+    const gradable = passFailRows.filter((a) => a.testVersion.passingScore !== null);
+    const passed = gradable.filter((a) => (a.score ?? 0) >= (a.testVersion.passingScore as number)).length;
+
+    return {
+      totalStudentsAssessed: studentsAssessed,
+      totalAttempts: agg._sum.totalAttempts ?? 0,
+      avgScorePercent: this.pct(agg._sum.totalScore ?? 0, agg._sum.totalMaxScore ?? 0),
+      passRatePercent: this.pct(passed, gradable.length),
+      // "This week" vs. "a week before that" — what the dashboard's trend
+      // arrow (▲/▼) compares against, same two-window shape as
+      // revenueOverview's thisMonth/lastMonth delta above.
+      avgScorePercentPrior: this.pct(priorAgg._sum.score ?? 0, priorAgg._sum.maxScore ?? 0),
+      avgScorePercentRecent: this.pct(recentAgg._sum.score ?? 0, recentAgg._sum.maxScore ?? 0),
+    };
+  }
+
+  async performanceTrend(principal: Principal): Promise<PerformanceTrendPoint[]> {
+    const studentScope = this.attemptStudentScope(principal.orgId);
+    const twelveWeeksAgo = new Date(Date.now() - 12 * 7 * 86_400_000);
+
+    const attempts = await this.prisma.attempt.findMany({
+      where: { submittedAt: { gte: twelveWeeksAgo }, status: { in: ['SUBMITTED', 'AUTO_SUBMITTED', 'EVALUATED'] }, student: studentScope },
+      select: { score: true, maxScore: true, submittedAt: true },
+    });
+
+    const weeks = Array.from({ length: 12 }, (_, i) => {
+      const start = new Date(twelveWeeksAgo.getTime() + i * 7 * 86_400_000);
+      return { start, end: new Date(start.getTime() + 7 * 86_400_000) };
+    });
+
+    return weeks.map((w) => {
+      const inWeek = attempts.filter((a) => a.submittedAt && a.submittedAt >= w.start && a.submittedAt < w.end);
+      const sumScore = inWeek.reduce((s, a) => s + (a.score ?? 0), 0);
+      const sumMax = inWeek.reduce((s, a) => s + a.maxScore, 0);
+      return { weekStart: w.start.toISOString().slice(0, 10), avgScorePercent: this.pct(sumScore, sumMax), attempts: inWeek.length };
+    });
+  }
+
+  async performanceBySubject(principal: Principal): Promise<SubjectPerformanceRow[]> {
+    const rows = await this.prisma.studentSubjectPerformance.groupBy({
+      by: ['subjectId'],
+      where: this.snapshotScope(principal.orgId),
+      _sum: { attemptsCount: true, correctCount: true },
+    });
+    if (rows.length === 0) return [];
+    const subjects = await this.prisma.subject.findMany({
+      where: { id: { in: rows.map((r) => r.subjectId) } },
+      select: { id: true, nameEn: true, nameHi: true },
+    });
+    const subjectById = new Map(subjects.map((s) => [s.id, s]));
+    return rows
+      .map((r) => {
+        const subject = subjectById.get(r.subjectId);
+        return {
+          subjectId: r.subjectId,
+          subjectNameEn: subject?.nameEn ?? '—',
+          subjectNameHi: subject?.nameHi ?? '—',
+          accuracyPercent: this.pct(r._sum.correctCount ?? 0, r._sum.attemptsCount ?? 0),
+          attemptCount: r._sum.attemptsCount ?? 0,
+        };
+      })
+      .sort((a, b) => b.attemptCount - a.attemptCount);
+  }
+
+  /** Super Admin only — a platform-wide ranking across institutions would be
+   *  meaningless (and a privacy overreach) for an Academic Head to see. */
+  async institutionLeaderboard(principal: Principal): Promise<InstitutionLeaderboardRow[]> {
+    if (principal.orgId) throw AppError.permissionDenied('Institution leaderboard is a platform-wide view.');
+
+    const rows = await this.prisma.studentPerformanceSnapshot.groupBy({
+      by: ['orgId'],
+      where: { orgId: { not: null }, organization: { isDemo: false } },
+      _sum: { totalScore: true, totalMaxScore: true, totalAttempts: true },
+      _count: { studentId: true },
+    });
+    if (rows.length === 0) return [];
+    const orgs = await this.prisma.organization.findMany({
+      where: { id: { in: rows.map((r) => r.orgId as string) } },
+      select: { id: true, name: true },
+    });
+    const orgById = new Map(orgs.map((o) => [o.id, o]));
+    return rows
+      .map((r) => ({
+        orgId: r.orgId as string,
+        orgName: orgById.get(r.orgId as string)?.name ?? '—',
+        studentsAssessed: r._count.studentId,
+        avgScorePercent: this.pct(r._sum.totalScore ?? 0, r._sum.totalMaxScore ?? 0),
+        totalAttempts: r._sum.totalAttempts ?? 0,
+      }))
+      .sort((a, b) => (b.avgScorePercent ?? -1) - (a.avgScorePercent ?? -1));
+  }
+
+  /** Org-scoped only — Super Admin drills into one institution at a time via
+   *  institutionLeaderboard rather than a single platform-wide student rank. */
+  async studentLeaderboard(principal: Principal): Promise<StudentLeaderboardRow[]> {
+    const orgId = principal.orgId;
+    if (!orgId) throw AppError.permissionDenied('This view is only available to institution staff.');
+
+    const rows = await this.prisma.studentPerformanceSnapshot.findMany({
+      where: { orgId },
+      include: { user: { select: { displayName: true, studentProfile: { select: { fullName: true } } } } },
+      orderBy: { totalScore: 'desc' },
+      take: 50,
+    });
+    return rows
+      .map((r) => ({
+        studentId: r.studentId,
+        name: r.user.studentProfile?.fullName ?? r.user.displayName ?? '—',
+        avgScorePercent: this.pct(r.totalScore, r.totalMaxScore),
+        totalAttempts: r.totalAttempts,
+        lastAttemptAt: r.lastAttemptAt?.toISOString() ?? null,
+      }))
+      .sort((a, b) => (b.avgScorePercent ?? -1) - (a.avgScorePercent ?? -1));
+  }
+
+  /** Super Admin: any student. Academic Head: only a student in their own
+   *  org — explicit ownership check, matching atRiskStudents' defense-in-
+   *  depth style rather than trusting the list endpoint already filtered. */
+  async studentPerformanceDetail(principal: Principal, studentId: string): Promise<StudentPerformanceDetail> {
+    const student = await this.prisma.user.findUnique({
+      where: { id: studentId },
+      select: { orgId: true, displayName: true, studentProfile: { select: { fullName: true } } },
+    });
+    if (!student) throw AppError.notFound('Student not found.');
+    if (principal.orgId && student.orgId !== principal.orgId) {
+      throw AppError.permissionDenied('This student is not in your institution.');
+    }
+
+    const [snapshot, subjects, recentAttempts, weakConcepts] = await Promise.all([
+      this.prisma.studentPerformanceSnapshot.findUnique({ where: { studentId } }),
+      this.performanceBySubjectForStudent(studentId),
+      this.prisma.attempt.findMany({
+        where: { studentId, status: { in: ['SUBMITTED', 'AUTO_SUBMITTED', 'EVALUATED'] } },
+        orderBy: { submittedAt: 'desc' },
+        take: 10,
+        select: { id: true, score: true, maxScore: true, submittedAt: true, testVersion: { select: { test: { select: { titleEn: true } } } } },
+      }),
+      this.prisma.studentConceptMastery.findMany({
+        where: { studentId },
+        include: { concept: { select: { nameEn: true } } },
+        orderBy: { attemptsCount: 'desc' },
+        take: 200,
+      }),
+    ]);
+
+    return {
+      studentId,
+      name: student.studentProfile?.fullName ?? student.displayName ?? '—',
+      avgScorePercent: snapshot ? this.pct(snapshot.totalScore, snapshot.totalMaxScore) : null,
+      totalAttempts: snapshot?.totalAttempts ?? 0,
+      recentAttempts: recentAttempts.map((a) => ({
+        attemptId: a.id,
+        testTitleEn: a.testVersion.test.titleEn,
+        scorePercent: a.score !== null ? this.pct(a.score, a.maxScore) : null,
+        submittedAt: a.submittedAt?.toISOString() ?? null,
+      })),
+      subjects,
+      weakConcepts: weakConcepts
+        .map((m) => ({
+          conceptId: m.conceptId,
+          conceptNameEn: m.concept.nameEn,
+          accuracyPercent: this.pct(m.correctCount, m.attemptsCount),
+          attemptsCount: m.attemptsCount,
+        }))
+        .filter((c) => c.accuracyPercent !== null && c.accuracyPercent < 60)
+        .sort((a, b) => (a.accuracyPercent ?? 0) - (b.accuracyPercent ?? 0))
+        .slice(0, 10),
+    };
+  }
+
+  private async performanceBySubjectForStudent(studentId: string): Promise<SubjectPerformanceRow[]> {
+    const rows = await this.prisma.studentSubjectPerformance.findMany({
+      where: { studentId },
+      include: { subject: { select: { nameEn: true, nameHi: true } } },
+    });
+    return rows
+      .map((r) => ({
+        subjectId: r.subjectId,
+        subjectNameEn: r.subject.nameEn,
+        subjectNameHi: r.subject.nameHi,
+        accuracyPercent: this.pct(r.correctCount, r.attemptsCount),
+        attemptCount: r.attemptsCount,
+      }))
+      .sort((a, b) => b.attemptCount - a.attemptCount);
   }
 }

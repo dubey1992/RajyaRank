@@ -85,6 +85,7 @@ const NAV: NavItem[] = [
   // half (e.g. Teacher still gets a top-level Official Notices link).
   { href: '/admin/manage-students', label: { hi: 'छात्र प्रबंधन', en: 'Manage Students' }, show: showsMergedStudents },
   { href: '/admin/at-risk-students', label: { hi: 'इंटरवेंशन रडार', en: 'Intervention Radar' }, show: (me) => can(me, 'user.manage') && !!me.orgId },
+  { href: '/admin/reports', label: { hi: 'रिपोर्ट व एनालिटिक्स', en: 'Reports & Analytics' }, show: (me) => can(me, 'reports.view') },
   // These three are financial/institution-billing screens — deliberately
   // role-checked (ACADEMIC_HEAD, covers a co-Head too — they carry the same
   // role key) rather than permission-checked on course.manage, which Content
@@ -140,6 +141,7 @@ const NAV: NavItem[] = [
 /** Super Admin is intentionally limited to platform-oversight sections only. */
 const SUPER_ADMIN_NAV = new Set([
   '/admin/dashboard',
+  '/admin/reports',
   '/admin/organizations',
   '/admin/billing/plans',
   '/admin/roles',
