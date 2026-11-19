@@ -93,8 +93,21 @@ class ApiClient {
         refreshToken: data['refreshToken'] as String,
       );
       return true;
+    } on DioException catch (error) {
+      // Only a definitive "this session is really gone" response from the
+      // server (auth.service.ts's refresh() throws AppError.sessionExpired()
+      // — always a 401) should sign the student out. Anything else — a
+      // connection timeout, a dropped connection, a 5xx from the ALB/ECS —
+      // is a transient failure (most commonly hit during a backend rolling
+      // deploy, a few seconds wide, as old tasks drain) and must leave the
+      // stored refresh token alone: the server-side session was never
+      // touched, so the next attempt should just work. Wiping tokens here
+      // was observed logging real students out mid-deploy for no reason.
+      if (error.response?.statusCode == 401) await _tokenStore.clear();
+      return false;
     } catch (_) {
-      await _tokenStore.clear();
+      // Non-Dio failure (e.g. malformed response body) — same reasoning:
+      // not a server-confirmed "session gone", so don't clear tokens.
       return false;
     }
   }
