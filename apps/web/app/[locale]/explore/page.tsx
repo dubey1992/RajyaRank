@@ -24,7 +24,7 @@ const GROUPS: Group[] = [
     titleEn: 'Practice & test yourself',
     items: [
       { href: '/my-quizzes', icon: '📝', nameHi: 'मेरे प्रैक्टिस टेस्ट', nameEn: 'My Practice Tests', descHi: 'अपने नोट्स से खुद के सवाल बनाएँ (या थोक में पेस्ट/अपलोड करें) और तुरंत स्कोर पाएँ।', descEn: 'Build your own questions from your notes (paste or upload them in bulk) and get scored instantly.' },
-      { href: '/my-papers', icon: '📄', nameHi: 'मेरे पेपर', nameEn: 'My Papers', descHi: 'अपना कोई पिछले वर्ष का पेपर अपलोड करें और समय देकर अभ्यास करें।', descEn: 'Upload a previous-year paper you already have and practice it timed.' },
+      { href: '/my-papers', icon: '📄', nameHi: 'मेरे पेपर', nameEn: 'My Papers', descHi: 'अपना कोई पिछले वर्ष का PDF पेपर अपलोड करें, जवाब भरें, और उत्तर कुंजी जोड़ने पर तुरंत स्कोर पाएँ।', descEn: "Upload a previous-year PDF paper, fill in your answers alongside it, and get auto-scored if you add an answer key." },
       { href: '/pyq', icon: '🕘', nameHi: 'पिछले वर्ष के प्रश्न', nameEn: 'Previous Year Questions', descHi: 'RajyaRank द्वारा सत्यापित असली परीक्षा पेपर।', descEn: "RajyaRank's own verified library of real past exam papers." },
       { href: '/tests', icon: '✅', nameHi: 'टेस्ट और अभ्यास', nameEn: 'Tests & Practice', descHi: 'आपके संस्थान द्वारा प्रकाशित मॉक टेस्ट (केवल संस्थान से जुड़े छात्रों के लिए)।', descEn: "Mock tests published by your institute (institute-affiliated students only)." },
     ],

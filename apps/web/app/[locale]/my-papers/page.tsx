@@ -24,7 +24,12 @@ export default async function MyPapersPage({ params }: { params: { locale: strin
     <StudentShell locale={locale} name={me.displayName ?? L('विद्यार्थी', 'Student')} initials={initialsOf(me.displayName)} target={L('मेरे पेपर', 'My papers')} hasInstitute={Boolean(me.orgId)}>
       <div className="mb-6">
         <h1 className="text-[26px] font-black tracking-tight text-navy-950 md:text-[34px]">{L('मेरे पिछले वर्ष के पेपर', 'My previous-year papers')}</h1>
-        <p className="mt-1 text-sm text-muted">{L('अपना पेपर अपलोड करें, समयबद्ध अभ्यास करें, और खुद को जाँचें।', 'Upload your own paper, practice it timed, and check yourself.')}</p>
+        <p className="mt-1 max-w-xl text-sm text-muted">
+          {L(
+            'PDF अपलोड करें, उसे पढ़ते हुए साथ-साथ अपनी आंसर-शीट भरें — यह कोई डिजिटाइज़्ड क्वेश्चन बैंक नहीं है। उत्तर कुंजी जोड़ने पर तुरंत स्कोर मिलता है, नहीं तो खुद समीक्षा करें।',
+            "Upload a PDF, read it, and fill in your answer sheet alongside it — this isn't a digitised question bank. Add an answer key for an instant score, or self-review without one.",
+          )}
+        </p>
       </div>
       <MyPapersList initial={papers ?? []} locale={locale} />
     </StudentShell>

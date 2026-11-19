@@ -116,6 +116,12 @@ export function StudentPaperDetail({ initial, locale }: { initial: StudentPaperV
           {initial.hasAnswerKey ? <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[9px] font-black text-teal-600">{L('उत्तर कुंजी है', 'Has answer key')}</span> : null}
         </div>
         {initial.questionCount ? <p className="mt-2 text-sm text-muted">{initial.questionCount} {L('सवाल', 'questions')}</p> : null}
+        <p className="mt-3 text-xs leading-relaxed text-muted">
+          {L(
+            `पेपर खोलकर पढ़ें, फिर साथ-साथ जवाब देने के लिए अभ्यास शुरू करें — गति आपकी अपनी है, कोई उल्टी गिनती नहीं है। ${initial.hasAnswerKey ? 'इस पेपर में उत्तर कुंजी है, तो आपको तुरंत स्कोर मिलेगा।' : 'इस पेपर में उत्तर कुंजी नहीं है, तो यह आपकी खुद की समीक्षा के लिए चिह्नित होगा।'}`,
+            `Open the paper to read it, then start practice to answer alongside it — you set your own pace, there's no countdown. ${initial.hasAnswerKey ? "This paper has an answer key, so you'll get an instant score." : "This paper has no answer key, so it's marked for your own review."}`,
+          )}
+        </p>
         <div className="mt-4 flex flex-wrap gap-2">
           <button type="button" onClick={() => void openPdf()} disabled={downloading} className="rounded-md border border-line bg-white px-3 py-2 text-xs font-bold text-navy-900 hover:bg-surface-soft">
             📄 {L('पेपर खोलें', 'Open paper')}

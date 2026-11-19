@@ -257,6 +257,12 @@ export function PersonalQuizDetail({ initial, locale }: { initial: PersonalQuizD
                 'Paste in this format, or upload a .txt file — parsed directly, no AI:',
               )}
             </p>
+            <p className="mb-3 text-[10.5px] leading-relaxed text-muted">
+              {L(
+                'एक Answer अक्षर = सिंगल चॉइस, एक से ज़्यादा (कॉमा से अलग) = मल्टीपल चॉइस। सवालों के बीच "---" वैकल्पिक है। हर सवाल अलग से जाँचा और सेव होता है, तो एक ब्लॉक में गलती बाकी सवालों को नहीं रोकती।',
+                'One answer letter = single choice, more than one (comma-separated) = multiple choice. "---" between questions is optional. Each question is checked and saved on its own, so a mistake in one block never blocks the rest.',
+              )}
+            </p>
             <pre className="mb-3 overflow-x-auto rounded-md bg-surface-soft p-2.5 text-[10.5px] leading-relaxed text-muted">
 {`Q: Capital of India?
 A) Mumbai

@@ -306,7 +306,12 @@ export function StudyPlanSetup({
         ) : null}
 
         {topics.length === 0 ? (
-          <p className="text-xs text-muted">{L('अभी तक कोई विषय नहीं जोड़ा गया। अपने सिलेबस से विषय जोड़ें।', "No topics yet — add topics from your own syllabus.")}</p>
+          <p className="max-w-md text-xs leading-relaxed text-muted">
+            {L(
+              'अपने सिलेबस से विषय जोड़ें — एक-एक करके, या एक ही मॉड्यूल नाम के तहत एक साथ पूरी सूची पेस्ट करें। हर विषय आपकी Study Plan में कोर्स के पाठों के साथ अपने आप शामिल हो जाता है, जहाँ आप उसे पूरा या रीशेड्यूल कर सकते हैं। पहले 3 विषय मुफ़्त हैं; उसके बाद सक्रिय सदस्यता योजना चाहिए।',
+              "Add topics from your own syllabus — one at a time, or paste a whole list at once under the same module name. Each topic is automatically woven into your Study Plan alongside any course lessons, where you can mark it done or reschedule it. The first 3 topics are free; beyond that an active subscription plan is needed.",
+            )}
+          </p>
         ) : (
           <div className="grid gap-2">
             {topics.map((t) => (

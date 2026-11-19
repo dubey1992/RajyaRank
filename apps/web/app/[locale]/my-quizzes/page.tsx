@@ -27,7 +27,12 @@ export default async function MyQuizzesPage({ params, searchParams }: { params: 
     <StudentShell locale={locale} name={me.displayName ?? L('विद्यार्थी', 'Student')} initials={initialsOf(me.displayName)} target={L('प्रैक्टिस टेस्ट', 'Practice tests')} hasInstitute={Boolean(me.orgId)}>
       <div className="mb-6">
         <h1 className="text-[26px] font-black tracking-tight text-navy-950 md:text-[34px]">{L('मेरे प्रैक्टिस टेस्ट', 'My practice tests')}</h1>
-        <p className="mt-1 text-sm text-muted">{L('अपने नोट्स से खुद के सवाल बनाएँ और खुद को परखें।', 'Build your own questions from your notes and test yourself.')}</p>
+        <p className="mt-1 max-w-xl text-sm text-muted">
+          {L(
+            'एक-एक करके सवाल टाइप करें, या एक साथ कई सवालों का ब्लॉक पेस्ट/अपलोड करें। जब चाहें टेस्ट दें और तुरंत स्कोर व व्याख्या पाएँ — किसी विषय से जोड़ने पर गलत जवाब पर रिवीज़न अपने आप शेड्यूल हो जाता है।',
+            "Type questions one at a time, or paste/upload a block of many at once. Take it whenever you're ready for an instant score with explanations — link it to a topic and a wrong answer will auto-schedule a revision session for you.",
+          )}
+        </p>
       </div>
       <MyQuizzesList initial={quizzes ?? []} topics={topics ?? []} initialTopicId={searchParams.topic ?? null} locale={locale} />
     </StudentShell>

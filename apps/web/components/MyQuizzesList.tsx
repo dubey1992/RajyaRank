@@ -85,9 +85,17 @@ export function MyQuizzesList({
       </div>
 
       {quizzes.length === 0 && !creating ? (
-        <p className="rounded-xl border border-line bg-white p-6 text-center text-sm text-muted">
-          {L('अभी तक कोई प्रैक्टिस टेस्ट नहीं। अपना पहला टेस्ट बनाएँ।', "No practice tests yet — create your first one.")}
-        </p>
+        <div className="rounded-xl border border-line bg-white p-6 text-center">
+          <p className="text-sm font-bold text-ink">
+            {L('अभी तक कोई प्रैक्टिस टेस्ट नहीं', 'No practice tests yet')}
+          </p>
+          <p className="mx-auto mt-2 max-w-md text-xs leading-relaxed text-muted">
+            {L(
+              'अपना MCQ टेस्ट बनाएँ — एक-एक करके सवाल टाइप करें, या एक साथ कई सवालों का ब्लॉक पेस्ट/अपलोड करें, वे अपने आप पार्स हो जाएँगे। जब चाहें टेस्ट दें और तुरंत स्कोर व व्याख्या पाएँ — किसी विषय से जोड़ने पर गलत जवाब पर रिवीज़न अपने आप शेड्यूल हो जाता है।',
+              "Build your own MCQ test: type questions one at a time, or paste/upload a block of many at once and they'll be parsed automatically. Take it whenever you're ready for an instant score with explanations — link it to a topic and a wrong answer will auto-schedule a revision session for you.",
+            )}
+          </p>
+        </div>
       ) : (
         <div className="grid gap-2.5">
           {quizzes.map((q) => {

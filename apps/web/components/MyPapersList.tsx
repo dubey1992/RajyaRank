@@ -110,9 +110,17 @@ export function MyPapersList({ initial, locale }: { initial: StudentPaperView[];
       </div>
 
       {papers.length === 0 && !uploading ? (
-        <p className="rounded-xl border border-line bg-white p-6 text-center text-sm text-muted">
-          {L('अभी तक कोई पेपर अपलोड नहीं हुआ।', 'No papers uploaded yet.')}
-        </p>
+        <div className="rounded-xl border border-line bg-white p-6 text-center">
+          <p className="text-sm font-bold text-ink">
+            {L('अभी तक कोई पेपर अपलोड नहीं हुआ', 'No papers yet')}
+          </p>
+          <p className="mx-auto mt-2 max-w-md text-xs leading-relaxed text-muted">
+            {L(
+              'अपना कोई भी पिछले वर्ष का पेपर PDF के रूप में अपलोड करें। आप पेपर को उसके अपने व्यूअर में पढ़ते हैं और साथ में एक सरल आंसर-शीट पर अपने जवाब भरते हैं — यह कोई डिजिटाइज़्ड क्वेश्चन बैंक नहीं है। अपलोड करते समय उत्तर कुंजी जोड़ने पर तुरंत स्कोर मिलता है, या बिना उत्तर कुंजी के खुद समीक्षा करें।',
+              "Upload a PDF of any previous-year paper you already have. You read the paper in its own viewer and fill in your answers on a simple answer sheet alongside it — this isn't a digitised question bank. Add an answer key when uploading to get an instant score, or skip it and self-review afterwards.",
+            )}
+          </p>
+        </div>
       ) : (
         <div className="grid gap-2.5">
           {papers.map((p) => (
