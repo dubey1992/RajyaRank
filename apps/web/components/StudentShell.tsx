@@ -78,6 +78,12 @@ export function StudentShell({
     { href: '/dashboard', label: L('डैशबोर्ड', 'Dashboard'), icon: 'home' },
     { href: '/live-classes', label: L('लाइव क्लासेस', 'Live Classes'), icon: 'video' },
     { href: '/study-plan', label: L('स्टडी प्लान', 'Study Plan'), icon: 'clipboard' },
+    // These two had no nav entry at all until now — only reachable via a
+    // link buried on a topic card or the PYQ page, which a live-browser
+    // walkthrough of the "how do students discover features" gap flagged
+    // as a real problem, not just a missing explainer.
+    { href: '/my-quizzes', label: L('मेरे प्रैक्टिस टेस्ट', 'My Practice Tests'), icon: 'clipboard' },
+    { href: '/my-papers', label: L('मेरे पेपर', 'My Papers'), icon: 'newspaper' },
     { href: '/my-courses', label: L('मेरे कोर्स', 'My Courses'), icon: 'book' },
     { href: '/wishlist', label: L('विशलिस्ट', 'Wishlist'), icon: 'heart' },
     ...(hasInstitute ? [{ href: '/tests', label: L('टेस्ट और अभ्यास', 'Tests & Practice'), icon: 'clipboard' as const }] : []),
@@ -89,6 +95,7 @@ export function StudentShell({
     { href: '/current-affairs', label: L('करंट अफेयर्स', 'Current Affairs'), icon: 'newspaper' },
   ];
   const connect: NavItem[] = [
+    { href: '/explore', label: L('सभी सुविधाएँ', 'Explore features'), icon: 'search' },
     { href: '/doubts', label: L('मेरे सवाल', 'My Doubts'), icon: 'help' },
     { href: '/notifications', label: L('सूचनाएँ', 'Notifications'), icon: 'bell', count: notifCount },
     { href: '/account', label: L('प्रोफ़ाइल व सेटिंग्स', 'Profile & Settings'), icon: 'user' },

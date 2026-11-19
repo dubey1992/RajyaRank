@@ -39,6 +39,7 @@ export default async function TestsPage({ params }: { params: { locale: string }
           <div className="mx-auto grid h-16 w-16 place-items-center rounded-[20px] bg-surface-soft text-2xl">🧪</div>
           <h3 className="mt-3.5 text-[15px] font-black text-navy-900">{L('अभी कोई टेस्ट नहीं', 'No tests yet')}</h3>
           <p className="mx-auto mt-1 max-w-sm text-[10.5px] text-muted">{L('जैसे ही आपके कोर्स में टेस्ट प्रकाशित होंगे, वे यहाँ दिखेंगे।', 'Published tests for your course will appear here.')}</p>
+          <Link href={`/${locale}/my-quizzes`} className="mt-4 inline-flex rounded-xl border border-line px-5 py-2.5 text-xs font-extrabold text-navy-900">{L('तब तक अपना प्रैक्टिस टेस्ट बनाएँ', 'Build your own practice test meanwhile')} →</Link>
         </div>
       ) : (
         <div className="grid gap-[18px] sm:grid-cols-2 lg:grid-cols-3">

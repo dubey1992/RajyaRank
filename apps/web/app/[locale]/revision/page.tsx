@@ -46,7 +46,11 @@ export default async function RevisionPage({ params }: { params: { locale: strin
       <section className="mb-6">
         <h2 className="mb-3 text-[19px] font-black tracking-tight text-navy-950">{L('कमज़ोर विषय', 'Weak topics')}</h2>
         {weakTopics.length === 0 ? (
-          <p className="text-sm text-muted">{L('अभी कोई डेटा नहीं — कुछ टेस्ट दें।', 'No data yet — attempt a few tests.')}</p>
+          <p className="text-sm text-muted">
+            {L('अभी कोई डेटा नहीं — कुछ टेस्ट दें या ', 'No data yet — attempt a few tests, or ')}
+            <Link href={`/${locale}/my-quizzes`} className="font-bold text-orange-600 hover:underline">{L('अपना एक प्रैक्टिस टेस्ट लें', 'take one of your own practice tests')}</Link>
+            {L('।', '.')}
+          </p>
         ) : (
           <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
             {weakTopics.map((w) => (

@@ -52,7 +52,10 @@ export default async function MyCoursesPage({ params }: { params: { locale: stri
           <div className="mx-auto grid h-16 w-16 place-items-center rounded-[20px] bg-surface-soft text-2xl">📚</div>
           <h3 className="mt-3.5 text-[15px] font-black text-navy-900">{L('अभी कोई नामांकित कोर्स नहीं', 'No enrolled courses yet')}</h3>
           <p className="mx-auto mt-1 max-w-sm text-[10.5px] text-muted">{L('कोर्स खोजें और नामांकन करें — वे यहाँ प्रगति के साथ दिखेंगे।', 'Explore and enrol in a course — it will appear here with your progress.')}</p>
-          <Link href={`/${locale}/courses`} className="mt-4 inline-flex rounded-xl bg-orange-500 px-5 py-2.5 text-xs font-extrabold text-white">{L('कोर्स खोजें', 'Explore courses')} →</Link>
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
+            <Link href={`/${locale}/courses`} className="inline-flex rounded-xl bg-orange-500 px-5 py-2.5 text-xs font-extrabold text-white">{L('कोर्स खोजें', 'Explore courses')} →</Link>
+            <Link href={`/${locale}/study-plan`} className="inline-flex rounded-xl border border-line px-5 py-2.5 text-xs font-extrabold text-navy-900">{L('या अपनी खुद की स्टडी प्लान बनाएँ', 'Or build your own study plan')} →</Link>
+          </div>
         </div>
       ) : (
         <div className="grid gap-[18px] sm:grid-cols-2 lg:grid-cols-3">

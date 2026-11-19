@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { cookies } from 'next/headers';
 import { redirect, notFound } from 'next/navigation';
-import type { DashboardResponse, LiveClassView, MistakeDnaView, ReadinessView, StudyPlanDay, WeakTopic } from '@rajyarank/contracts';
+import type { CustomTopicView, DashboardResponse, LiveClassView, MistakeDnaView, PersonalQuizView, ReadinessView, StudentPaperView, StudyGoals, StudyPlanDay, WeakTopic } from '@rajyarank/contracts';
 import { resolveLocale } from '@/lib/i18n';
 import { apiFetchServer } from '@/lib/api';
 import { getMe } from '@/lib/student';
@@ -9,6 +9,7 @@ import { StudentShell } from '@/components/StudentShell';
 import { ExamCountdown } from '@/components/ExamCountdown';
 import { ReadinessGauge } from '@/components/ReadinessGauge';
 import { MistakeDnaCard } from '@/components/MistakeDnaCard';
+import { GettingStartedChecklist } from '@/components/GettingStartedChecklist';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,6 +40,22 @@ export default async function DashboardPage({ params }: { params: { locale: stri
   const studyWeek = (await apiFetchServer<StudyPlanDay[]>('/student/study-plan/week', cookie)) ?? [];
   const liveClasses = (await apiFetchServer<LiveClassView[]>('/student/live-classes/upcoming', cookie)) ?? [];
   const nextLiveClass = liveClasses[0] ?? null;
+
+  // Getting-started checklist inputs — cheap list/goal fetches, same pattern
+  // as everything else on this page. hasCompletedTask reuses studyWeek
+  // (already fetched above) rather than a new call.
+  const [goals, customTopics, quizzes, papers] = await Promise.all([
+    apiFetchServer<StudyGoals>('/student/profile/goals', cookie),
+    apiFetchServer<CustomTopicView[]>('/student/study-plan/custom-topics', cookie),
+    apiFetchServer<PersonalQuizView[]>('/student/my-quizzes', cookie),
+    apiFetchServer<StudentPaperView[]>('/student/my-papers', cookie),
+  ]);
+  const hasGoal = !!(goals?.targetExamId || goals?.customExamName);
+  const hasTopic = (customTopics?.length ?? 0) > 0;
+  const hasCompletedTask = studyWeek.some((d) => d.items.some((i) => i.status === 'DONE'));
+  const hasQuiz = (quizzes?.length ?? 0) > 0;
+  const hasPaper = (papers?.length ?? 0) > 0;
+
   const coachItems = studyWeek
     .flatMap((d) => d.items.map((i) => ({ ...i, date: d.date })))
     .filter((i) => i.kind === 'MISTAKE_DRILL' && i.status === 'PENDING')
@@ -138,6 +155,8 @@ export default async function DashboardPage({ params }: { params: { locale: stri
             </div>
           </article>
 
+          <GettingStartedChecklist hasGoal={hasGoal} hasTopic={hasTopic} hasCompletedTask={hasCompletedTask} hasQuiz={hasQuiz} hasPaper={hasPaper} locale={locale} />
+
           {/* Next live class, if any — the dashboard's job is to surface
               this prominently since it's time-sensitive; the actual Join
               button lives on /live-classes (needs client-side join state). */}
@@ -170,7 +189,13 @@ export default async function DashboardPage({ params }: { params: { locale: stri
               </div>
             </div>
             {data.todayPlan.length === 0 ? (
-              <p className="text-sm text-muted">{L('अभी कोई सुझाव नहीं। कोर्स चुनें।', 'No suggestions yet. Pick a course.')}</p>
+              <p className="text-sm text-muted">
+                {L('अभी कोई सुझाव नहीं। ', 'No suggestions yet. ')}
+                <Link href={`/${locale}/courses`} className="font-bold text-orange-600 hover:underline">{L('कोर्स चुनें', 'Pick a course')}</Link>
+                {L(' या ', ' or ')}
+                <Link href={`/${locale}/study-plan`} className="font-bold text-orange-600 hover:underline">{L('अपनी खुद की स्टडी प्लान बनाएँ', 'build your own study plan')}</Link>
+                {L('।', '.')}
+              </p>
             ) : (
               <div className="grid gap-2.5">
                 {data.todayPlan.map((l, i) => (
