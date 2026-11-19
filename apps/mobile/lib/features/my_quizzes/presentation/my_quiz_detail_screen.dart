@@ -292,6 +292,16 @@ class _MyQuizDetailScreenState extends ConsumerState<MyQuizDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (quiz.questions.isEmpty)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 12),
+              child: Text(
+                'Add at least one question to take this test. Use "Add question" for '
+                'single/multiple choice, true-false, or numeric answers, or "Bulk import" '
+                'to add many at once from a pasted block or a .txt file.',
+                style: TextStyle(color: AppColors.muted, fontSize: 12.5, height: 1.4),
+              ),
+            ),
           Row(
             children: [
               Expanded(
@@ -317,7 +327,14 @@ class _MyQuizDetailScreenState extends ConsumerState<MyQuizDetailScreen> {
           if (_showBulk) ...[
             const SizedBox(height: 16),
             const Text('Paste questions or upload a .txt file', style: TextStyle(fontWeight: FontWeight.w600)),
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
+            const Text(
+              'One answer key letter = single choice, more than one (comma-separated) = '
+              'multiple choice. "---" between questions is optional. Each question is '
+              'checked and saved on its own, so a mistake in one block never blocks the rest.',
+              style: TextStyle(color: AppColors.muted, fontSize: 11.5, height: 1.35),
+            ),
+            const SizedBox(height: 8),
             Text(_bulkTemplate, style: const TextStyle(fontFamily: 'monospace', fontSize: 11, color: AppColors.muted)),
             const SizedBox(height: 8),
             TextField(

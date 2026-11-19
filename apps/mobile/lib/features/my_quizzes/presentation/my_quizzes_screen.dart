@@ -114,9 +114,26 @@ class _MyQuizzesScreenState extends ConsumerState<MyQuizzesScreen> {
                   return const Center(
                     child: Padding(
                       padding: EdgeInsets.all(24),
-                      child: Text(
-                        'No practice tests yet — create your first one.',
-                        style: TextStyle(color: AppColors.muted),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.edit_note, size: 40, color: AppColors.muted),
+                          SizedBox(height: 10),
+                          Text(
+                            'No practice tests yet',
+                            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                          ),
+                          SizedBox(height: 6),
+                          Text(
+                            'Build your own MCQ test: type questions one at a time, or '
+                            'paste/upload a block of many at once and they\'ll be parsed '
+                            'automatically. Take it whenever you\'re ready for an instant '
+                            'score with explanations — link it to a study topic and a '
+                            'wrong answer will auto-schedule a revision session for you.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: AppColors.muted, fontSize: 12.5, height: 1.4),
+                          ),
+                        ],
                       ),
                     ),
                   );

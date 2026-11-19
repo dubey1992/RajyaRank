@@ -25,15 +25,15 @@ class AllFeaturesScreen extends ConsumerWidget {
       (
         'Plan your prep',
         [
-          _Feature('🗺', 'Study Plan', 'Build a day-by-day plan from your own topics or a course.', onTap: () => openTab(3)),
+          _Feature('🗺', 'Study Plan', 'Type your own topics or pick a course for a day-by-day schedule — mark tasks done or reschedule anytime.', onTap: () => openTab(3)),
           _Feature('📹', 'Live Classes', "Join your institute's scheduled live sessions.", onTap: () => context.push('/live-classes')),
         ],
       ),
       (
         'Practice & test yourself',
         [
-          _Feature('📝', 'My Practice Tests', 'Build your own questions and get scored instantly.', onTap: () => context.push('/my-quizzes')),
-          _Feature('📄', 'My Papers', 'Upload a previous-year paper and practice it.', onTap: () => context.push('/my-papers')),
+          _Feature('📝', 'My Practice Tests', 'Type questions or bulk-paste many at once, then take your test for an instant score with explanations.', onTap: () => context.push('/my-quizzes')),
+          _Feature('📄', 'My Papers', 'Upload a PDF paper you already have, answer alongside it, and get auto-scored if you add an answer key.', onTap: () => context.push('/my-papers')),
           _Feature('🕘', 'Previous Year Questions', "RajyaRank's verified library of real past exam papers.", onTap: () => context.push('/pyq')),
           _Feature('✅', 'Tests & Practice', "Mock tests published by your institute.", onTap: () => openTab(2)),
         ],

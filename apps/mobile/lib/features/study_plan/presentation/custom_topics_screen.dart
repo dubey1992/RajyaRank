@@ -249,10 +249,27 @@ class _CustomTopicsScreenState extends ConsumerState<CustomTopicsScreen> {
                   return const Center(
                     child: Padding(
                       padding: EdgeInsets.all(24),
-                      child: Text(
-                        'No custom topics yet. Add your own syllabus and get a day-by-day plan.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: AppColors.muted),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.checklist, size: 40, color: AppColors.muted),
+                          SizedBox(height: 10),
+                          Text(
+                            'No custom topics yet',
+                            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                          ),
+                          SizedBox(height: 6),
+                          Text(
+                            'Add topics from your own syllabus — one at a time, or paste a '
+                            'whole list at once under the same module name. Each topic is '
+                            'automatically woven into your day-by-day Study Plan alongside '
+                            'any course lessons, where you can mark it done or reschedule it '
+                            'like any other task. The first 3 topics are free; beyond that '
+                            'an active subscription plan is needed.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: AppColors.muted, fontSize: 12.5, height: 1.4),
+                          ),
+                        ],
                       ),
                     ),
                   );

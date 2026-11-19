@@ -185,6 +185,12 @@ class _MyPapersScreenState extends ConsumerState<MyPapersScreen> {
                       border: OutlineInputBorder(),
                     ),
                   ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Leave this blank if you don\'t have one — you can still practice and '
+                    'self-review, you just won\'t get an automatic score.',
+                    style: TextStyle(color: AppColors.muted, fontSize: 11),
+                  ),
                   if (_error != null) ...[
                     const SizedBox(height: 10),
                     Text(_error!, style: const TextStyle(color: AppColors.danger)),
@@ -216,10 +222,26 @@ class _MyPapersScreenState extends ConsumerState<MyPapersScreen> {
                   return const Center(
                     child: Padding(
                       padding: EdgeInsets.all(24),
-                      child: Text(
-                        'Upload a previous-year paper you already have and practice it.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: AppColors.muted),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.description_outlined, size: 40, color: AppColors.muted),
+                          SizedBox(height: 10),
+                          Text(
+                            'No papers yet',
+                            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                          ),
+                          SizedBox(height: 6),
+                          Text(
+                            'Upload a PDF of any previous-year paper you already have. You '
+                            'read the paper in its own viewer and fill in your answers on a '
+                            'simple answer sheet alongside it — this isn\'t a digitised '
+                            'question bank. Add an answer key when uploading to get an '
+                            'instant score, or skip it and self-review afterwards.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: AppColors.muted, fontSize: 12.5, height: 1.4),
+                          ),
+                        ],
                       ),
                     ),
                   );

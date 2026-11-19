@@ -137,7 +137,14 @@ class _MyPaperDetailScreenState extends ConsumerState<MyPaperDetailScreen> {
               if (paper.questionCount != null) _Badge(text: '${paper.questionCount} questions'),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
+          Text(
+            'Open the paper to read it, then start practice to answer alongside it — '
+            'you set your own pace, there\'s no countdown. '
+            '${paper.hasAnswerKey ? "This paper has an answer key, so you'll get an instant score." : "This paper has no answer key, so it's marked for your own review."}',
+            style: const TextStyle(color: AppColors.muted, fontSize: 12.5, height: 1.4),
+          ),
+          const SizedBox(height: 16),
           OutlinedButton.icon(onPressed: _openPaper, icon: const Icon(Icons.picture_as_pdf_outlined), label: const Text('Open paper')),
           const SizedBox(height: 10),
           if (paper.questionCount == null)
