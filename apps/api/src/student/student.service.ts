@@ -69,7 +69,12 @@ export class StudentService {
         where: { userId },
         data: {
           stateId: dto.stateId,
-          targetExamId: dto.targetExamId,
+          // A catalog pick always wins over a leftover custom name from a
+          // prior edit — the two are mutually exclusive in the UI, so
+          // whichever one the request actually sent is the one that should
+          // stick (onboardingSchema's refine guarantees at least one is set).
+          targetExamId: dto.targetExamId ?? null,
+          customExamName: dto.targetExamId ? null : (dto.customExamName ?? null),
           qualification: dto.qualification,
           dailyStudyMinutes: dto.dailyStudyMinutes,
           targetDate: dto.targetDate ? new Date(dto.targetDate) : null,
@@ -106,6 +111,7 @@ export class StudentService {
       targetExamId: profile?.targetExamId ?? null,
       targetExamNameHi: profile?.targetExam?.nameHi ?? null,
       targetExamNameEn: profile?.targetExam?.nameEn ?? null,
+      customExamName: profile?.customExamName ?? null,
       qualification: profile?.qualification ?? null,
       dailyStudyMinutes: profile?.dailyStudyMinutes ?? null,
       targetDate: profile?.targetDate ? profile.targetDate.toISOString() : null,
@@ -118,7 +124,13 @@ export class StudentService {
       where: { userId },
       data: {
         ...(dto.stateId !== undefined ? { stateId: dto.stateId } : {}),
-        ...(dto.targetExamId !== undefined ? { targetExamId: dto.targetExamId } : {}),
+        // Picking a catalog exam clears any leftover custom name, and vice
+        // versa — same mutual-exclusivity as onboarding() above, but here
+        // either field can arrive alone (updateGoalsSchema requires only one
+        // field total, not both of this pair), so only clear the other one
+        // when the field that's actually present is truthy.
+        ...(dto.targetExamId !== undefined ? { targetExamId: dto.targetExamId, ...(dto.targetExamId ? { customExamName: null } : {}) } : {}),
+        ...(dto.customExamName !== undefined ? { customExamName: dto.customExamName, ...(dto.customExamName ? { targetExamId: null } : {}) } : {}),
         ...(dto.qualification !== undefined ? { qualification: dto.qualification } : {}),
         ...(dto.dailyStudyMinutes !== undefined ? { dailyStudyMinutes: dto.dailyStudyMinutes } : {}),
         ...(dto.targetDate !== undefined ? { targetDate: dto.targetDate ? new Date(dto.targetDate) : null } : {}),

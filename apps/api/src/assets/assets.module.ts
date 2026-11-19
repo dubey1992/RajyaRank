@@ -3,5 +3,5 @@ import { AssetsController } from './assets.controller';
 import { AssetsService } from './assets.service';
 import { AssetScanService } from './asset-scan.service';
 
-@Module({ controllers: [AssetsController], providers: [AssetsService, AssetScanService] })
+@Module({ controllers: [AssetsController], providers: [AssetsService, AssetScanService], exports: [AssetsService] })
 export class AssetsModule {}

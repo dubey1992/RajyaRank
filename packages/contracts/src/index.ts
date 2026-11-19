@@ -29,3 +29,5 @@ export * from './mobile-app';
 export * from './tracking';
 export * from './reports';
 export * from './live-classes';
+export * from './personal-quizzes';
+export * from './student-papers';

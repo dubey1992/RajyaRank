@@ -4,15 +4,20 @@ import type { MistakeType } from './test';
 
 export const qualificationSchema = z.enum(['10TH', '12TH', 'GRADUATE', 'POSTGRADUATE', 'TECHNICAL']);
 
-export const onboardingSchema = z.object({
-  stateId: z.string().uuid(),
-  targetExamId: z.string().uuid(),
-  qualification: qualificationSchema,
-  locale: localeSchema.optional(),
-  dailyStudyMinutes: z.number().int().min(15).max(720),
-  targetDate: z.string().datetime().optional(),
-  preferredSubjects: z.array(z.string()).default([]),
-});
+export const onboardingSchema = z
+  .object({
+    stateId: z.string().uuid(),
+    // Either a catalog exam or a free-text name a student typed themselves —
+    // see customExamName's doc comment on StudentProfile in schema.prisma.
+    targetExamId: z.string().uuid().optional(),
+    customExamName: z.string().trim().min(2).max(200).optional(),
+    qualification: qualificationSchema,
+    locale: localeSchema.optional(),
+    dailyStudyMinutes: z.number().int().min(15).max(720),
+    targetDate: z.string().datetime().optional(),
+    preferredSubjects: z.array(z.string()).default([]),
+  })
+  .refine((d) => d.targetExamId || d.customExamName, { message: 'Select an exam or enter your own.', path: ['targetExamId'] });
 export type Onboarding = z.infer<typeof onboardingSchema>;
 
 /** Onboarding captures these once; this lets a student revisit them any time
@@ -21,7 +26,8 @@ export type Onboarding = z.infer<typeof onboardingSchema>;
 export const updateGoalsSchema = z
   .object({
     stateId: z.string().uuid().optional(),
-    targetExamId: z.string().uuid().optional(),
+    targetExamId: z.string().uuid().nullable().optional(),
+    customExamName: z.string().trim().min(2).max(200).nullable().optional(),
     qualification: qualificationSchema.optional(),
     dailyStudyMinutes: z.number().int().min(15).max(720).optional(),
     targetDate: z.string().datetime().nullable().optional(),
@@ -44,7 +50,7 @@ export type PlanItemReschedule = z.infer<typeof planItemRescheduleSchema>;
 
 export interface PlanItemView {
   id: string;
-  kind: 'LESSON' | 'WEAK_TOPIC_DRILL' | 'MISTAKE_DRILL' | 'TEST';
+  kind: 'LESSON' | 'WEAK_TOPIC_DRILL' | 'MISTAKE_DRILL' | 'TEST' | 'CUSTOM';
   status: 'PENDING' | 'DONE' | 'SKIPPED' | 'MISSED' | 'RESCHEDULED';
   titleHi: string;
   titleEn: string;
@@ -54,6 +60,11 @@ export interface PlanItemView {
   conceptId: string | null;
   /** Which mistake type drove a MISTAKE_DRILL slot, for display. */
   triggerMistakeType: MistakeType | null;
+  /** Set for CUSTOM slots — the student-authored topic behind this item. */
+  customTopicId: string | null;
+  noteText: string | null;
+  resourceUrl: string | null;
+  resourceLabel: string | null;
   estimatedMinutes: number;
   freePreview: boolean;
 }
@@ -68,9 +79,60 @@ export interface StudyGoals {
   targetExamId: string | null;
   targetExamNameHi: string | null;
   targetExamNameEn: string | null;
+  /** Free-text exam name when the student isn't preparing for a catalog exam. */
+  customExamName: string | null;
   qualification: string | null;
   dailyStudyMinutes: number | null;
   targetDate: string | null;
+}
+
+export const customTopicInputSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  moduleName: z.string().trim().max(100).optional(),
+  noteText: z.string().trim().max(5000).optional(),
+  resourceUrl: z.string().trim().url().max(2000).optional(),
+  resourceLabel: z.string().trim().max(200).optional(),
+  estimatedMinutes: z.number().int().min(5).max(480).optional(),
+});
+export type CustomTopicInput = z.infer<typeof customTopicInputSchema>;
+
+/** For "paste your syllabus as a list" — one topic per non-blank line, all
+ *  sharing the same optional module label. */
+export const bulkCustomTopicsSchema = z.object({
+  moduleName: z.string().trim().max(100).optional(),
+  names: z.array(z.string().trim().min(1).max(200)).min(1).max(200),
+});
+export type BulkCustomTopics = z.infer<typeof bulkCustomTopicsSchema>;
+
+export const updateCustomTopicSchema = customTopicInputSchema.partial();
+export type UpdateCustomTopic = z.infer<typeof updateCustomTopicSchema>;
+
+export interface CustomTopicView {
+  id: string;
+  name: string;
+  moduleName: string | null;
+  noteText: string | null;
+  resourceUrl: string | null;
+  resourceLabel: string | null;
+  estimatedMinutes: number;
+  sequence: number;
+  /** Whether this topic currently has a PENDING/DONE PlanItem on the active
+   *  plan (or was already completed on a past one) — false means it didn't
+   *  fit within the current scheduling horizon and is "unscheduled". */
+  scheduled: boolean;
+  createdAt: string;
+}
+
+/** Free-tier status for the independent-study-plan feature — the plan itself
+ *  (goal, schedule, topics already added) is always visible regardless;
+ *  this only tells the client whether creating a 4th+ topic, or acting on
+ *  one (mark done/skipped, reschedule), will be rejected with
+ *  SUBSCRIPTION_REQUIRED, so the UI can show that state upfront rather than
+ *  waiting for the error. */
+export interface StudyPlanAccessStatus {
+  hasActiveSubscription: boolean;
+  freeTopicLimit: number;
+  customTopicCount: number;
 }
 
 export const progressUpdateSchema = z.object({

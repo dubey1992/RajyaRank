@@ -507,7 +507,7 @@ export default function LoginClient() {
                       {L('मोबाइल नंबर का उपयोग करें', 'Use phone number instead')}
                     </button>
                   ) : null}
-                  <a href={`/${locale}/signup`} className="font-bold text-navy-900 hover:underline">
+                  <a href={`/${locale}/signup${nextPath ? `?next=${encodeURIComponent(nextPath)}` : ''}`} className="font-bold text-navy-900 hover:underline">
                     {L('नया खाता बनाएँ', 'Create an account')}
                   </a>
                 </div>

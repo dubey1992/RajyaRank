@@ -4,6 +4,7 @@ import type { StudentPyqPaperListItem } from '@rajyarank/contracts';
 import { resolveLocale } from '@/lib/i18n';
 import { apiFetchServer } from '@/lib/api';
 import { getMe, initialsOf } from '@/lib/student';
+import Link from 'next/link';
 import { StudentShell } from '@/components/StudentShell';
 import { PyqDownloadButton } from '@/components/PyqDownloadButton';
 
@@ -27,9 +28,14 @@ export default async function PyqPage({ params }: { params: { locale: string } }
       target={L('पिछले वर्ष के प्रश्न', 'Previous Year Questions')}
       hasInstitute={Boolean(me.orgId)}
     >
-      <div className="mb-6">
-        <h1 className="text-[26px] font-black tracking-tight text-navy-950 md:text-[34px]">{L('पिछले वर्ष के प्रश्न', 'Previous Year Questions')}</h1>
-        <p className="mt-1 text-sm text-muted">{L('असली परीक्षा पेपर देखें और डाउनलोड करें।', 'View and download real past exam papers.')}</p>
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-[26px] font-black tracking-tight text-navy-950 md:text-[34px]">{L('पिछले वर्ष के प्रश्न', 'Previous Year Questions')}</h1>
+          <p className="mt-1 text-sm text-muted">{L('असली परीक्षा पेपर देखें और डाउनलोड करें।', 'View and download real past exam papers.')}</p>
+        </div>
+        <Link href={`/${locale}/my-papers`} className="rounded-md border border-line bg-white px-3 py-2 text-xs font-bold text-navy-900 hover:bg-surface-soft">
+          {L('अपना पेपर अपलोड करें →', 'Upload your own paper →')}
+        </Link>
       </div>
 
       {papers.length === 0 ? (

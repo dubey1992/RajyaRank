@@ -23,6 +23,8 @@ export default function OnboardingPage() {
   const [exams, setExams] = useState<Exam[]>([]);
   const [stateId, setStateId] = useState('');
   const [targetExamId, setTargetExamId] = useState('');
+  const [ownExam, setOwnExam] = useState(false);
+  const [customExamName, setCustomExamName] = useState('');
   const [qualification, setQualification] = useState<(typeof QUALS)[number]>('GRADUATE');
   const [dailyStudyMinutes, setDaily] = useState(120);
   const [institutionCode, setInstitutionCode] = useState('');
@@ -75,7 +77,15 @@ export default function OnboardingPage() {
   }
 
   async function submit() {
-    const payload = { stateId, targetExamId, qualification, locale, dailyStudyMinutes, preferredSubjects: [] };
+    const payload = {
+      stateId,
+      targetExamId: ownExam ? undefined : targetExamId,
+      customExamName: ownExam ? customExamName.trim() : undefined,
+      qualification,
+      locale,
+      dailyStudyMinutes,
+      preferredSubjects: [],
+    };
     const errs = validate(onboardingSchema, payload);
     setErrors(errs);
     if (Object.keys(errs).length) return;
@@ -132,11 +142,30 @@ export default function OnboardingPage() {
         </Label>
 
         <Label text={hi ? 'लक्ष्य परीक्षा' : 'Target exam'}>
-          <select className={selectCls} value={targetExamId} onChange={(e) => setTargetExamId(e.target.value)} required>
-            <option value="">{hi ? 'चुनें' : 'Select'}</option>
-            {examsForState.map((e) => <option key={e.id} value={e.id}>{hi ? e.nameHi : e.nameEn}</option>)}
-          </select>
+          {ownExam ? (
+            <input
+              value={customExamName}
+              onChange={(e) => setCustomExamName(e.target.value)}
+              placeholder={hi ? 'अपनी परीक्षा का नाम लिखें' : 'Type your exam name'}
+              className={selectCls}
+              autoFocus
+            />
+          ) : (
+            <select className={selectCls} value={targetExamId} onChange={(e) => setTargetExamId(e.target.value)} required>
+              <option value="">{hi ? 'चुनें' : 'Select'}</option>
+              {examsForState.map((e) => <option key={e.id} value={e.id}>{hi ? e.nameHi : e.nameEn}</option>)}
+            </select>
+          )}
         </Label>
+        <button
+          type="button"
+          onClick={() => { setOwnExam((v) => !v); setTargetExamId(''); setCustomExamName(''); }}
+          className="-mt-2 mb-4 text-xs font-bold text-orange-600 hover:underline"
+        >
+          {ownExam
+            ? hi ? '← सूची में से चुनें' : '← Pick from the list instead'
+            : hi ? 'मेरी परीक्षा सूची में नहीं है — खुद लिखूँगा/लिखूँगी' : "My exam isn't listed — let me type it"}
+        </button>
 
         <Label text={hi ? 'योग्यता' : 'Qualification'}>
           <select className={selectCls} value={qualification} onChange={(e) => setQualification(e.target.value as (typeof QUALS)[number])}>
@@ -175,7 +204,7 @@ export default function OnboardingPage() {
               : "This makes you a member of your institute — you won't need to enter this again at checkout."}
         </p>
 
-        <Button type="submit" loading={busy} className="w-full" disabled={!stateId || !targetExamId}>
+        <Button type="submit" loading={busy} className="w-full" disabled={!stateId || (ownExam ? customExamName.trim().length < 2 : !targetExamId)}>
           {t('common.continue')}
         </Button>
         <button

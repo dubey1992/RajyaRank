@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { Alert, Button, Field, PasswordChecklist } from '@rajyarank/ui';
 import { PASSWORD_RULES, studentSignupVerifySchema } from '@rajyarank/contracts';
 import { apiFetch, type ApiError } from '@/lib/api';
@@ -16,6 +16,11 @@ export default function SignupClient() {
   const hi = locale === 'hi';
   const L = (h: string, e: string) => (hi ? h : e);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // Same open-redirect guard as LoginClient's nextPath — only a same-app
+  // relative path is ever trusted, never an absolute/protocol-relative URL.
+  const rawNext = searchParams.get('next');
+  const nextPath = rawNext && rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : null;
 
   const [step, setStep] = useState<Step>('email');
   const [email, setEmail] = useState('');
@@ -56,8 +61,14 @@ export default function SignupClient() {
         method: 'POST',
         body: JSON.stringify(payload),
       });
-      router.refresh();
-      router.push(`/${locale}${res.homeRoute}`);
+      // Same full-navigation rationale as LoginClient.goAfterLogin: a plain
+      // router.push back to `next` can serve a stale pre-login Router Cache
+      // entry for that page.
+      if (nextPath) window.location.assign(nextPath);
+      else {
+        router.refresh();
+        router.push(`/${locale}${res.homeRoute}`);
+      }
     } catch (e) {
       setErrors(serverFieldErrors(e as ApiError));
     } finally {
@@ -124,7 +135,7 @@ export default function SignupClient() {
 
       <p className="mt-6 text-center text-sm text-muted">
         {L('पहले से खाता है?', 'Already have an account?')}{' '}
-        <a href={`/${locale}/login`} className="font-extrabold text-orange-600 hover:underline">{L('साइन इन करें', 'Sign in')}</a>
+        <a href={`/${locale}/login${nextPath ? `?next=${encodeURIComponent(nextPath)}` : ''}`} className="font-extrabold text-orange-600 hover:underline">{L('साइन इन करें', 'Sign in')}</a>
       </p>
     </main>
   );

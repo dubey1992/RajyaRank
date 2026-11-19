@@ -24,7 +24,13 @@ function buildCsp(nonce: string): string {
     "font-src 'self' data:",
     "style-src 'self' 'unsafe-inline'",
     scriptSrc,
-    `connect-src 'self' ${api} https://api.razorpay.com https://*.google-analytics.com https://*.analytics.google.com https://www.facebook.com https://connect.facebook.net`,
+    // Student PYQ-paper upload (MyPapersList.tsx) PUTs the file straight to
+    // S3 via a presigned URL, client-side — connect-src needs the storage
+    // origin for that fetch() to succeed, same origin frame-src below already
+    // trusts for *reading* presigned PDFs back. Caught live: without this,
+    // the browser silently blocks the PUT with "Failed to fetch" and no
+    // hint it was CSP, not a network/S3 problem.
+    `connect-src 'self' ${api} https://*.s3.ap-south-1.amazonaws.com${IS_DEV ? ' http://localhost:9000' : ''} https://api.razorpay.com https://*.google-analytics.com https://*.analytics.google.com https://www.facebook.com https://connect.facebook.net`,
     // Lesson playback renders VIDEO-embed and PDF-notes assets in an <iframe>
     // (LessonPlayer.tsx) — those need their own frame-src entries or the
     // browser silently blocks the frame with no visible error beyond the

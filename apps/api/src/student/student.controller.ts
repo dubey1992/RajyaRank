@@ -1,18 +1,39 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
 import type { Principal } from '@rajyarank/auth';
 import {
+  bulkCustomTopicsSchema,
+  bulkImportQuestionsTextSchema,
+  createStudentPaperSchema,
+  customTopicInputSchema,
   joinInstitutionSchema,
   onboardingSchema,
+  personalQuizInputSchema,
+  personalQuizQuestionInputSchema,
   planItemRescheduleSchema,
   planItemStatusUpdateSchema,
   progressUpdateSchema,
+  submitPersonalQuizAttemptSchema,
+  submitStudentPaperAttemptSchema,
+  updateCustomTopicSchema,
   updateGoalsSchema,
+  uploadIntentSchema,
+  completeUploadSchema,
+  type BulkCustomTopics,
+  type BulkImportQuestionsText,
+  type CreateStudentPaper,
+  type CustomTopicInput,
   type JoinInstitution,
   type Onboarding,
+  type PersonalQuizInput,
+  type PersonalQuizQuestionInput,
   type PlanItemReschedule,
   type PlanItemStatusUpdate,
   type ProgressUpdate,
+  type SubmitPersonalQuizAttempt,
+  type SubmitStudentPaperAttempt,
+  type UpdateCustomTopic,
   type UpdateGoals,
+  type UploadIntent,
 } from '@rajyarank/contracts';
 import { CurrentPrincipal } from '../common/decorators/current-principal.decorator';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
@@ -20,6 +41,13 @@ import { StudentService } from './student.service';
 import { StudyPlanService } from './study-plan.service';
 import { ReadinessService } from './readiness.service';
 import { MistakeDnaService } from './mistake-dna.service';
+import { PersonalQuizzesService } from './personal-quizzes.service';
+import { StudentPapersService } from './student-papers.service';
+
+// Student uploads are always DOCUMENT (PDF) — unlike the staff
+// upload-intents route, assetType is never client-supplied here.
+const studentUploadIntentSchema = uploadIntentSchema.omit({ assetType: true });
+type StudentUploadIntent = Omit<UploadIntent, 'assetType'>;
 
 /**
  * Student endpoints. Authentication is enforced globally by AccessGuard; there
@@ -34,6 +62,8 @@ export class StudentController {
     private readonly studyPlan: StudyPlanService,
     private readonly readinessService: ReadinessService,
     private readonly mistakeDnaService: MistakeDnaService,
+    private readonly personalQuizzes: PersonalQuizzesService,
+    private readonly studentPapers: StudentPapersService,
   ) {}
 
   @Post('onboarding')
@@ -185,5 +215,159 @@ export class StudentController {
   @Post('study-plan/regenerate')
   studyPlanRegenerate(@CurrentPrincipal() p: Principal) {
     return this.studyPlan.regenerate(p);
+  }
+
+  @Get('study-plan/access-status')
+  studyPlanAccessStatus(@CurrentPrincipal() p: Principal) {
+    return this.studyPlan.accessStatus(p);
+  }
+
+  @Get('study-plan/custom-topics')
+  listCustomTopics(@CurrentPrincipal() p: Principal) {
+    return this.studyPlan.listCustomTopics(p);
+  }
+
+  @Post('study-plan/custom-topics')
+  createCustomTopic(
+    @CurrentPrincipal() p: Principal,
+    @Body(new ZodValidationPipe(customTopicInputSchema)) body: CustomTopicInput,
+  ) {
+    return this.studyPlan.createCustomTopic(p, body);
+  }
+
+  @Post('study-plan/custom-topics/bulk')
+  bulkCreateCustomTopics(
+    @CurrentPrincipal() p: Principal,
+    @Body(new ZodValidationPipe(bulkCustomTopicsSchema)) body: BulkCustomTopics,
+  ) {
+    return this.studyPlan.bulkCreateCustomTopics(p, body);
+  }
+
+  @Patch('study-plan/custom-topics/:id')
+  updateCustomTopic(
+    @CurrentPrincipal() p: Principal,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(updateCustomTopicSchema)) body: UpdateCustomTopic,
+  ) {
+    return this.studyPlan.updateCustomTopic(p, id, body);
+  }
+
+  @Delete('study-plan/custom-topics/:id')
+  deleteCustomTopic(@CurrentPrincipal() p: Principal, @Param('id') id: string) {
+    return this.studyPlan.deleteCustomTopic(p, id);
+  }
+
+  @Get('my-quizzes')
+  listPersonalQuizzes(@CurrentPrincipal() p: Principal) {
+    return this.personalQuizzes.list(p);
+  }
+
+  @Post('my-quizzes')
+  createPersonalQuiz(
+    @CurrentPrincipal() p: Principal,
+    @Body(new ZodValidationPipe(personalQuizInputSchema)) body: PersonalQuizInput,
+  ) {
+    return this.personalQuizzes.create(p, body);
+  }
+
+  @Get('my-quizzes/:id')
+  personalQuizDetail(@CurrentPrincipal() p: Principal, @Param('id') id: string) {
+    return this.personalQuizzes.detail(p, id);
+  }
+
+  @Delete('my-quizzes/:id')
+  deletePersonalQuiz(@CurrentPrincipal() p: Principal, @Param('id') id: string) {
+    return this.personalQuizzes.deleteQuiz(p, id);
+  }
+
+  @Post('my-quizzes/:id/questions')
+  addPersonalQuizQuestion(
+    @CurrentPrincipal() p: Principal,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(personalQuizQuestionInputSchema)) body: PersonalQuizQuestionInput,
+  ) {
+    return this.personalQuizzes.addQuestion(p, id, body);
+  }
+
+  @Post('my-quizzes/:id/questions/bulk-text')
+  bulkImportPersonalQuizQuestions(
+    @CurrentPrincipal() p: Principal,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(bulkImportQuestionsTextSchema)) body: BulkImportQuestionsText,
+  ) {
+    return this.personalQuizzes.bulkImportQuestions(p, id, body.text);
+  }
+
+  @Delete('my-quizzes/:id/questions/:questionId')
+  deletePersonalQuizQuestion(@CurrentPrincipal() p: Principal, @Param('id') id: string, @Param('questionId') questionId: string) {
+    return this.personalQuizzes.deleteQuestion(p, id, questionId);
+  }
+
+  @Post('my-quizzes/:id/attempts')
+  startPersonalQuizAttempt(@CurrentPrincipal() p: Principal, @Param('id') id: string) {
+    return this.personalQuizzes.startAttempt(p, id);
+  }
+
+  @Post('my-quizzes/attempts/:attemptId/submit')
+  submitPersonalQuizAttempt(
+    @CurrentPrincipal() p: Principal,
+    @Param('attemptId') attemptId: string,
+    @Body(new ZodValidationPipe(submitPersonalQuizAttemptSchema)) body: SubmitPersonalQuizAttempt,
+  ) {
+    return this.personalQuizzes.submitAttempt(p, attemptId, body);
+  }
+
+  @Post('my-papers/upload-intents')
+  createPaperUploadIntent(
+    @CurrentPrincipal() p: Principal,
+    @Body(new ZodValidationPipe(studentUploadIntentSchema)) body: StudentUploadIntent,
+  ) {
+    return this.studentPapers.createUploadIntent(p, body);
+  }
+
+  @Post('my-papers/assets/:assetId/complete')
+  completePaperUpload(
+    @CurrentPrincipal() p: Principal,
+    @Param('assetId') assetId: string,
+    @Body(new ZodValidationPipe(completeUploadSchema)) body: { checksum?: string },
+  ) {
+    return this.studentPapers.completeUpload(p, assetId, body.checksum);
+  }
+
+  @Get('my-papers')
+  listStudentPapers(@CurrentPrincipal() p: Principal) {
+    return this.studentPapers.list(p);
+  }
+
+  @Post('my-papers')
+  createStudentPaper(
+    @CurrentPrincipal() p: Principal,
+    @Body(new ZodValidationPipe(createStudentPaperSchema)) body: CreateStudentPaper,
+  ) {
+    return this.studentPapers.create(p, body);
+  }
+
+  @Delete('my-papers/:id')
+  deleteStudentPaper(@CurrentPrincipal() p: Principal, @Param('id') id: string) {
+    return this.studentPapers.deletePaper(p, id);
+  }
+
+  @Get('my-papers/:id/download')
+  studentPaperDownload(@CurrentPrincipal() p: Principal, @Param('id') id: string) {
+    return this.studentPapers.downloadUrl(p, id);
+  }
+
+  @Post('my-papers/:id/attempts')
+  startStudentPaperAttempt(@CurrentPrincipal() p: Principal, @Param('id') id: string) {
+    return this.studentPapers.startAttempt(p, id);
+  }
+
+  @Post('my-papers/attempts/:attemptId/submit')
+  submitStudentPaperAttempt(
+    @CurrentPrincipal() p: Principal,
+    @Param('attemptId') attemptId: string,
+    @Body(new ZodValidationPipe(submitStudentPaperAttemptSchema)) body: SubmitStudentPaperAttempt,
+  ) {
+    return this.studentPapers.submitAttempt(p, attemptId, body);
   }
 }

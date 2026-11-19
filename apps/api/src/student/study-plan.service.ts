@@ -1,6 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import type { Principal } from '@rajyarank/auth';
-import type { MistakeType, PlanItemView, StudyPlanDay, WeakTopic } from '@rajyarank/contracts';
+import type {
+  BulkCustomTopics,
+  CustomTopicInput,
+  CustomTopicView,
+  MistakeType,
+  PlanItemView,
+  StudyPlanAccessStatus,
+  StudyPlanDay,
+  UpdateCustomTopic,
+  WeakTopic,
+} from '@rajyarank/contracts';
 import { PrismaService } from '../prisma/prisma.service';
 import { AppError } from '../common/errors/app-error';
 import { EntitlementService } from '../payments/entitlement.service';
@@ -8,6 +18,12 @@ import { EntitlementService } from '../payments/entitlement.service';
 const DEFAULT_HORIZON_DAYS = 14;
 const DEFAULT_LESSON_MINUTES = 20;
 const MISTAKE_DRILL_MIN_EVIDENCE = 3;
+/** Free-tier cap on student-authored topics — the independent-study-plan
+ *  feature itself stays reachable with zero entitlement (see generate()'s own
+ *  comments), but using it beyond a one-module-sized trial requires the same
+ *  platform SUBSCRIPTION Product every other "allAccess" check already reads
+ *  (EntitlementService.accessibleExamIds) rather than a new billing concept. */
+const FREE_CUSTOM_TOPIC_LIMIT = 3;
 /** Shared with MistakeDnaService so both read the same "recent" window. */
 export const MISTAKE_LOOKBACK_DAYS = 14;
 /** Tie-break order when two mistake types are equally common. */
@@ -41,6 +57,40 @@ export class StudyPlanService {
     return p.userId;
   }
 
+  /** Same "allAccess" signal every other platform-subscription check already
+   *  reads — a course-only entitlement does NOT set this, only a SUBSCRIPTION
+   *  Product with examId: null does, so an institute student who merely
+   *  bought one course is still gated here same as anyone else; this feature
+   *  is sold separately from any single course. */
+  private async hasActiveSubscription(studentId: string): Promise<boolean> {
+    const { allAccess } = await this.entitlements.accessibleExamIds(studentId);
+    return allAccess;
+  }
+
+  /** Gates the interactive actions (mark done/skipped, reschedule) on a
+   *  CUSTOM item once the student has used their full free topic allowance —
+   *  the schedule itself stays visible either way (see generate()), only
+   *  acting on it is paywalled, so the free tier proves the value before
+   *  asking to pay rather than hiding it. */
+  private async assertCustomActionAllowed(studentId: string): Promise<void> {
+    const [count, subscribed] = await Promise.all([
+      this.prisma.customTopic.count({ where: { studentId, deletedAt: null } }),
+      this.hasActiveSubscription(studentId),
+    ]);
+    if (count >= FREE_CUSTOM_TOPIC_LIMIT && !subscribed) {
+      throw AppError.subscriptionRequired('Subscribe to track progress on your own study plan.');
+    }
+  }
+
+  async accessStatus(p: Principal): Promise<StudyPlanAccessStatus> {
+    const studentId = this.studentId(p);
+    const [customTopicCount, hasActiveSubscription] = await Promise.all([
+      this.prisma.customTopic.count({ where: { studentId, deletedAt: null } }),
+      this.hasActiveSubscription(studentId),
+    ]);
+    return { hasActiveSubscription, freeTopicLimit: FREE_CUSTOM_TOPIC_LIMIT, customTopicCount };
+  }
+
   async today(p: Principal): Promise<StudyPlanDay> {
     const studentId = this.studentId(p);
     const plan = await this.activeOrGenerate(studentId);
@@ -60,6 +110,7 @@ export class StudyPlanService {
     const studentId = this.studentId(p);
     const item = await this.prisma.planItem.findUnique({ where: { id: itemId }, include: { plan: true } });
     if (!item || item.plan.studentId !== studentId) throw AppError.notFound('Plan item not found.');
+    if (item.kind === 'CUSTOM') await this.assertCustomActionAllowed(studentId);
     await this.prisma.planItem.update({
       where: { id: itemId },
       data: { status, completedAt: status === 'DONE' ? new Date() : null },
@@ -78,6 +129,7 @@ export class StudyPlanService {
     const item = await this.prisma.planItem.findUnique({ where: { id: itemId }, include: { plan: true } });
     if (!item || item.plan.studentId !== studentId) throw AppError.notFound('Plan item not found.');
     if (item.status !== 'PENDING') throw AppError.conflict('Only a pending item can be rescheduled.');
+    if (item.kind === 'CUSTOM') await this.assertCustomActionAllowed(studentId);
 
     const scheduledFor = startOfDay(new Date(toDate));
     const created = await this.prisma.$transaction(async (tx) => {
@@ -89,6 +141,7 @@ export class StudyPlanService {
           lessonId: item.lessonId,
           topicId: item.topicId,
           conceptId: item.conceptId,
+          customTopicId: item.customTopicId,
           triggerMistakeType: item.triggerMistakeType,
           kind: item.kind,
           estimatedMinutes: item.estimatedMinutes,
@@ -111,6 +164,173 @@ export class StudyPlanService {
     const studentId = this.studentId(p);
     await this.generate(studentId);
     return this.today(p);
+  }
+
+  /** Revision linking: auto-schedules one extra CUSTOM slot for a topic a
+   *  student just got a question wrong on in a personal quiz — the same
+   *  self-correcting loop WEAK_TOPIC_DRILL already gives catalog content
+   *  (see generate()'s own doc comment), extended to a student's own
+   *  topics. Called from PersonalQuizzesService.submitAttempt(), not a
+   *  student-facing endpoint of its own. Deduplicates against an
+   *  already-pending REVISION slot specifically (scheduled 3+ days out)
+   *  so repeated wrong attempts don't pile up duplicates. Deliberately does
+   *  NOT look at [today, 3) — that range is where the topic's own normal
+   *  first-time occurrence from generate()'s regular bin-packing already
+   *  lives, and a naive "any pending slot in the next N days" check matched
+   *  that real occurrence and skipped revision-scheduling on every first
+   *  wrong answer (caught live: a fresh topic + an immediate wrong quiz
+   *  attempt produced revisionScheduledFor: null every time). Returns the
+   *  date it scheduled for, or null if skipped (topic deleted, or a
+   *  revision slot already exists). */
+  async scheduleRevision(studentId: string, customTopicId: string): Promise<string | null> {
+    const topic = await this.prisma.customTopic.findFirst({ where: { id: customTopicId, studentId, deletedAt: null } });
+    if (!topic) return null;
+
+    const plan = await this.activeOrGenerate(studentId);
+    const today = startOfDay(new Date());
+    const scheduledFor = addDays(today, 3);
+    const horizon = addDays(today, 10);
+    const existing = await this.prisma.planItem.findFirst({
+      where: { planId: plan.id, customTopicId, status: 'PENDING', scheduledFor: { gte: scheduledFor, lte: horizon } },
+    });
+    if (existing) return null;
+
+    const last = await this.prisma.planItem.findFirst({ where: { planId: plan.id, scheduledFor }, orderBy: { sequence: 'desc' }, select: { sequence: true } });
+    await this.prisma.planItem.create({
+      data: {
+        planId: plan.id,
+        scheduledFor,
+        sequence: (last?.sequence ?? -1) + 1,
+        lessonId: null,
+        topicId: null,
+        conceptId: null,
+        customTopicId: topic.id,
+        triggerMistakeType: null,
+        kind: 'CUSTOM',
+        estimatedMinutes: topic.estimatedMinutes,
+      },
+    });
+    return scheduledFor.toISOString().slice(0, 10);
+  }
+
+  /** Which CustomTopic ids currently have a PENDING/DONE item on the active
+   *  plan, or a DONE item on any past plan (completed history survives a
+   *  regenerate — see generate()'s own completed-filter comment). Shared by
+   *  listCustomTopics()'s `scheduled` flag and generate()'s re-pack filter. */
+  private async scheduledCustomTopicIds(studentId: string): Promise<Set<string>> {
+    const rows = await this.prisma.planItem.findMany({
+      where: { customTopicId: { not: null }, plan: { studentId }, status: { not: 'RESCHEDULED' } },
+      select: { customTopicId: true },
+    });
+    return new Set(rows.map((r) => r.customTopicId!));
+  }
+
+  async listCustomTopics(p: Principal): Promise<CustomTopicView[]> {
+    const studentId = this.studentId(p);
+    const [topics, scheduled] = await Promise.all([
+      this.prisma.customTopic.findMany({ where: { studentId, deletedAt: null }, orderBy: [{ sequence: 'asc' }, { createdAt: 'asc' }] }),
+      this.scheduledCustomTopicIds(studentId),
+    ]);
+    return topics.map((t) => this.toCustomTopicView(t, scheduled.has(t.id)));
+  }
+
+  private toCustomTopicView(t: { id: string; name: string; moduleName: string | null; noteText: string | null; resourceUrl: string | null; resourceLabel: string | null; estimatedMinutes: number; sequence: number; createdAt: Date }, scheduled: boolean): CustomTopicView {
+    return {
+      id: t.id,
+      name: t.name,
+      moduleName: t.moduleName,
+      noteText: t.noteText,
+      resourceUrl: t.resourceUrl,
+      resourceLabel: t.resourceLabel,
+      estimatedMinutes: t.estimatedMinutes,
+      sequence: t.sequence,
+      scheduled,
+      createdAt: t.createdAt.toISOString(),
+    };
+  }
+
+  /** Create + immediately regenerate, so a newly-added topic shows up in
+   *  Today's Study without a separate "Regenerate" click — same immediacy
+   *  precedent as updateGoals(). */
+  async createCustomTopic(p: Principal, dto: CustomTopicInput): Promise<CustomTopicView> {
+    const studentId = this.studentId(p);
+    const count = await this.prisma.customTopic.count({ where: { studentId, deletedAt: null } });
+    if (count >= FREE_CUSTOM_TOPIC_LIMIT && !(await this.hasActiveSubscription(studentId))) {
+      throw AppError.subscriptionRequired(`Free plan allows up to ${FREE_CUSTOM_TOPIC_LIMIT} topics. Subscribe to add more.`);
+    }
+    const topic = await this.prisma.customTopic.create({
+      data: {
+        studentId,
+        name: dto.name,
+        moduleName: dto.moduleName ?? null,
+        noteText: dto.noteText ?? null,
+        resourceUrl: dto.resourceUrl ?? null,
+        resourceLabel: dto.resourceLabel ?? null,
+        estimatedMinutes: dto.estimatedMinutes ?? 30,
+        sequence: count,
+      },
+    });
+    await this.generate(studentId);
+    // Bug caught by a live browser walkthrough: hardcoding false here showed
+    // "Not yet scheduled" on a topic that generate() just placed in today's
+    // plan a moment earlier — recompute for real, same as updateCustomTopic().
+    const scheduled = await this.scheduledCustomTopicIds(studentId);
+    return this.toCustomTopicView(topic, scheduled.has(topic.id));
+  }
+
+  /** Bulk variant for a pasted syllabus list — one topic per line, all under
+   *  the same optional module label, one regenerate at the end rather than
+   *  per-row. */
+  async bulkCreateCustomTopics(p: Principal, dto: BulkCustomTopics): Promise<CustomTopicView[]> {
+    const studentId = this.studentId(p);
+    const count = await this.prisma.customTopic.count({ where: { studentId, deletedAt: null } });
+    if (count + dto.names.length > FREE_CUSTOM_TOPIC_LIMIT && !(await this.hasActiveSubscription(studentId))) {
+      throw AppError.subscriptionRequired(`Free plan allows up to ${FREE_CUSTOM_TOPIC_LIMIT} topics total. Subscribe to add more.`);
+    }
+    const rows = dto.names.map((name, i) => ({
+      studentId,
+      name,
+      moduleName: dto.moduleName ?? null,
+      sequence: count + i,
+    }));
+    await this.prisma.customTopic.createMany({ data: rows });
+    await this.generate(studentId);
+    return this.listCustomTopics(p);
+  }
+
+  async updateCustomTopic(p: Principal, id: string, dto: UpdateCustomTopic): Promise<CustomTopicView> {
+    const studentId = this.studentId(p);
+    const existing = await this.prisma.customTopic.findFirst({ where: { id, studentId, deletedAt: null } });
+    if (!existing) throw AppError.notFound('Topic not found.');
+    const topic = await this.prisma.customTopic.update({
+      where: { id },
+      data: {
+        ...(dto.name !== undefined ? { name: dto.name } : {}),
+        ...(dto.moduleName !== undefined ? { moduleName: dto.moduleName } : {}),
+        ...(dto.noteText !== undefined ? { noteText: dto.noteText } : {}),
+        ...(dto.resourceUrl !== undefined ? { resourceUrl: dto.resourceUrl } : {}),
+        ...(dto.resourceLabel !== undefined ? { resourceLabel: dto.resourceLabel } : {}),
+        ...(dto.estimatedMinutes !== undefined ? { estimatedMinutes: dto.estimatedMinutes } : {}),
+      },
+    });
+    // A changed title/minutes should be reflected in any still-PENDING slot
+    // immediately, same as a goal edit — but don't touch already-DONE history.
+    await this.generate(studentId);
+    const scheduled = await this.scheduledCustomTopicIds(studentId);
+    return this.toCustomTopicView(topic, scheduled.has(topic.id));
+  }
+
+  /** Soft delete only — a hard delete would null out customTopicId on any
+   *  historical DONE PlanItem (see the FK's onDelete: SetNull) and silently
+   *  blank that day's title forever. deletedAt keeps the row (and its title)
+   *  resolvable for history while excluding it from future scheduling. */
+  async deleteCustomTopic(p: Principal, id: string): Promise<{ deleted: true }> {
+    const studentId = this.studentId(p);
+    const existing = await this.prisma.customTopic.findFirst({ where: { id, studentId, deletedAt: null } });
+    if (!existing) throw AppError.notFound('Topic not found.');
+    await this.prisma.customTopic.update({ where: { id }, data: { deletedAt: new Date() } });
+    await this.generate(studentId);
+    return { deleted: true };
   }
 
   /** Deterministic weak-area recommendations (§13.3): per-topic accuracy
@@ -371,6 +591,20 @@ export class StudyPlanService {
     const topWeakTopic = weakTopics[0] ?? null;
     const drillMinutes = Math.max(10, Math.round(dailyMinutesGoal * 0.2));
 
+    // Student-authored topics (empty array when the student has none — a
+    // no-op for every existing institute-affiliated student's plan). Packed
+    // into the SAME day/budget state as catalog lessons below, right after
+    // them, so a student with both sees one coherent calendar rather than two.
+    // A topic already marked DONE on any past plan stays done (never
+    // re-inserted) — same non-destructive-history treatment as completedIds
+    // above for lessons.
+    const [customTopics, doneCustom] = await Promise.all([
+      this.prisma.customTopic.findMany({ where: { studentId, deletedAt: null }, orderBy: [{ sequence: 'asc' }, { createdAt: 'asc' }] }),
+      this.prisma.planItem.findMany({ where: { customTopicId: { not: null }, status: 'DONE', plan: { studentId } }, select: { customTopicId: true } }),
+    ]);
+    const doneCustomIds = new Set(doneCustom.map((d) => d.customTopicId!));
+    const remainingCustom = customTopics.filter((t) => !doneCustomIds.has(t.id));
+
     const today = startOfDay(new Date());
     const rows: {
       planId: string;
@@ -379,8 +613,9 @@ export class StudyPlanService {
       lessonId: string | null;
       topicId: string | null;
       conceptId: string | null;
+      customTopicId: string | null;
       triggerMistakeType: MistakeType | null;
-      kind: 'LESSON' | 'WEAK_TOPIC_DRILL' | 'MISTAKE_DRILL';
+      kind: 'LESSON' | 'WEAK_TOPIC_DRILL' | 'MISTAKE_DRILL' | 'CUSTOM';
       estimatedMinutes: number;
     }[] = [];
     let dayIndex = 0;
@@ -411,18 +646,34 @@ export class StudyPlanService {
           drillKind = 'WEAK_TOPIC_DRILL';
         }
         if (drillKind === 'WEAK_TOPIC_DRILL') {
-          rows.push({ planId: plan.id, scheduledFor: addDays(today, dayIndex), sequence: sequence++, lessonId: null, topicId: topWeakTopic!.topicId, conceptId: null, triggerMistakeType: null, kind: 'WEAK_TOPIC_DRILL', estimatedMinutes: drillMinutes });
+          rows.push({ planId: plan.id, scheduledFor: addDays(today, dayIndex), sequence: sequence++, lessonId: null, topicId: topWeakTopic!.topicId, conceptId: null, customTopicId: null, triggerMistakeType: null, kind: 'WEAK_TOPIC_DRILL', estimatedMinutes: drillMinutes });
         } else if (drillKind === 'MISTAKE_DRILL') {
-          rows.push({ planId: plan.id, scheduledFor: addDays(today, dayIndex), sequence: sequence++, lessonId: null, topicId: null, conceptId: topMistake!.conceptId, triggerMistakeType: topMistake!.mistakeType, kind: 'MISTAKE_DRILL', estimatedMinutes: drillMinutes });
+          rows.push({ planId: plan.id, scheduledFor: addDays(today, dayIndex), sequence: sequence++, lessonId: null, topicId: null, conceptId: topMistake!.conceptId, customTopicId: null, triggerMistakeType: topMistake!.mistakeType, kind: 'MISTAKE_DRILL', estimatedMinutes: drillMinutes });
         }
         if (drillKind) {
           minutesUsedToday += drillMinutes;
           lessonsSinceDrill = 0;
         }
       }
-      rows.push({ planId: plan.id, scheduledFor: addDays(today, dayIndex), sequence: sequence++, lessonId: lesson.id, topicId: null, conceptId: null, triggerMistakeType: null, kind: 'LESSON', estimatedMinutes });
+      rows.push({ planId: plan.id, scheduledFor: addDays(today, dayIndex), sequence: sequence++, lessonId: lesson.id, topicId: null, conceptId: null, customTopicId: null, triggerMistakeType: null, kind: 'LESSON', estimatedMinutes });
       minutesUsedToday += estimatedMinutes;
       lessonsSinceDrill += 1;
+    }
+    // Continue packing student-authored topics into the same day/budget
+    // state right after catalog lessons — whatever doesn't fit within
+    // horizonDays is simply left out (reported back to the student via
+    // CustomTopicView.scheduled = false on the topics list, not an error).
+    for (const topic of remainingCustom) {
+      if (dayIndex >= horizonDays) break;
+      const estimatedMinutes = topic.estimatedMinutes;
+      if (minutesUsedToday > 0 && minutesUsedToday + estimatedMinutes > dailyMinutesGoal) {
+        dayIndex += 1;
+        minutesUsedToday = 0;
+        sequence = 0;
+        if (dayIndex >= horizonDays) break;
+      }
+      rows.push({ planId: plan.id, scheduledFor: addDays(today, dayIndex), sequence: sequence++, lessonId: null, topicId: null, conceptId: null, customTopicId: topic.id, triggerMistakeType: null, kind: 'CUSTOM', estimatedMinutes });
+      minutesUsedToday += estimatedMinutes;
     }
     if (rows.length) await this.prisma.planItem.createMany({ data: rows });
     return plan;
@@ -436,16 +687,21 @@ export class StudyPlanService {
     const lessonIds = items.map((i) => i.lessonId).filter((id): id is string => !!id);
     const topicIds = items.map((i) => i.topicId).filter((id): id is string => !!id);
     const conceptIds = items.map((i) => i.conceptId).filter((id): id is string => !!id);
-    const [lessonTitles, topicNames, conceptNames] = await Promise.all([
+    const customTopicIds = items.map((i) => i.customTopicId).filter((id): id is string => !!id);
+    const [lessonTitles, topicNames, conceptNames, customTopics] = await Promise.all([
       lessonIds.length
         ? this.prisma.lesson.findMany({ where: { id: { in: lessonIds } }, select: { id: true, freePreview: true, currentVersion: { select: { titleHi: true, titleEn: true } } } })
         : Promise.resolve([]),
       topicIds.length ? this.prisma.topic.findMany({ where: { id: { in: topicIds } } }) : Promise.resolve([]),
       conceptIds.length ? this.prisma.concept.findMany({ where: { id: { in: conceptIds } } }) : Promise.resolve([]),
+      // findMany (not a deletedAt filter) — a historical DONE item must keep
+      // resolving its title even after the student soft-deletes the topic.
+      customTopicIds.length ? this.prisma.customTopic.findMany({ where: { id: { in: customTopicIds } } }) : Promise.resolve([]),
     ]);
     const lessonById = new Map(lessonTitles.map((l) => [l.id, l]));
     const topicById = new Map(topicNames.map((t) => [t.id, t]));
     const conceptById = new Map(conceptNames.map((c) => [c.id, c]));
+    const customTopicById = new Map(customTopics.map((t) => [t.id, t]));
 
     return {
       date: date.toISOString().slice(0, 10),
@@ -453,15 +709,21 @@ export class StudyPlanService {
         const lesson = i.lessonId ? lessonById.get(i.lessonId) : undefined;
         const topic = i.topicId ? topicById.get(i.topicId) : undefined;
         const concept = i.conceptId ? conceptById.get(i.conceptId) : undefined;
+        // No hi/en split on a student's own text — same string serves both.
+        const custom = i.customTopicId ? customTopicById.get(i.customTopicId) : undefined;
         return {
           id: i.id,
           kind: i.kind,
           status: i.status,
-          titleHi: lesson?.currentVersion?.titleHi ?? topic?.nameHi ?? concept?.nameHi ?? '',
-          titleEn: lesson?.currentVersion?.titleEn ?? topic?.nameEn ?? concept?.nameEn ?? '',
+          titleHi: lesson?.currentVersion?.titleHi ?? topic?.nameHi ?? concept?.nameHi ?? custom?.name ?? '',
+          titleEn: lesson?.currentVersion?.titleEn ?? topic?.nameEn ?? concept?.nameEn ?? custom?.name ?? '',
           lessonId: i.lessonId,
           topicId: i.topicId,
           conceptId: i.conceptId,
+          customTopicId: i.customTopicId,
+          noteText: custom?.noteText ?? null,
+          resourceUrl: custom?.resourceUrl ?? null,
+          resourceLabel: custom?.resourceLabel ?? null,
           triggerMistakeType: i.triggerMistakeType,
           estimatedMinutes: i.estimatedMinutes,
           freePreview: lesson?.freePreview ?? false,
