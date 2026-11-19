@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { Alert, Button, Field, PasswordChecklist } from '@rajyarank/ui';
 import { PASSWORD_RULES, studentSignupVerifySchema } from '@rajyarank/contracts';
 import { apiFetch, type ApiError } from '@/lib/api';
@@ -15,7 +15,6 @@ export default function SignupClient() {
   const locale = resolveLocale(params.locale);
   const hi = locale === 'hi';
   const L = (h: string, e: string) => (hi ? h : e);
-  const router = useRouter();
   const searchParams = useSearchParams();
   // Same open-redirect guard as LoginClient's nextPath — only a same-app
   // relative path is ever trusted, never an absolute/protocol-relative URL.
@@ -61,14 +60,14 @@ export default function SignupClient() {
         method: 'POST',
         body: JSON.stringify(payload),
       });
-      // Same full-navigation rationale as LoginClient.goAfterLogin: a plain
-      // router.push back to `next` can serve a stale pre-login Router Cache
-      // entry for that page.
-      if (nextPath) window.location.assign(nextPath);
-      else {
-        router.refresh();
-        router.push(`/${locale}${res.homeRoute}`);
-      }
+      // Same full-navigation rationale as LoginClient.goAfterLogin, plus the
+      // onboarding page's goToDashboard: router.refresh() immediately
+      // followed by router.push() races (refresh doesn't return an awaitable
+      // promise), so the client Router Cache can occasionally win and render
+      // the wrong route's content under the new URL. A hard navigation here
+      // (homeRoute is a route the client hasn't cached yet this session)
+      // sidesteps the race entirely.
+      window.location.assign(nextPath ?? `/${locale}${res.homeRoute}`);
     } catch (e) {
       setErrors(serverFieldErrors(e as ApiError));
     } finally {
