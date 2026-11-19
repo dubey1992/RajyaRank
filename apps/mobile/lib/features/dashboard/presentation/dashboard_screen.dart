@@ -8,6 +8,7 @@ import '../../../core/widgets/confirm_logout.dart';
 import '../data/dashboard_models.dart';
 import '../data/dashboard_repository.dart';
 import 'widgets/continue_learning_section.dart';
+import 'widgets/getting_started_checklist.dart';
 import 'widgets/hero_panel.dart';
 import 'widgets/live_class_banner.dart';
 import 'widgets/mistake_dna_card.dart';
@@ -37,6 +38,11 @@ class DashboardScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('RajyaRank'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.apps),
+            tooltip: 'Explore features',
+            onPressed: () => context.push('/all-features'),
+          ),
           IconButton(
             icon: const Icon(Icons.search),
             tooltip: 'Search',
@@ -179,6 +185,7 @@ class _DashboardBody extends ConsumerWidget {
             const SizedBox(height: 20),
             const LiveClassBanner(),
             const SizedBox(height: 20),
+            const GettingStartedChecklist(),
             GridView.count(
               crossAxisCount: 2,
               shrinkWrap: true,

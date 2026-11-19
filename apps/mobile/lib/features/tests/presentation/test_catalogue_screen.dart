@@ -46,7 +46,16 @@ class _TestCatalogueScreenState extends ConsumerState<TestCatalogueScreen> {
     final tests = ref.watch(testsCatalogueProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Tests')),
+      appBar: AppBar(
+        title: const Text('Tests'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit_note),
+            tooltip: 'My Practice Tests',
+            onPressed: () => context.push('/my-quizzes'),
+          ),
+        ],
+      ),
       body: RefreshIndicator(
         onRefresh: () async => ref.invalidate(testsCatalogueProvider),
         child: tests.when(

@@ -19,6 +19,8 @@ class StudyGoalsScreen extends ConsumerStatefulWidget {
 
 class _StudyGoalsScreenState extends ConsumerState<StudyGoalsScreen> {
   String? _examId;
+  bool _ownExam = false;
+  final _customExamController = TextEditingController();
   Qualification? _qualification;
   late int _dailyMinutes = widget.goals.dailyStudyMinutes ?? 60;
   DateTime? _targetDate;
@@ -29,13 +31,26 @@ class _StudyGoalsScreenState extends ConsumerState<StudyGoalsScreen> {
   void initState() {
     super.initState();
     _targetDate = widget.goals.targetDate;
+    _ownExam = widget.goals.customExamName != null;
+    _customExamController.text = widget.goals.customExamName ?? '';
     final raw = widget.goals.qualification;
     _qualification = Qualification.values
         .cast<Qualification?>()
         .firstWhere((q) => q?.wireValue == raw, orElse: () => null);
   }
 
+  @override
+  void dispose() {
+    _customExamController.dispose();
+    super.dispose();
+  }
+
   Future<void> _save() async {
+    final customName = _customExamController.text.trim();
+    if (_ownExam && customName.length < 2) {
+      setState(() => _error = 'Type your exam name (at least 2 characters).');
+      return;
+    }
     setState(() {
       _saving = true;
       _error = null;
@@ -44,7 +59,10 @@ class _StudyGoalsScreenState extends ConsumerState<StudyGoalsScreen> {
       await ref
           .read(accountRepositoryProvider)
           .updateGoals(
-            targetExamId: _examId,
+            targetExamId: _ownExam ? null : _examId,
+            clearTargetExamId: _ownExam,
+            customExamName: _ownExam ? customName : null,
+            clearCustomExamName: !_ownExam,
             qualification: _qualification?.wireValue,
             dailyStudyMinutes: _dailyMinutes,
             targetDate: _targetDate,
@@ -71,32 +89,52 @@ class _StudyGoalsScreenState extends ConsumerState<StudyGoalsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              'Target exam',
-              style: Theme.of(context).textTheme.titleSmall,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Target exam',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                TextButton(
+                  onPressed: () => setState(() => _ownExam = !_ownExam),
+                  child: Text(
+                    _ownExam ? '← Pick from the list instead' : "My exam isn't listed",
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 8),
-            exams.when(
-              loading: () => const LinearProgressIndicator(),
-              error: (error, _) => Text(
-                apiErrorMessage(error),
-                style: const TextStyle(color: AppColors.danger),
+            if (_ownExam)
+              TextField(
+                controller: _customExamController,
+                decoration: const InputDecoration(
+                  hintText: 'Type your exam name',
+                  border: OutlineInputBorder(),
+                ),
+              )
+            else
+              exams.when(
+                loading: () => const LinearProgressIndicator(),
+                error: (error, _) => Text(
+                  apiErrorMessage(error),
+                  style: const TextStyle(color: AppColors.danger),
+                ),
+                data: (list) => Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final exam in list)
+                      ChoiceChip(
+                        label: Text(exam.nameEn),
+                        selected: _examId == exam.id ||
+                            (_examId == null &&
+                                exam.nameEn == widget.goals.targetExamNameEn),
+                        onSelected: (_) => setState(() => _examId = exam.id),
+                      ),
+                  ],
+                ),
               ),
-              data: (list) => Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final exam in list)
-                    ChoiceChip(
-                      label: Text(exam.nameEn),
-                      selected: _examId == exam.id ||
-                          (_examId == null &&
-                              exam.nameEn == widget.goals.targetExamNameEn),
-                      onSelected: (_) => setState(() => _examId = exam.id),
-                    ),
-                ],
-              ),
-            ),
             const SizedBox(height: 22),
             Text(
               'Qualification',

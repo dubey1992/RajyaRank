@@ -49,7 +49,9 @@ class ProfileData {
 /// this is the editable view of those same fields.
 class StudyGoals {
   StudyGoals({
+    required this.targetExamId,
     required this.targetExamNameEn,
+    required this.customExamName,
     required this.qualification,
     required this.dailyStudyMinutes,
     required this.targetDate,
@@ -58,15 +60,23 @@ class StudyGoals {
   factory StudyGoals.fromJson(Map<String, dynamic> json) {
     final targetDateRaw = json['targetDate'] as String?;
     return StudyGoals(
+      targetExamId: json['targetExamId'] as String?,
       targetExamNameEn: json['targetExamNameEn'] as String?,
+      customExamName: json['customExamName'] as String?,
       qualification: json['qualification'] as String?,
       dailyStudyMinutes: (json['dailyStudyMinutes'] as num?)?.toInt(),
       targetDate: targetDateRaw == null ? null : DateTime.tryParse(targetDateRaw),
     );
   }
 
+  final String? targetExamId;
   final String? targetExamNameEn;
+  final String? customExamName;
   final String? qualification;
   final int? dailyStudyMinutes;
   final DateTime? targetDate;
+
+  /// Whether a goal has been set at all — used by the Getting Started
+  /// checklist, mirroring web's `!!(goals.targetExamId || goals.customExamName)`.
+  bool get hasGoal => (targetExamId != null) || (customExamName?.isNotEmpty ?? false);
 }

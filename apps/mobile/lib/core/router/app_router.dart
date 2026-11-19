@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/account/presentation/account_screen.dart';
+import '../../features/all_features/presentation/all_features_screen.dart';
 import '../../features/auth/presentation/forgot_password_screen.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/signup_screen.dart';
@@ -14,6 +15,10 @@ import '../../features/explore/presentation/explore_screen.dart';
 import '../../features/lesson/presentation/lesson_player_screen.dart';
 import '../../features/live_classes/presentation/live_class_join_screen.dart';
 import '../../features/live_classes/presentation/live_classes_screen.dart';
+import '../../features/my_papers/presentation/my_paper_detail_screen.dart';
+import '../../features/my_papers/presentation/my_papers_screen.dart';
+import '../../features/my_quizzes/presentation/my_quiz_detail_screen.dart';
+import '../../features/my_quizzes/presentation/my_quizzes_screen.dart';
 import '../../features/notifications/presentation/notifications_screen.dart';
 import '../../features/onboarding/presentation/onboarding_screen.dart';
 import '../../features/payments/presentation/order_history_screen.dart';
@@ -152,6 +157,28 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/notifications',
         builder: (context, state) => const NotificationsScreen(),
+      ),
+      GoRoute(
+        path: '/my-quizzes',
+        builder: (context, state) => const MyQuizzesScreen(),
+      ),
+      GoRoute(
+        path: '/my-quizzes/:id',
+        builder: (context, state) =>
+            MyQuizDetailScreen(quizId: state.pathParameters['id']!),
+      ),
+      GoRoute(
+        path: '/my-papers',
+        builder: (context, state) => const MyPapersScreen(),
+      ),
+      GoRoute(
+        path: '/my-papers/:id',
+        builder: (context, state) =>
+            MyPaperDetailScreen(paperId: state.pathParameters['id']!),
+      ),
+      GoRoute(
+        path: '/all-features',
+        builder: (context, state) => const AllFeaturesScreen(),
       ),
     ],
   );

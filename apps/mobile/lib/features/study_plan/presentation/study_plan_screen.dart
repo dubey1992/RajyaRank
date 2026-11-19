@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/auth/auth_repository.dart';
 import '../../../core/theme/app_theme.dart';
 import '../data/study_plan_models.dart';
 import '../data/study_plan_repository.dart';
+import 'custom_topics_screen.dart';
 
 class StudyPlanScreen extends ConsumerStatefulWidget {
   const StudyPlanScreen({super.key});
@@ -42,6 +44,13 @@ class _StudyPlanScreenState extends ConsumerState<StudyPlanScreen> {
       appBar: AppBar(
         title: const Text('Study Plan'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.checklist, color: Colors.white),
+            tooltip: 'My topics',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const CustomTopicsScreen()),
+            ),
+          ),
           // A bare refresh icon read as unfamiliar/unclear to students (no
           // visible label, only a long-press tooltip) — a labeled pill button
           // matches the web app's own "↻ Regenerate plan" button text instead.
@@ -228,12 +237,33 @@ class _PlanItemCardState extends ConsumerState<_PlanItemCard> {
     } catch (error) {
       if (mounted) {
         setState(() => _optimisticStatus = null);
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(apiErrorMessage(error))));
+        if (apiErrorCode(error) == 'SUBSCRIPTION_REQUIRED') {
+          await _promptSubscriptionRequired();
+        } else {
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text(apiErrorMessage(error))));
+        }
       }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  Future<void> _promptSubscriptionRequired() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('A subscription plan is needed'),
+        content: const Text(
+          'You\'ve used your free custom topics. Do you want to continue to purchase a plan for unlimited topics?',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('View plans')),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) context.push('/pricing');
   }
 
   Future<void> _reschedule() async {
@@ -261,8 +291,12 @@ class _PlanItemCardState extends ConsumerState<_PlanItemCard> {
       ref.invalidate(studyPlanWeekProvider);
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(apiErrorMessage(error))));
+        if (apiErrorCode(error) == 'SUBSCRIPTION_REQUIRED') {
+          await _promptSubscriptionRequired();
+        } else {
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text(apiErrorMessage(error))));
+        }
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -295,10 +329,45 @@ class _PlanItemCardState extends ConsumerState<_PlanItemCard> {
               ],
             ),
             const SizedBox(height: 4),
-            Text(
-              '${item.estimatedMinutes} min',
-              style: const TextStyle(color: AppColors.muted, fontSize: 12),
+            Row(
+              children: [
+                Text(
+                  '${item.estimatedMinutes} min',
+                  style: const TextStyle(color: AppColors.muted, fontSize: 12),
+                ),
+                if (item.kind == PlanItemKind.custom) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.teal500.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Text(
+                      'My topic',
+                      style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700, color: AppColors.teal500),
+                    ),
+                  ),
+                ],
+              ],
             ),
+            if (item.noteText != null && item.noteText!.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                item.noteText!,
+                style: const TextStyle(color: AppColors.muted, fontSize: 12),
+              ),
+            ],
+            if (item.resourceUrl != null) ...[
+              const SizedBox(height: 4),
+              InkWell(
+                onTap: () => launchUrl(Uri.parse(item.resourceUrl!), mode: LaunchMode.externalApplication),
+                child: Text(
+                  item.resourceLabel?.isNotEmpty == true ? item.resourceLabel! : item.resourceUrl!,
+                  style: const TextStyle(color: AppColors.navy800, fontSize: 12, decoration: TextDecoration.underline),
+                ),
+              ),
+            ],
             if (isPending) ...[
               const SizedBox(height: 10),
               Row(
@@ -337,6 +406,7 @@ class _PlanItemCardState extends ConsumerState<_PlanItemCard> {
     PlanItemKind.weakTopicDrill => Icons.trending_up,
     PlanItemKind.mistakeDrill => Icons.error_outline,
     PlanItemKind.test => Icons.quiz_outlined,
+    PlanItemKind.custom => Icons.edit_note,
     PlanItemKind.unknown => Icons.circle_outlined,
   };
 }

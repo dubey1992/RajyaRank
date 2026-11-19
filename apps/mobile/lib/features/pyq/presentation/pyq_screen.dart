@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/auth_repository.dart';
 import '../../../core/theme/app_theme.dart';
@@ -14,7 +15,16 @@ class PyqScreen extends ConsumerWidget {
     final papers = ref.watch(pyqPapersProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Previous Year Questions')),
+      appBar: AppBar(
+        title: const Text('Previous Year Questions'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.upload_file),
+            tooltip: 'My Papers',
+            onPressed: () => context.push('/my-papers'),
+          ),
+        ],
+      ),
       body: RefreshIndicator(
         onRefresh: () async => ref.invalidate(pyqPapersProvider),
         child: papers.when(

@@ -35,8 +35,15 @@ class AccountRepository {
   /// PATCH student/profile/goals — separate from the one-time onboarding
   /// submit; regenerates the study plan synchronously, so this can take a
   /// moment longer than a typical save.
+  /// [targetExamId]/[customExamName] are mutually exclusive on the server —
+  /// picking a catalog exam must clear any previously-typed custom name and
+  /// vice versa, so callers pass an explicit (possibly-null) value for
+  /// whichever mode is active rather than omitting it.
   Future<void> updateGoals({
     String? targetExamId,
+    bool clearTargetExamId = false,
+    String? customExamName,
+    bool clearCustomExamName = false,
     String? qualification,
     int? dailyStudyMinutes,
     DateTime? targetDate,
@@ -46,7 +53,10 @@ class AccountRepository {
     await api.dio.patch(
       '/student/profile/goals',
       data: {
-        'targetExamId': ?targetExamId,
+        if (clearTargetExamId) 'targetExamId': null,
+        if (!clearTargetExamId) 'targetExamId': ?targetExamId,
+        if (clearCustomExamName) 'customExamName': null,
+        if (!clearCustomExamName) 'customExamName': ?customExamName,
         'qualification': ?qualification,
         'dailyStudyMinutes': ?dailyStudyMinutes,
         if (clearTargetDate) 'targetDate': null,
