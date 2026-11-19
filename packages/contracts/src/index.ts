@@ -28,3 +28,4 @@ export * from './previous-year-papers';
 export * from './mobile-app';
 export * from './tracking';
 export * from './reports';
+export * from './live-classes';

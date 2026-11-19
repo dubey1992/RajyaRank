@@ -12,6 +12,8 @@ import '../../features/current_affairs/presentation/current_affairs_screen.dart'
 import '../../features/doubts/presentation/doubts_screen.dart';
 import '../../features/explore/presentation/explore_screen.dart';
 import '../../features/lesson/presentation/lesson_player_screen.dart';
+import '../../features/live_classes/presentation/live_class_join_screen.dart';
+import '../../features/live_classes/presentation/live_classes_screen.dart';
 import '../../features/notifications/presentation/notifications_screen.dart';
 import '../../features/onboarding/presentation/onboarding_screen.dart';
 import '../../features/payments/presentation/order_history_screen.dart';
@@ -47,7 +49,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final browsingCourses = _isCoursesBrowsing(loc);
 
       if (status == AuthStatus.unknown) return null;
-      if (status == AuthStatus.signedOut && !onPublicRoute && !browsingCourses) {
+      if (status == AuthStatus.signedOut &&
+          !onPublicRoute &&
+          !browsingCourses) {
         return '/explore';
       }
       if (status == AuthStatus.signedIn && loc == '/login') return '/dashboard';
@@ -76,20 +80,27 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const HomeShell(),
       ),
       GoRoute(
+        path: '/live-classes',
+        builder: (context, state) => const LiveClassesScreen(),
+      ),
+      GoRoute(
+        path: '/live-classes/:id/join',
+        builder: (context, state) =>
+            LiveClassJoinScreen(liveClassId: state.pathParameters['id']!),
+      ),
+      GoRoute(
         path: '/courses',
         builder: (context, state) => const CourseCatalogueScreen(),
       ),
       GoRoute(
         path: '/courses/:courseId',
-        builder: (context, state) => CourseDetailScreen(
-          courseId: state.pathParameters['courseId']!,
-        ),
+        builder: (context, state) =>
+            CourseDetailScreen(courseId: state.pathParameters['courseId']!),
       ),
       GoRoute(
         path: '/learn/:lessonId',
-        builder: (context, state) => LessonPlayerScreen(
-          lessonId: state.pathParameters['lessonId']!,
-        ),
+        builder: (context, state) =>
+            LessonPlayerScreen(lessonId: state.pathParameters['lessonId']!),
       ),
       GoRoute(
         path: '/tests/runner',
@@ -98,9 +109,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/tests/review/:attemptId',
-        builder: (context, state) => TestReviewScreen(
-          attemptId: state.pathParameters['attemptId']!,
-        ),
+        builder: (context, state) =>
+            TestReviewScreen(attemptId: state.pathParameters['attemptId']!),
       ),
       GoRoute(
         path: '/account',

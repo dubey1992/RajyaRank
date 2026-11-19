@@ -5,6 +5,7 @@ import { Alert, Button, Field, Toast } from '@rajyarank/ui';
 import { apiFetch, type ApiError } from '@/lib/api';
 import type { CourseReadinessView } from '@rajyarank/contracts';
 import { CurriculumBuilder, type CurriculumSubject } from './CurriculumBuilder';
+import { LiveClassesTab } from './LiveClassesTab';
 import { CoursePricingPanel } from '../CoursePricingPanel';
 import { CourseHowItWorksButton } from '../CourseHowItWorksButton';
 
@@ -35,7 +36,7 @@ interface StudioCourse {
 
 type Audience = 'INSTITUTE_ONLY' | 'PUBLIC_AND_INSTITUTE';
 
-const ALL_STEPS = ['template', 'basics', 'audience', 'learningDesign', 'curriculum', 'content', 'pricing', 'review'] as const;
+const ALL_STEPS = ['template', 'basics', 'audience', 'learningDesign', 'curriculum', 'content', 'liveClasses', 'pricing', 'review'] as const;
 type Step = (typeof ALL_STEPS)[number];
 
 const TEMPLATES: { key: string; hi: string; en: string; descHi: string; descEn: string }[] = [
@@ -282,8 +283,9 @@ export function CourseStudioShell({
     learningDesign: L('4. शिक्षण डिज़ाइन', '4. Learning design'),
     curriculum: L('5. पाठ्यक्रम', '5. Curriculum'),
     content: L('6. कंटेंट', '6. Content'),
-    pricing: L('7. मूल्य निर्धारण', '7. Pricing'),
-    review: L('8. समीक्षा', '8. Review'),
+    liveClasses: L('7. लाइव क्लासेस', '7. Live Classes'),
+    pricing: L('8. मूल्य निर्धारण', '8. Pricing'),
+    review: L('9. समीक्षा', '9. Review'),
   };
 
   const lessons = (course?.subjects ?? []).flatMap((s) => s.chapters.flatMap((c) => c.topics.flatMap((t) => t.lessons)));
@@ -479,6 +481,12 @@ export function CourseStudioShell({
               </div>
             ) : null}
           </div>
+        ) : null}
+
+        {step === 'liveClasses' ? (
+          courseId ? (
+            <LiveClassesTab courseId={courseId} subjects={course?.subjects ?? []} locale={locale} />
+          ) : null
         ) : null}
 
         {step === 'pricing' ? (

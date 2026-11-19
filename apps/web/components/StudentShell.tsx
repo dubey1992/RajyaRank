@@ -5,10 +5,11 @@ import { usePathname, useRouter } from 'next/navigation';
 import { LogoMark, formatDate } from '@rajyarank/ui';
 import { apiFetch } from '@/lib/api';
 
-type IconName = 'home' | 'book' | 'clipboard' | 'bookmark' | 'heart' | 'newspaper' | 'help' | 'bell' | 'user' | 'headphones' | 'search' | 'menu';
+type IconName = 'home' | 'book' | 'clipboard' | 'bookmark' | 'heart' | 'newspaper' | 'help' | 'bell' | 'user' | 'headphones' | 'search' | 'menu' | 'video';
 
 const ICONS: Record<IconName, ReactNode> = {
   home: <><path d="m3 11 9-8 9 8" /><path d="M5 10v10h14V10M9 20v-6h6v6" /></>,
+  video: <><rect x="2.5" y="6" width="14" height="12" rx="2" /><path d="m21.5 8.5-5 3.5 5 3.5v-7Z" /></>,
   book: <><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z" /></>,
   clipboard: <><rect x="5" y="4" width="14" height="17" rx="2" /><path d="M9 4V2h6v2M9 10h6M9 14h6M9 18h4" /></>,
   bookmark: <path d="M6 3h12v18l-6-4-6 4V3Z" />,
@@ -75,6 +76,7 @@ export function StudentShell({
 
   const learn: NavItem[] = [
     { href: '/dashboard', label: L('डैशबोर्ड', 'Dashboard'), icon: 'home' },
+    { href: '/live-classes', label: L('लाइव क्लासेस', 'Live Classes'), icon: 'video' },
     { href: '/study-plan', label: L('स्टडी प्लान', 'Study Plan'), icon: 'clipboard' },
     { href: '/my-courses', label: L('मेरे कोर्स', 'My Courses'), icon: 'book' },
     { href: '/wishlist', label: L('विशलिस्ट', 'Wishlist'), icon: 'heart' },
@@ -95,6 +97,7 @@ export function StudentShell({
   const mobileNav: NavItem[] = [
     { href: '/dashboard', label: L('डैशबोर्ड', 'Dashboard'), icon: 'home' },
     { href: '/my-courses', label: L('कोर्स', 'Courses'), icon: 'book' },
+    { href: '/live-classes', label: L('लाइव', 'Live'), icon: 'video' },
     ...(hasInstitute ? [{ href: '/tests', label: L('टेस्ट', 'Tests'), icon: 'clipboard' as const }] : []),
     { href: '/revision', label: L('रिवीज़न', 'Revision'), icon: 'bookmark' },
     { href: '/account', label: L('प्रोफ़ाइल', 'Profile'), icon: 'user' },

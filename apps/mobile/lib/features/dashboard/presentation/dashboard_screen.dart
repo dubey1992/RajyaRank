@@ -9,6 +9,7 @@ import '../data/dashboard_models.dart';
 import '../data/dashboard_repository.dart';
 import 'widgets/continue_learning_section.dart';
 import 'widgets/hero_panel.dart';
+import 'widgets/live_class_banner.dart';
 import 'widgets/mistake_dna_card.dart';
 import 'widgets/needs_attention_card.dart';
 import 'widgets/readiness_gauge_card.dart';
@@ -114,10 +115,9 @@ class _DashboardBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final name = data.greetingName;
-    final weakTopicCount = ref.watch(weakTopicsProvider).maybeWhen(
-      data: (list) => list.length,
-      orElse: () => 0,
-    );
+    final weakTopicCount = ref
+        .watch(weakTopicsProvider)
+        .maybeWhen(data: (list) => list.length, orElse: () => 0);
 
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0, end: 1),
@@ -176,6 +176,8 @@ class _DashboardBody extends ConsumerWidget {
             ),
             const SizedBox(height: 20),
             HeroPanel(data: data),
+            const SizedBox(height: 20),
+            const LiveClassBanner(),
             const SizedBox(height: 20),
             GridView.count(
               crossAxisCount: 2,
@@ -247,7 +249,9 @@ class _DashboardBody extends ConsumerWidget {
                       ),
                       title: Text(item.titleEn),
                       subtitle: Text(
-                        item.freePreview ? '${item.kind} · Free preview' : item.kind,
+                        item.freePreview
+                            ? '${item.kind} · Free preview'
+                            : item.kind,
                       ),
                       trailing: item.lessonId == null
                           ? null
@@ -270,7 +274,10 @@ class _DashboardBody extends ConsumerWidget {
             const SizedBox(height: 16),
             WeeklyGoalCard(data: data, weakTopicCount: weakTopicCount),
             const SizedBox(height: 16),
-            StreakCard(studyStreakDays: data.studyStreakDays, streakWeek: data.streakWeek),
+            StreakCard(
+              studyStreakDays: data.studyStreakDays,
+              streakWeek: data.streakWeek,
+            ),
             const SizedBox(height: 16),
             const NeedsAttentionCard(),
           ],
@@ -321,7 +328,10 @@ class _StatCard extends StatelessWidget {
               children: [
                 Text(
                   value,
-                  style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
                 Text(
                   label,

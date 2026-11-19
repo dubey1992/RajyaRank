@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { cookies } from 'next/headers';
 import { redirect, notFound } from 'next/navigation';
-import type { DashboardResponse, MistakeDnaView, ReadinessView, StudyPlanDay, WeakTopic } from '@rajyarank/contracts';
+import type { DashboardResponse, LiveClassView, MistakeDnaView, ReadinessView, StudyPlanDay, WeakTopic } from '@rajyarank/contracts';
 import { resolveLocale } from '@/lib/i18n';
 import { apiFetchServer } from '@/lib/api';
 import { getMe } from '@/lib/student';
@@ -37,6 +37,8 @@ export default async function DashboardPage({ params }: { params: { locale: stri
   const readiness = (await apiFetchServer<ReadinessView>('/student/readiness', cookie)) ?? { available: false, reason: 'ONBOARDING_INCOMPLETE' as const };
   const mistakeDna = (await apiFetchServer<MistakeDnaView>('/student/mistake-dna', cookie)) ?? { available: false, reason: 'NO_RECENT_MISTAKES' as const };
   const studyWeek = (await apiFetchServer<StudyPlanDay[]>('/student/study-plan/week', cookie)) ?? [];
+  const liveClasses = (await apiFetchServer<LiveClassView[]>('/student/live-classes/upcoming', cookie)) ?? [];
+  const nextLiveClass = liveClasses[0] ?? null;
   const coachItems = studyWeek
     .flatMap((d) => d.items.map((i) => ({ ...i, date: d.date })))
     .filter((i) => i.kind === 'MISTAKE_DRILL' && i.status === 'PENDING')
@@ -135,6 +137,29 @@ export default async function DashboardPage({ params }: { params: { locale: stri
               </div>
             </div>
           </article>
+
+          {/* Next live class, if any — the dashboard's job is to surface
+              this prominently since it's time-sensitive; the actual Join
+              button lives on /live-classes (needs client-side join state). */}
+          {nextLiveClass ? (
+            <Link
+              href={`/${locale}/live-classes`}
+              className="flex items-center justify-between gap-3 rounded-[18px] border border-orange-500/30 bg-orange-100/40 p-4 transition hover:-translate-y-0.5"
+            >
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-wide text-orange-600">
+                  {nextLiveClass.phase === 'LIVE_NOW' ? (
+                    <span className="rounded-full bg-danger px-2 py-0.5 text-white">{L('अभी लाइव', 'Live now')}</span>
+                  ) : (
+                    <span>{L('आगामी लाइव क्लास', 'Upcoming live class')}</span>
+                  )}
+                </div>
+                <div className="mt-1 truncate text-sm font-extrabold text-navy-950">{hi ? nextLiveClass.titleHi : nextLiveClass.titleEn}</div>
+                <div className="text-xs text-muted">{new Date(nextLiveClass.startsAt).toLocaleString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}</div>
+              </div>
+              <span className="shrink-0 rounded-xl bg-orange-500 px-4 py-2.5 text-xs font-extrabold text-white">{L('देखें →', 'View →')}</span>
+            </Link>
+          ) : null}
 
           {/* Today's plan */}
           <article className="rounded-[20px] border border-line bg-white p-5 shadow-[0_7px_22px_rgba(6,29,49,0.04)]">
