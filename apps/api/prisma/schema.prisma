@@ -226,6 +226,7 @@ model Course {
   products     Product[]
   ratings      CourseRating[]
   wishlistedBy Wishlist[]
+  liveClasses  LiveClass[]
 
   @@index([stateId, examId, status])
   @@index([orgId])
@@ -264,10 +265,11 @@ model Subject {
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
-  course    Course            @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  chapters  Chapter[]
-  assigns   StaffAssignment[]
-  questions Question[]
+  course             Course                      @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  chapters           Chapter[]
+  assigns            StaffAssignment[]
+  questions          Question[]
+  studentPerformance StudentSubjectPerformance[]
 
   @@index([courseId])
   @@map("subjects")
@@ -320,13 +322,14 @@ model Lesson {
   createdBy        String?    @map("created_by")
   deletedAt        DateTime?  @map("deleted_at")
 
-  topic          Topic            @relation(fields: [topicId], references: [id], onDelete: Cascade)
-  batch          Batch?           @relation(fields: [batchId], references: [id])
-  versions       LessonVersion[]  @relation("LessonVersions")
-  currentVersion LessonVersion?   @relation("CurrentVersion", fields: [currentVersionId], references: [id])
-  progress       LessonProgress[]
-  bookmarks      Bookmark[]
-  concepts       LessonConcept[]
+  topic           Topic            @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  batch           Batch?           @relation(fields: [batchId], references: [id])
+  versions        LessonVersion[]  @relation("LessonVersions")
+  currentVersion  LessonVersion?   @relation("CurrentVersion", fields: [currentVersionId], references: [id])
+  progress        LessonProgress[]
+  bookmarks       Bookmark[]
+  concepts        LessonConcept[]
+  liveClassSource LiveClass?
 
   @@index([topicId])
   @@index([batchId])
@@ -402,6 +405,7 @@ model MediaAsset {
 
   lessonAssets LessonAsset[]
   pyqPapers    PreviousYearPaper[]
+  studentPapers StudentPaper[]
 
   @@index([ownerUserId, status])
   @@map("media_assets")
@@ -478,27 +482,36 @@ model User {
   updatedBy     String?       @map("updated_by")
   deletedAt     DateTime?     @map("deleted_at")
 
-  studentProfile    StudentProfile?
-  staffProfile      StaffProfile?
-  roles             UserRole[]
-  assignments       StaffAssignment[]
-  sessions          LoginSession[]
-  trustedDevices    TrustedDevice[]
-  mfaFactors        MfaFactor[]
-  identities        UserIdentity[]
-  lessonProgress    LessonProgress[]
-  bookmarks         Bookmark[]
-  attempts          Attempt[]
-  orders            Order[]
-  entitlements      Entitlement[]
-  pushSubscriptions PushSubscription[]
-  deviceTokens      DeviceToken[]
-  membershipEvents  OrgMembershipEvent[]
-  studyPlans        StudyPlan[]
-  courseRatings     CourseRating[]
-  wishlist          Wishlist[]
-  conceptMastery    StudentConceptMastery[]
-  riskSignal        StudentRiskSignal?
+  studentProfile      StudentProfile?
+  staffProfile        StaffProfile?
+  roles               UserRole[]
+  assignments         StaffAssignment[]
+  sessions            LoginSession[]
+  trustedDevices      TrustedDevice[]
+  mfaFactors          MfaFactor[]
+  identities          UserIdentity[]
+  lessonProgress      LessonProgress[]
+  bookmarks           Bookmark[]
+  attempts            Attempt[]
+  orders              Order[]
+  entitlements        Entitlement[]
+  pushSubscriptions   PushSubscription[]
+  deviceTokens        DeviceToken[]
+  membershipEvents    OrgMembershipEvent[]
+  studyPlans          StudyPlan[]
+  customTopics        CustomTopic[]
+  personalQuizzes     PersonalQuiz[]
+  personalQuizAttempts PersonalQuizAttempt[]
+  studentPapers       StudentPaper[]
+  studentPaperAttempts StudentPaperAttempt[]
+  courseRatings       CourseRating[]
+  wishlist            Wishlist[]
+  conceptMastery      StudentConceptMastery[]
+  riskSignal          StudentRiskSignal?
+  performanceSnapshot StudentPerformanceSnapshot?
+  subjectPerformance  StudentSubjectPerformance[]
+  hostedLiveClasses   LiveClass[]
+  liveClassAttendance LiveClassAttendance[]
 
   orgId     String?       @map("org_id")
   org       Organization? @relation("OrgMembers", fields: [orgId], references: [id])
@@ -575,6 +588,13 @@ model StudentProfile {
   fullName          String?   @map("full_name")
   stateId           String?   @map("state_id")
   targetExamId      String?   @map("target_exam_id")
+  // Free-text exam name for a student preparing for something not in the
+  // admin-curated Exam catalog (e.g. a state-specific or newly-announced
+  // exam) — mutually exclusive with targetExamId in practice (see
+  // onboardingSchema's refine), but both columns stay independently nullable
+  // rather than a single polymorphic field, matching targetExamId's own
+  // plain-nullable-column style elsewhere on this model.
+  customExamName    String?   @map("custom_exam_name")
   qualification     String?
   dailyStudyMinutes Int?      @map("daily_study_minutes")
   targetDate        DateTime? @map("target_date")
@@ -671,6 +691,7 @@ enum PlanItemKind {
   WEAK_TOPIC_DRILL
   MISTAKE_DRILL // concept-targeted remediation slot, driven by recent AttemptAnswer.mistakeType volume
   TEST // reserved for a future test-scheduling tie-in, unused today
+  CUSTOM // student-authored topic (CustomTopic), scheduled alongside catalog lessons — see CustomTopic's own doc comment
 }
 
 // Classification of a wrong test answer (Mistake Coach, Phase 2). Deliberately
@@ -718,29 +739,190 @@ model StudyPlan {
 }
 
 model PlanItem {
-  id                String         @id @default(uuid())
-  planId            String         @map("plan_id")
-  scheduledFor      DateTime       @map("scheduled_for") // date-only, stored at midnight UTC
-  sequence          Int            @default(0)
-  lessonId          String?        @map("lesson_id")
-  topicId           String?        @map("topic_id") // set for WEAK_TOPIC_DRILL slots
-  conceptId         String?        @map("concept_id") // set for MISTAKE_DRILL slots
-  triggerMistakeType MistakeType?  @map("trigger_mistake_type") // which mistake type drove a MISTAKE_DRILL slot, for display
-  kind              PlanItemKind
-  estimatedMinutes  Int            @default(20) @map("estimated_minutes")
-  status            PlanItemStatus @default(PENDING)
-  completedAt       DateTime?      @map("completed_at")
-  rescheduledFromId String?        @map("rescheduled_from_id")
-  createdAt         DateTime       @default(now()) @map("created_at")
-  updatedAt         DateTime       @updatedAt @map("updated_at")
+  id                 String         @id @default(uuid())
+  planId             String         @map("plan_id")
+  scheduledFor       DateTime       @map("scheduled_for") // date-only, stored at midnight UTC
+  sequence           Int            @default(0)
+  lessonId           String?        @map("lesson_id")
+  topicId            String?        @map("topic_id") // set for WEAK_TOPIC_DRILL slots
+  conceptId          String?        @map("concept_id") // set for MISTAKE_DRILL slots
+  customTopicId      String?        @map("custom_topic_id") // set for CUSTOM slots — see CustomTopic
+  triggerMistakeType MistakeType?   @map("trigger_mistake_type") // which mistake type drove a MISTAKE_DRILL slot, for display
+  kind               PlanItemKind
+  estimatedMinutes   Int            @default(20) @map("estimated_minutes")
+  status             PlanItemStatus @default(PENDING)
+  completedAt        DateTime?      @map("completed_at")
+  rescheduledFromId  String?        @map("rescheduled_from_id")
+  createdAt          DateTime       @default(now()) @map("created_at")
+  updatedAt          DateTime       @updatedAt @map("updated_at")
 
-  plan            StudyPlan  @relation(fields: [planId], references: [id], onDelete: Cascade)
-  rescheduledFrom PlanItem?  @relation("PlanItemReschedule", fields: [rescheduledFromId], references: [id])
-  rescheduledTo   PlanItem[] @relation("PlanItemReschedule")
+  plan            StudyPlan    @relation(fields: [planId], references: [id], onDelete: Cascade)
+  rescheduledFrom PlanItem?    @relation("PlanItemReschedule", fields: [rescheduledFromId], references: [id])
+  rescheduledTo   PlanItem[]   @relation("PlanItemReschedule")
+  customTopic     CustomTopic? @relation(fields: [customTopicId], references: [id])
 
   @@index([planId, scheduledFor])
   @@index([planId, status])
+  @@index([customTopicId])
   @@map("plan_items")
+}
+
+// A student-authored private study topic — the "fill the empty catalog
+// yourself" path for a student with no institute/entitlement. Deliberately
+// flat and un-translated (name/noteText are whatever the student typed, no
+// hi/en split, unlike every institute-authored content model) since this is
+// the student's own words, not published content. moduleName is a bare
+// free-text grouping label, not a separate entity — a student's personal
+// list of topics doesn't need its own hierarchy of staff-managed tables.
+// No onDelete: Cascade consumer other than the owning User; "deleting" a
+// topic from the UI sets deletedAt instead of a real delete, so historical
+// PlanItem rows that reference it (via customTopicId, no cascade) keep
+// resolving a real title forever — same non-destructive-history principle
+// StudyPlan.status/ABANDONED already uses.
+model CustomTopic {
+  id               String    @id @default(uuid())
+  studentId        String    @map("student_id")
+  moduleName       String?   @map("module_name")
+  name             String
+  noteText         String?   @map("note_text")
+  resourceUrl      String?   @map("resource_url")
+  resourceLabel    String?   @map("resource_label")
+  estimatedMinutes Int       @default(30) @map("estimated_minutes")
+  sequence         Int       @default(0)
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  deletedAt        DateTime? @map("deleted_at")
+
+  student   User           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  planItems PlanItem[]
+  quizzes   PersonalQuiz[]
+
+  @@index([studentId])
+  @@map("custom_topics")
+}
+
+// Student-authored practice quiz — deliberately separate from Question/
+// QuestionVersion/Test/TestVersion below: those are staff-authored and
+// approval-gated (ContentStatus, headApprovedBy/reviewerApprovedBy), which a
+// student's own self-made quiz must never go through. Reuses the SAME
+// QuestionType enum and options/correctAnswer JSON shapes as QuestionVersion
+// purely so the existing isResponseCorrect()/validateAnswerShape() pure
+// functions (question-bank/answer-shape.ts) work unmodified against this
+// table too — no new scoring logic, no touching the real bank.
+model PersonalQuiz {
+  id            String    @id @default(uuid())
+  studentId     String    @map("student_id")
+  title         String
+  customTopicId String?   @map("custom_topic_id") // optional link back to the topic it was made from
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  deletedAt     DateTime? @map("deleted_at")
+
+  student     User                   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  customTopic CustomTopic?           @relation(fields: [customTopicId], references: [id])
+  questions   PersonalQuizQuestion[]
+  attempts    PersonalQuizAttempt[]
+
+  @@index([studentId])
+  @@map("personal_quizzes")
+}
+
+model PersonalQuizQuestion {
+  id            String       @id @default(uuid())
+  quizId        String       @map("quiz_id")
+  type          QuestionType
+  text          String
+  /// Same [{key, text}] shape as QuestionVersion.options — see that model's own comment.
+  options       Json
+  /// Same shape as QuestionVersion.correctAnswer.
+  correctAnswer Json         @map("correct_answer")
+  explanation   String?
+  sequence      Int          @default(0)
+  // Set true only for an AI-generated question the student kept after
+  // reviewing/editing it — never set on a manually authored one. No AI
+  // generation path exists yet; this field is forward-declared so that
+  // feature, when built, needs no further schema change.
+  generatedByAi Boolean      @default(false) @map("generated_by_ai")
+  createdAt     DateTime     @default(now()) @map("created_at")
+
+  quiz PersonalQuiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+
+  @@index([quizId])
+  @@map("personal_quiz_questions")
+}
+
+model PersonalQuizAttempt {
+  id          String    @id @default(uuid())
+  quizId      String    @map("quiz_id")
+  studentId   String    @map("student_id")
+  /// { [questionId]: response } — same per-question response shapes
+  /// isResponseCorrect() already accepts (string[], {value,tolerance}, pairs).
+  answers     Json?
+  score       Float?
+  maxScore    Float     @map("max_score")
+  startedAt   DateTime  @default(now()) @map("started_at")
+  submittedAt DateTime? @map("submitted_at")
+
+  quiz    PersonalQuiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  student User         @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([quizId])
+  @@index([studentId])
+  @@map("personal_quiz_attempts")
+}
+
+// Student-uploaded previous-year paper — deliberately separate from
+// PreviousYearPaper above: that one is staff-authored, approval-gated
+// (ContentStatus), and tied to an admin-curated Exam. A student's own paper
+// needs none of that — examId is optional free context, never a gate. Reuses
+// MediaAsset (ownerUserId is already generic) via the exact same
+// upload-intent -> S3 PUT -> complete flow AssetsService already provides to
+// staff, just reached through a new student-facing controller.
+model StudentPaper {
+  id         String    @id @default(uuid())
+  studentId  String    @map("student_id")
+  title      String
+  examId     String?   @map("exam_id") // optional context only, never a gate — unlike PreviousYearPaper.examId
+  year       Int?
+  assetId    String    @map("asset_id")
+  /// Student-entered count, so the timed-practice answer sheet knows how many
+  /// slots to render even when there's no answer key yet (derived from the
+  /// key's own length if this is left unset but a key exists).
+  questionCount Int?   @map("question_count")
+  /// Optional student-typed answer key: { [questionNumber]: "A" }. Absent =
+  /// attempts stay unscored forever (manual self-review against the paper's
+  /// own solutions), never guessed at server-side.
+  answerKey  Json?      @map("answer_key")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  deletedAt  DateTime? @map("deleted_at")
+
+  student  User                 @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  asset    MediaAsset           @relation(fields: [assetId], references: [id])
+  attempts StudentPaperAttempt[]
+
+  @@index([studentId])
+  @@map("student_papers")
+}
+
+model StudentPaperAttempt {
+  id              String    @id @default(uuid())
+  paperId         String    @map("paper_id")
+  studentId       String    @map("student_id")
+  durationSeconds Int?      @map("duration_seconds") // student's own target, for the timer UI only — never enforced server-side
+  /// { [questionNumber]: "A" } — same key shape as StudentPaper.answerKey,
+  /// so scoring is a direct key-by-key comparison, no question bank involved.
+  answers         Json?
+  score           Int?
+  maxScore        Int?      @map("max_score")
+  startedAt       DateTime  @default(now()) @map("started_at")
+  submittedAt     DateTime? @map("submitted_at")
+
+  paper   StudentPaper @relation(fields: [paperId], references: [id], onDelete: Cascade)
+  student User         @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([paperId])
+  @@index([studentId])
+  @@map("student_paper_attempts")
 }
 
 // ── Phase 5: question bank, tests, attempts ─────────────────────────────────
@@ -969,25 +1151,25 @@ model Attempt {
 }
 
 model AttemptAnswer {
-  id                String   @id @default(uuid())
-  attemptId         String   @map("attempt_id")
-  questionVersionId String   @map("question_version_id")
+  id                String       @id @default(uuid())
+  attemptId         String       @map("attempt_id")
+  questionVersionId String       @map("question_version_id")
   /// student's response, shape depends on question type
   response          Json?
-  markedForReview   Boolean  @default(false) @map("marked_for_review")
-  sequenceNo        Int      @default(0) @map("sequence_no")
+  markedForReview   Boolean      @default(false) @map("marked_for_review")
+  sequenceNo        Int          @default(0) @map("sequence_no")
   /// Cumulative ms the student spent viewing this question. Same convention as
   /// sequenceNo: the frontend owns the authoritative absolute value and sends
   /// it on every save; the server upsert-overwrites, never increments.
-  timeSpentMs       Int      @default(0) @map("time_spent_ms")
-  isCorrect         Boolean? @map("is_correct")
+  timeSpentMs       Int          @default(0) @map("time_spent_ms")
+  isCorrect         Boolean?     @map("is_correct")
   awarded           Float?
   /// Set once, only when isCorrect === false, in the same submit()-time update
   /// that sets isCorrect/awarded — immutable after (submit() has no retry path
   /// for an already-SUBMITTED attempt). Null for correct/unanswered questions
   /// and for any answer submitted before this feature shipped.
   mistakeType       MistakeType? @map("mistake_type")
-  updatedAt         DateTime @updatedAt @map("updated_at")
+  updatedAt         DateTime     @updatedAt @map("updated_at")
 
   attempt Attempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
 
@@ -1538,6 +1720,7 @@ enum NotificationCategory {
   SUPPORT
   CURRENT_AFFAIRS
   ANNOUNCEMENT
+  LIVE_CLASS
   CONTENT_WORKFLOW
   NEW_COURSE
   NEW_CONTENT
@@ -1686,6 +1869,118 @@ model StudentRiskSignal {
 
   @@index([orgId, riskLevel])
   @@map("student_risk_signals")
+}
+
+// Lifetime score rollup, upserted incrementally in the same transaction as
+// each test submission (student-tests.service.ts#submit) — never recomputed
+// live across a roster. orgId is denormalized (same convention as
+// StudentRiskSignal.orgId above, no FK) purely so institution/platform
+// reports can groupBy/filter by org without joining through User.
+model StudentPerformanceSnapshot {
+  studentId              String    @id @map("student_id")
+  orgId                  String?   @map("org_id")
+  totalAttempts          Int       @default(0) @map("total_attempts")
+  totalQuestionsAnswered Int       @default(0) @map("total_questions_answered")
+  totalCorrect           Int       @default(0) @map("total_correct")
+  totalScore             Float     @default(0) @map("total_score")
+  totalMaxScore          Float     @default(0) @map("total_max_score")
+  lastAttemptAt          DateTime? @map("last_attempt_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+
+  user         User          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  // Unlike StudentRiskSignal.orgId (never nullable, never queried platform-
+  // wide), this one needs an actual relation: performanceOverview/
+  // institutionLeaderboard run platform-wide for Super Admin and must
+  // exclude demo orgs via organization.isDemo, which requires a joinable
+  // relation, not just a denormalized string. onDelete: SetNull so deleting
+  // an organization never deletes a student's own performance history.
+  organization Organization? @relation(fields: [orgId], references: [id], onDelete: SetNull)
+
+  @@index([orgId])
+  @@map("student_performance_snapshots")
+}
+
+// Per-subject accuracy rollup, same incremental-upsert convention as
+// StudentConceptMastery — derive accuracy as correctCount/totalCount at read
+// time, never store it.
+model StudentSubjectPerformance {
+  id            String   @id @default(uuid())
+  studentId     String   @map("student_id")
+  subjectId     String   @map("subject_id")
+  orgId         String?  @map("org_id")
+  attemptsCount Int      @default(0) @map("attempts_count")
+  correctCount  Int      @default(0) @map("correct_count")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  user         User          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subject      Subject       @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  organization Organization? @relation(fields: [orgId], references: [id], onDelete: SetNull)
+
+  @@unique([studentId, subjectId])
+  @@index([orgId, subjectId])
+  @@map("student_subject_performance")
+}
+
+enum LiveClassStatus {
+  SCHEDULED
+  CANCELLED
+}
+
+// Scheduled YouTube-Live class under a course. Deliberately no stored
+// LIVE/ENDED state — a class's phase (upcoming/live-now/ended) is always
+// derived from now() vs. startsAt/startsAt+durationMinutes at read time, so
+// it can never go stale; `status` only tracks the one thing that genuinely
+// needs a durable flag (host-triggered cancellation). Access is gated by the
+// existing course-level Entitlement (EntitlementService.hasCourseAccess) —
+// no new gating primitive.
+model LiveClass {
+  id                String          @id @default(uuid())
+  courseId          String          @map("course_id")
+  orgId             String?         @map("org_id") // denormalized from Course.orgId, same no-FK convention as StudentRiskSignal.orgId
+  hostUserId        String          @map("host_user_id")
+  titleHi           String          @map("title_hi")
+  titleEn           String          @map("title_en")
+  descriptionHi     String?         @map("description_hi")
+  descriptionEn     String?         @map("description_en")
+  startsAt          DateTime        @map("starts_at")
+  durationMinutes   Int             @map("duration_minutes")
+  // Canonical https://www.youtube.com/embed/<id> form, normalized server-side
+  // via assets.service.ts's existing toEmbeddableUrl() from whatever URL
+  // staff paste — same convention as MediaAsset.embedUrl. Once the live
+  // broadcast ends, YouTube turns this same video into a regular VOD on the
+  // same ID, which is what makes "publish as lesson" below a pointer, not a
+  // new recording pipeline.
+  embedUrl          String          @map("embed_url")
+  status            LiveClassStatus @default(SCHEDULED)
+  publishedLessonId String?         @unique @map("published_lesson_id")
+  createdBy         String          @map("created_by")
+  createdAt         DateTime        @default(now()) @map("created_at")
+  updatedAt         DateTime        @updatedAt @map("updated_at")
+  deletedAt         DateTime?       @map("deleted_at")
+
+  course          Course                @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  host            User                  @relation(fields: [hostUserId], references: [id])
+  publishedLesson Lesson?               @relation(fields: [publishedLessonId], references: [id])
+  attendees       LiveClassAttendance[]
+
+  @@index([courseId, startsAt])
+  @@index([orgId, startsAt])
+  @@map("live_classes")
+}
+
+model LiveClassAttendance {
+  id          String   @id @default(uuid())
+  liveClassId String   @map("live_class_id")
+  studentId   String   @map("student_id")
+  joinedAt    DateTime @default(now()) @map("joined_at")
+
+  liveClass LiveClass @relation(fields: [liveClassId], references: [id], onDelete: Cascade)
+  student   User      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  // Re-joining the same class (reconnect, refresh) just no-ops against this
+  // row rather than creating a duplicate attendance record.
+  @@unique([liveClassId, studentId])
+  @@map("live_class_attendance")
 }
 
 model Doubt {
@@ -1901,15 +2196,15 @@ model ExamBody {
 }
 
 model Exam {
-  id         String            @id @default(uuid())
+  id         String              @id @default(uuid())
   code       String
-  nameEn     String            @map("name_en")
-  nameHi     String            @map("name_hi")
-  examBodyId String            @map("exam_body_id")
-  stateId    String?           @map("state_id")
-  createdAt  DateTime          @default(now()) @map("created_at")
-  examBody   ExamBody          @relation(fields: [examBodyId], references: [id])
-  state      State?            @relation(fields: [stateId], references: [id])
+  nameEn     String              @map("name_en")
+  nameHi     String              @map("name_hi")
+  examBodyId String              @map("exam_body_id")
+  stateId    String?             @map("state_id")
+  createdAt  DateTime            @default(now()) @map("created_at")
+  examBody   ExamBody            @relation(fields: [examBodyId], references: [id])
+  state      State?              @relation(fields: [stateId], references: [id])
   assigns    StaffAssignment[]
   students   StudentProfile[]
   courses    Course[]
@@ -2103,15 +2398,17 @@ model Organization {
   updatedAt  DateTime           @updatedAt @map("updated_at")
   createdBy  String?            @map("created_by")
 
-  members          User[]                    @relation("OrgMembers")
-  head             User?                     @relation("OrgHead", fields: [headUserId], references: [id])
-  referredSignups  User[]                    @relation("OrgReferrals")
-  courses          Course[]
-  exams            Exam[]
-  subscription     OrganizationSubscription?
-  linkedAccount    InstituteLinkedAccount?
-  membershipEvents OrgMembershipEvent[]
-  pyqPapers        PreviousYearPaper[]
+  members              User[]                       @relation("OrgMembers")
+  head                 User?                        @relation("OrgHead", fields: [headUserId], references: [id])
+  referredSignups      User[]                       @relation("OrgReferrals")
+  courses              Course[]
+  exams                Exam[]
+  subscription         OrganizationSubscription?
+  linkedAccount        InstituteLinkedAccount?
+  membershipEvents     OrgMembershipEvent[]
+  pyqPapers            PreviousYearPaper[]
+  performanceSnapshots StudentPerformanceSnapshot[]
+  subjectPerformance   StudentSubjectPerformance[]
 
   @@map("organizations")
 }
@@ -2353,27 +2650,27 @@ model StudyContentTeaser {
 // gate) rather than the CurrentAffair maker/checker state machine — blog
 // copy is marketing-owned, not academic content needing a reviewer sign-off.
 model BlogPost {
-  id                String    @id @default(uuid())
-  slug              String    @unique
-  titleHi           String    @map("title_hi")
-  titleEn           String    @map("title_en")
-  excerptHi         String    @map("excerpt_hi")
-  excerptEn         String    @map("excerpt_en")
-  bodyHi            String    @map("body_hi")
-  bodyEn            String    @map("body_en")
-  category          String
-  tags              String[]  @default([])
-  coverImageUrl     String?   @map("cover_image_url")
-  authorName        String    @default("Team RajyaRank") @map("author_name")
-  seoTitleHi        String?   @map("seo_title_hi")
-  seoTitleEn        String?   @map("seo_title_en")
-  seoDescriptionHi  String?   @map("seo_description_hi")
-  seoDescriptionEn  String?   @map("seo_description_en")
-  published         Boolean   @default(false)
-  publishedAt       DateTime? @map("published_at")
-  createdAt         DateTime  @default(now()) @map("created_at")
-  updatedAt         DateTime  @updatedAt @map("updated_at")
-  createdBy         String?   @map("created_by")
+  id               String    @id @default(uuid())
+  slug             String    @unique
+  titleHi          String    @map("title_hi")
+  titleEn          String    @map("title_en")
+  excerptHi        String    @map("excerpt_hi")
+  excerptEn        String    @map("excerpt_en")
+  bodyHi           String    @map("body_hi")
+  bodyEn           String    @map("body_en")
+  category         String
+  tags             String[]  @default([])
+  coverImageUrl    String?   @map("cover_image_url")
+  authorName       String    @default("Team RajyaRank") @map("author_name")
+  seoTitleHi       String?   @map("seo_title_hi")
+  seoTitleEn       String?   @map("seo_title_en")
+  seoDescriptionHi String?   @map("seo_description_hi")
+  seoDescriptionEn String?   @map("seo_description_en")
+  published        Boolean   @default(false)
+  publishedAt      DateTime? @map("published_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  createdBy        String?   @map("created_by")
 
   @@index([published, publishedAt])
   @@index([category])
