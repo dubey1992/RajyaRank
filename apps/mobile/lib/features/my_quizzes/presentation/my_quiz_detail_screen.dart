@@ -408,66 +408,60 @@ class _MyQuizDetailScreenState extends ConsumerState<MyQuizDetailScreen> {
             decoration: const InputDecoration(labelText: 'Correct answer (number)', border: OutlineInputBorder()),
           )
         else if (_newType == QuestionType.trueFalse)
-          Row(
-            children: [
-              Expanded(
-                child: RadioListTile<bool>(
-                  value: true,
-                  groupValue: _trueFalseAnswer,
-                  title: const Text('True'),
-                  onChanged: (v) => setState(() => _trueFalseAnswer = v ?? true),
-                ),
-              ),
-              Expanded(
-                child: RadioListTile<bool>(
-                  value: false,
-                  groupValue: _trueFalseAnswer,
-                  title: const Text('False'),
-                  onChanged: (v) => setState(() => _trueFalseAnswer = v ?? false),
-                ),
-              ),
-            ],
+          RadioGroup<bool>(
+            groupValue: _trueFalseAnswer,
+            onChanged: (v) => setState(() => _trueFalseAnswer = v ?? true),
+            child: Row(
+              children: const [
+                Expanded(child: RadioListTile<bool>(value: true, title: Text('True'))),
+                Expanded(child: RadioListTile<bool>(value: false, title: Text('False'))),
+              ],
+            ),
           )
-        else ...[
-          for (var i = 0; i < _optionControllers.length; i++)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Row(
-                children: [
-                  _newType == QuestionType.multipleChoice
-                      ? Checkbox(
-                          value: _correctOptionIndexes.contains(i),
-                          onChanged: (v) => setState(() {
-                            if (v == true) {
-                              _correctOptionIndexes.add(i);
-                            } else {
-                              _correctOptionIndexes.remove(i);
-                            }
-                          }),
-                        )
-                      : Radio<int>(
-                          value: i,
-                          groupValue: _correctOptionIndexes.isEmpty ? null : _correctOptionIndexes.first,
-                          onChanged: (v) => setState(() {
-                            _correctOptionIndexes.clear();
-                            if (v != null) _correctOptionIndexes.add(v);
-                          }),
+        else
+          RadioGroup<int>(
+            groupValue: _correctOptionIndexes.isEmpty ? null : _correctOptionIndexes.first,
+            onChanged: (v) => setState(() {
+              _correctOptionIndexes.clear();
+              if (v != null) _correctOptionIndexes.add(v);
+            }),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (var i = 0; i < _optionControllers.length; i++)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      children: [
+                        _newType == QuestionType.multipleChoice
+                            ? Checkbox(
+                                value: _correctOptionIndexes.contains(i),
+                                onChanged: (v) => setState(() {
+                                  if (v == true) {
+                                    _correctOptionIndexes.add(i);
+                                  } else {
+                                    _correctOptionIndexes.remove(i);
+                                  }
+                                }),
+                              )
+                            : Radio<int>(value: i),
+                        Expanded(
+                          child: TextField(
+                            controller: _optionControllers[i],
+                            decoration: InputDecoration(hintText: 'Option ${String.fromCharCode(65 + i)}', border: const OutlineInputBorder()),
+                          ),
                         ),
-                  Expanded(
-                    child: TextField(
-                      controller: _optionControllers[i],
-                      decoration: InputDecoration(hintText: 'Option ${String.fromCharCode(65 + i)}', border: const OutlineInputBorder()),
+                      ],
                     ),
                   ),
-                ],
-              ),
+                if (_optionControllers.length < 6)
+                  TextButton(
+                    onPressed: () => setState(() => _optionControllers.add(TextEditingController())),
+                    child: const Text('+ Add option'),
+                  ),
+              ],
             ),
-          if (_optionControllers.length < 6)
-            TextButton(
-              onPressed: () => setState(() => _optionControllers.add(TextEditingController())),
-              child: const Text('+ Add option'),
-            ),
-        ],
+          ),
         const SizedBox(height: 10),
         TextField(
           controller: _explanationController,
@@ -649,15 +643,22 @@ class _TakeQuestionCard extends StatelessWidget {
                   },
                 )
             else
-              for (final opt in question.options)
-                RadioListTile<String>(
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(opt.text),
-                  value: opt.key,
-                  groupValue: _firstOrNull((answer as List<String>?) ?? const <String>[]),
-                  onChanged: (key) => onChanged(key == null ? null : [key]),
+              RadioGroup<String>(
+                groupValue: _firstOrNull((answer as List<String>?) ?? const <String>[]),
+                onChanged: (key) => onChanged(key == null ? null : [key]),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (final opt in question.options)
+                      RadioListTile<String>(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(opt.text),
+                        value: opt.key,
+                      ),
+                  ],
                 ),
+              ),
           ],
         ),
       ),
