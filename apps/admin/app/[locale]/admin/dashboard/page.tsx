@@ -3,13 +3,14 @@ import { cookies } from 'next/headers';
 import { resolveLocale } from '@/lib/i18n';
 import { getMeOrRedirect } from '@/lib/auth';
 import { apiFetchServer } from '@/lib/api';
-import { Shell, showsMergedContent } from '@/components/Shell';
+import { Shell, showsMergedContent, showsMergedStudents, showsMergedTests } from '@/components/Shell';
 import { AnalyticsCards, type Overview } from '@/components/AnalyticsCards';
 import { RevenueDashboard, type RevenueOverview } from '@/components/RevenueDashboard';
 import { InstitutionOverviewCards } from '@/components/InstitutionOverviewCards';
 import { ContentPipelineCards, type ContentPipelineOverview } from '@/components/ContentPipelineCards';
 import { ReviewOverviewCards, type ReviewOverview } from '@/components/ReviewOverviewCards';
 import { PerformanceDashboard } from '@/components/PerformanceDashboard';
+import { GettingStartedChecklist } from '@/components/GettingStartedChecklist';
 import { can } from '@/lib/permissions';
 import type {
   OrganizationView,
@@ -21,6 +22,7 @@ import type {
   SubjectPerformanceRow,
   InstitutionLeaderboardRow,
   StudentLeaderboardRow,
+  TestListItem,
 } from '@rajyarank/contracts';
 
 function rupees(minor: number) {
@@ -64,7 +66,7 @@ export default async function AdminDashboard({ params }: { params: { locale: str
   // guessing which one would succeed.
   const showsReports = can(me, 'reports.view');
 
-  const [orgs, overview, revenueOverview, institution, contentPipeline, reviewOverview, financeSummary, institutionEarnings, perfOverview, perfTrend, perfBySubject, institutionLeaderboard, studentLeaderboard] = await Promise.all([
+  const [orgs, overview, revenueOverview, institution, contentPipeline, reviewOverview, financeSummary, institutionEarnings, perfOverview, perfTrend, perfBySubject, institutionLeaderboard, studentLeaderboard, ownTests] = await Promise.all([
     isSuper ? apiFetchServer<OrganizationView[]>('/admin/organizations', cookie) : Promise.resolve(null),
     can(me, 'audit.view') ? apiFetchServer<Overview>('/admin/analytics/overview', cookie) : Promise.resolve(null),
     can(me, 'payment.manage') ? apiFetchServer<RevenueOverview>('/admin/analytics/revenue-overview', cookie) : Promise.resolve(null),
@@ -78,7 +80,20 @@ export default async function AdminDashboard({ params }: { params: { locale: str
     showsReports ? apiFetchServer<SubjectPerformanceRow[]>('/admin/analytics/performance-by-subject', cookie) : Promise.resolve(null),
     showsReports && isSuper ? apiFetchServer<InstitutionLeaderboardRow[]>('/admin/analytics/institution-leaderboard', cookie) : Promise.resolve(null),
     showsReports && !isSuper ? apiFetchServer<StudentLeaderboardRow[]>('/admin/analytics/student-leaderboard', cookie) : Promise.resolve(null),
+    // Getting-started checklist's "first test published" step — same
+    // endpoint Manage Tests/Mock Tests already call, filtered client-side
+    // for PUBLISHED since the route has no status query param.
+    isOrgAcademicHead ? apiFetchServer<TestListItem[]>('/staff/tests', cookie) : Promise.resolve(null),
   ]);
+
+  // Getting-started checklist inputs. The first four reuse the
+  // institution-overview aggregate already fetched above for the snapshot
+  // cards — no extra calls. Scoped to the Academic Head specifically: they
+  // own the full org setup (course, staff, students), unlike a Content Admin
+  // who joins an org that's already live.
+  const hasPublishedTest = (ownTests ?? []).some((t) => t.currentVersion?.status === 'PUBLISHED');
+  const studentsHref = showsMergedStudents(me) ? '/admin/manage-students' : '/admin/students';
+  const testsHref = showsMergedTests(me) ? '/admin/manage-tests' : can(me, 'test.create') ? '/admin/mock-tests' : '/admin/question-bank';
 
   const quickLinks: { href: string; label: string; show: boolean }[] = [
     { href: '/admin/staff', label: hi ? 'स्टाफ़' : 'Staff', show: can(me, 'user.manage') },
@@ -134,6 +149,19 @@ export default async function AdminDashboard({ params }: { params: { locale: str
             </div>
           </div>
         </section>
+      ) : null}
+
+      {isOrgAcademicHead ? (
+        <GettingStartedChecklist
+          hasCourse={(institution?.courses ?? 0) > 0}
+          hasLesson={(institution?.lessonsPublished ?? 0) > 0}
+          hasStaff={(institution?.staff ?? 0) > 1}
+          hasStudent={(institution?.students ?? 0) > 0}
+          hasPublishedTest={hasPublishedTest}
+          studentsHref={studentsHref}
+          testsHref={testsHref}
+          locale={hi ? 'hi' : 'en'}
+        />
       ) : null}
 
       {/* Institution snapshot + quick links, for any org-scoped user/course manager */}
