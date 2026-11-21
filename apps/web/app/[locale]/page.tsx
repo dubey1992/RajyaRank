@@ -61,6 +61,11 @@ export default async function LandingPage({ params }: { params: { locale: string
     { icon: '🎖️', name: 'Defence (NDA/Agniveer)', tag: L('लोकप्रिय', 'Popular'), official: true, desc: L('गणित, सामान्य ज्ञान और अंग्रेज़ी के साथ लिखित परीक्षा की पूरी तैयारी।', 'Full written-exam prep covering maths, general knowledge and English.'), meta: ['Hindi', L('45+ वीडियो', '45+ videos'), L('अभ्यास PDF', 'Practice PDFs')], price: '₹399', validity: L('4 माह वैधता', '4 months validity') },
     { icon: '📚', name: 'Teaching (CTET/TET)', tag: L('नया', 'New'), official: false, desc: L('बाल विकास, शिक्षाशास्त्र और विषय-वार अभ्यास सेट के साथ तैयारी।', 'Prep with child development, pedagogy and subject-wise practice sets.'), meta: [L('द्विभाषी', 'Bilingual'), L('55+ वीडियो', '55+ videos'), L('15 मॉक', '15 mocks')], price: '₹499', validity: L('6 माह वैधता', '6 months validity') },
   ];
+  const freeToolkit = [
+    { icon: '🗺', h: L('अपना स्टडी प्लान बनाएं', 'Build your own study plan'), p: L('कोई भी परीक्षा चुनें — कैटलॉग से या अपना नाम लिखकर — और अपने विषय जोड़कर एक दैनिक योजना बनवाएँ।', "Pick any exam — from the catalog or type your own — and get a day-by-day plan built from your own topics.") },
+    { icon: '📝', h: L('खुद के प्रैक्टिस टेस्ट बनाएं', 'Create your own practice tests'), p: L('अपने नोट्स से खुद के सवाल बनाएँ (या थोक में पेस्ट/अपलोड करें) और तुरंत स्कोर पाएँ।', 'Build your own questions from your notes (paste or upload them in bulk) and get scored instantly.') },
+    { icon: '📄', h: L('अपने पेपर अपलोड करें और अभ्यास करें', 'Upload & practice your own papers'), p: L('अपना कोई पिछले वर्ष का PDF पेपर अपलोड करें, जवाब भरें, और उत्तर कुंजी जोड़ने पर तुरंत स्कोर पाएँ।', "Upload a previous-year PDF paper, fill in your answers alongside it, and get auto-scored if you add an answer key.") },
+  ];
   const features = [
     { icon: '🗓️', h: L('दैनिक अध्ययन योजना', 'Daily study plan'), p: L('हर दिन क्या पढ़ना है — पाठ, अभ्यास, करेंट अफेयर्स और रिवीज़न।', 'What to study each day — lessons, practice, current affairs and revision.') },
     { icon: '🎥', h: L('शॉर्ट कॉन्सेप्ट वीडियो', 'Short concept videos'), p: L('कम डेटा में चलने वाली चैप्टर-वाइज़ वीडियो और रिज़्यूम प्लेबैक।', 'Chapter-wise videos that run on low data, with resume playback.') },
@@ -208,6 +213,35 @@ export default async function LandingPage({ params }: { params: { locale: string
               <div className="text-xs font-semibold text-muted">{label}</div>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* Free toolkit — no institute, no purchase needed. Sits ahead of the
+          course catalogue below so a visitor who isn't ready to buy still
+          sees a real reason to sign up today. */}
+      <section className="mx-auto max-w-6xl px-4 py-12">
+        <div className="mx-auto mb-9 max-w-2xl text-center">
+          <span className="inline-flex items-center gap-2 rounded-full border border-teal-500/40 bg-teal-100 px-3 py-1.5 text-[13px] font-extrabold text-teal-600">
+            {L('संस्थान की ज़रूरत नहीं', 'No institute needed')}
+          </span>
+          <h2 className="mt-3 text-2xl font-black tracking-tight text-navy-950 md:text-3xl">
+            {L('कोर्स खरीदे बिना भी आज ही शुरू करें', 'Start today, without buying a course')}
+          </h2>
+          <p className="mt-2 text-[#526071]">
+            {L('साइन अप करें और अपना पूरा टूलकिट मुफ़्त इस्तेमाल करें — कोई संस्थान या भुगतान ज़रूरी नहीं।', 'Sign up and use the full toolkit free — no institute or payment required.')}
+          </p>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-3">
+          {freeToolkit.map((it) => (
+            <article key={it.h} className="rounded-md border border-line bg-white p-5">
+              <span className="grid h-11 w-11 place-items-center rounded-xl bg-orange-100 text-orange-600">{it.icon}</span>
+              <h3 className="mt-3 font-extrabold text-navy-900">{it.h}</h3>
+              <p className="mt-1 text-[13px] text-muted">{it.p}</p>
+            </article>
+          ))}
+        </div>
+        <div className="mt-7 flex justify-center">
+          <a href={`/${locale}/signup`} className={BTN_PRIMARY}>{L('मुफ़्त शुरू करें', 'Start for free')}</a>
         </div>
       </section>
 
