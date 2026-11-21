@@ -22,7 +22,23 @@ export interface LiveClassView {
   phase: LiveClassPhase;
   publishedLessonId: string | null;
   attendeeCount: number;
+  hostName: string;
+  // Display-only — never consulted for access control (join() stays
+  // course-level). Omitted when not set.
+  batchId?: string | null;
+  batchNameHi?: string | null;
+  batchNameEn?: string | null;
+  // Record-keeping only — never consulted for stream delivery.
+  coHostUserId?: string | null;
+  coHostName?: string | null;
 }
+
+const repeatSchema = z.object({
+  frequency: z.enum(['DAILY', 'WEEKLY']),
+  // Inclusive end date — the loop in LiveClassesService#create stops once an
+  // occurrence's startsAt would land after this date.
+  until: z.string().datetime(),
+});
 
 export const createLiveClassSchema = z.object({
   courseId: z.string().uuid(),
@@ -35,6 +51,14 @@ export const createLiveClassSchema = z.object({
   // Any YouTube URL/ID form staff paste — normalized server-side (see
   // assets.service.ts#toEmbeddableUrl) into the canonical embed URL.
   youtubeUrlOrId: z.string().min(1),
+  // Display-only tag — see LiveClassView.batchId's own comment.
+  batchId: z.string().uuid().optional(),
+  // Record-keeping only — see LiveClassView.coHostUserId's own comment.
+  coHostUserId: z.string().uuid().optional(),
+  // Creation-time convenience only: loop-creates independent rows, one per
+  // occurrence, each fully standalone afterward — not a recurring-series
+  // model. See LiveClassesService#create's own comment for the occurrence cap.
+  repeat: repeatSchema.optional(),
 });
 export type CreateLiveClassInput = z.infer<typeof createLiveClassSchema>;
 
@@ -46,6 +70,8 @@ export const updateLiveClassSchema = z.object({
   startsAt: z.string().datetime().optional(),
   durationMinutes: z.number().int().min(5).max(360).optional(),
   youtubeUrlOrId: z.string().min(1).optional(),
+  batchId: z.string().uuid().nullable().optional(),
+  coHostUserId: z.string().uuid().nullable().optional(),
 });
 export type UpdateLiveClassInput = z.infer<typeof updateLiveClassSchema>;
 
@@ -61,6 +87,10 @@ export interface LiveClassAttendanceRow {
   studentId: string;
   name: string;
   joinedAt: string;
+  lastSeenAt: string;
+  // Math.round((lastSeenAt - joinedAt) / 60000), computed server-side so
+  // every reader (admin roster, future analytics) uses the same unit.
+  durationMinutes: number;
 }
 
 export interface JoinLiveClassResponse {

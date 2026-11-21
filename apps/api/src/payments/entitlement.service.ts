@@ -195,6 +195,26 @@ export class EntitlementService {
     return { allAccess, examIds: [...examIds] };
   }
 
+  /** Every distinct user with live access to a course — a direct entitlement
+   *  on the course, or an active subscription covering its exam (Pro/all-exam,
+   *  or Plus scoped to this exact exam). Bulk counterpart to hasCourseAccess,
+   *  for call sites that need to notify/reach everyone entitled at once (the
+   *  live-class T-15 reminder and reschedule/cancel notifications) rather
+   *  than checking one user at a time. */
+  async entitledUserIdsForCourse(courseId: string, examId: string | null): Promise<string[]> {
+    const entitled = await this.prisma.entitlement.findMany({
+      where: {
+        ...this.activeWhere(),
+        AND: {
+          OR: [{ courseId }, { product: { kind: 'SUBSCRIPTION', OR: [{ examId: null }, { examId }] } }],
+        },
+      },
+      select: { userId: true },
+      distinct: ['userId'],
+    });
+    return entitled.map((e) => e.userId);
+  }
+
   async listMine(userId: string) {
     const ents = await this.prisma.entitlement.findMany({ where: { userId }, orderBy: { createdAt: 'desc' }, include: { product: true } });
     return ents.map((e) => ({

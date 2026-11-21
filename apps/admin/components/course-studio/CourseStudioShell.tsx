@@ -32,6 +32,7 @@ interface StudioCourse {
   prerequisitesHi: string | null;
   prerequisitesEn: string | null;
   subjects: CurriculumSubject[];
+  batches: Ref[];
 }
 
 type Audience = 'INSTITUTE_ONLY' | 'PUBLIC_AND_INSTITUTE';
@@ -485,7 +486,7 @@ export function CourseStudioShell({
 
         {step === 'liveClasses' ? (
           courseId ? (
-            <LiveClassesTab courseId={courseId} subjects={course?.subjects ?? []} locale={locale} />
+            <LiveClassesTab courseId={courseId} subjects={course?.subjects ?? []} batches={course?.batches ?? []} locale={locale} />
           ) : null
         ) : null}
 

@@ -7,12 +7,14 @@ import { Shell } from '@/components/Shell';
 import { AccessDenied } from '@/components/AccessDenied';
 import { PerformanceDashboard } from '@/components/PerformanceDashboard';
 import { SubjectPerformanceTable } from '@/components/SubjectPerformanceTable';
+import { LiveClassEngagementCards } from '@/components/LiveClassEngagementCards';
 import type {
   PerformanceOverview,
   PerformanceTrendPoint,
   SubjectPerformanceRow,
   InstitutionLeaderboardRow,
   StudentLeaderboardRow,
+  LiveClassEngagementRow,
 } from '@rajyarank/contracts';
 
 export const dynamic = 'force-dynamic';
@@ -39,12 +41,13 @@ export default async function ReportsPage({ params }: { params: { locale: string
 
   const isSuper = me.roleKeys.includes('SUPER_ADMIN');
   const cookie = cookies().toString();
-  const [overview, trend, bySubject, institutionLeaderboard, studentLeaderboard] = await Promise.all([
+  const [overview, trend, bySubject, institutionLeaderboard, studentLeaderboard, liveClassEngagement] = await Promise.all([
     apiFetchServer<PerformanceOverview>('/admin/analytics/performance-overview', cookie),
     apiFetchServer<PerformanceTrendPoint[]>('/admin/analytics/performance-trend', cookie),
     apiFetchServer<SubjectPerformanceRow[]>('/admin/analytics/performance-by-subject', cookie),
     isSuper ? apiFetchServer<InstitutionLeaderboardRow[]>('/admin/analytics/institution-leaderboard', cookie) : Promise.resolve(null),
     !isSuper ? apiFetchServer<StudentLeaderboardRow[]>('/admin/analytics/student-leaderboard', cookie) : Promise.resolve(null),
+    apiFetchServer<LiveClassEngagementRow[]>('/admin/analytics/live-class-engagement', cookie),
   ]);
 
   return (
@@ -69,6 +72,8 @@ export default async function ReportsPage({ params }: { params: { locale: string
             studentLeaderboard={studentLeaderboard}
           />
           <SubjectPerformanceTable subjects={bySubject} locale={locale} />
+          <h2 className="mb-3 mt-8 text-lg font-black text-navy-900">{hi ? 'लाइव क्लास एंगेजमेंट' : 'Live Classes engagement'}</h2>
+          <LiveClassEngagementCards rows={liveClassEngagement ?? []} locale={locale} />
         </>
       ) : (
         <p className="text-sm text-muted">{hi ? 'डेटा लोड नहीं हो सका।' : 'Could not load report data.'}</p>

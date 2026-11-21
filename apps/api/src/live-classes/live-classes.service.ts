@@ -13,8 +13,19 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuthorizationService } from '../authz/authorization.service';
 import { AuditService } from '../audit/audit.service';
 import { EntitlementService } from '../payments/entitlement.service';
+import { NotificationService } from '../notifications/notification.service';
 import { toEmbeddableUrl } from '../assets/assets.service';
 import { AppError } from '../common/errors/app-error';
+
+/** Formats a date for the reschedule notification body — short, locale-aware,
+ *  no timezone math beyond what Date/Intl already does for the server's own
+ *  zone (same as every other bilingual date shown elsewhere in this app). */
+function formatClassTime(date: Date, locale: 'hi' | 'en'): string {
+  return date.toLocaleString(locale === 'hi' ? 'hi-IN' : 'en-IN', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  });
+}
 
 /** toEmbeddableUrl only parses full YouTube URLs — `new URL(raw)` throws for
  *  a bare string and it falls through unchanged (reproduced: passing just
@@ -49,7 +60,21 @@ export class LiveClassesService {
     private readonly authz: AuthorizationService,
     private readonly audit: AuditService,
     private readonly entitlements: EntitlementService,
+    private readonly notifications: NotificationService,
   ) {}
+
+  /** Fans a notification out to every student entitled to this course — same
+   *  bulk lookup + sequential emit() pattern as the T-15 reminder scheduler
+   *  (live-class-reminder.scheduler.ts), reused via EntitlementService rather
+   *  than duplicated. Used for reschedule/cancel alerts, which, unlike the
+   *  reminder, aren't time-windowed so there's no Redis dedup needed here —
+   *  each is a one-off reaction to a single staff action. */
+  private async notifyEntitled(courseId: string, examId: string, titleHi: string, titleEn: string, bodyHi: string, bodyEn: string, liveClassId: string) {
+    const userIds = await this.entitlements.entitledUserIdsForCourse(courseId, examId);
+    for (const userId of userIds) {
+      await this.notifications.emit({ userId, category: 'LIVE_CLASS', titleHi, titleEn, bodyHi, bodyEn, data: { liveClassId } });
+    }
+  }
 
   private assertScope(principal: Principal, scope: Scope) {
     const decision = this.authz.check(principal, 'course.manage', { type: 'course', scope });
@@ -70,10 +95,26 @@ export class LiveClassesService {
     return 'UPCOMING';
   }
 
+  /** Include shape shared by every query that returns a LiveClassView — kept
+   *  as one constant so create/list/update/cancel never drift from toView's
+   *  expectations. */
+  private static readonly VIEW_INCLUDE = {
+    course: { select: { titleHi: true, titleEn: true } },
+    host: { select: { displayName: true } },
+    coHost: { select: { displayName: true } },
+    batch: { select: { nameHi: true, nameEn: true } },
+    _count: { select: { attendees: true } },
+  } as const;
+
   private toView(row: {
     id: string;
     courseId: string;
     course: { titleHi: string; titleEn: string };
+    host: { displayName: string | null };
+    coHostUserId: string | null;
+    coHost: { displayName: string | null } | null;
+    batchId: string | null;
+    batch: { nameHi: string; nameEn: string } | null;
     titleHi: string;
     titleEn: string;
     descriptionHi: string | null;
@@ -101,39 +142,80 @@ export class LiveClassesService {
       phase: this.phaseOf(row.startsAt, row.durationMinutes),
       publishedLessonId: row.publishedLessonId,
       attendeeCount: row._count.attendees,
+      hostName: row.host.displayName ?? '—',
+      batchId: row.batchId,
+      batchNameHi: row.batch?.nameHi ?? null,
+      batchNameEn: row.batch?.nameEn ?? null,
+      coHostUserId: row.coHostUserId,
+      coHostName: row.coHost?.displayName ?? null,
     };
   }
 
   // ── Staff ────────────────────────────────────────────────────────────
 
+  /** A repeat.until further than this many occurrences out is rejected
+   *  outright rather than silently truncated — a deliberate cap, not a
+   *  real recurring-series abstraction (see CreateLiveClassInput's comment). */
+  private static readonly MAX_REPEAT_OCCURRENCES = 60;
+
   async create(principal: Principal, dto: CreateLiveClassInput): Promise<LiveClassView> {
     const scope = await this.courseScope(dto.courseId);
     this.assertScope(principal, scope);
-    const created = await this.prisma.liveClass.create({
-      data: {
-        courseId: dto.courseId,
-        orgId: scope.orgId ?? null,
-        hostUserId: principal.userId,
-        titleHi: dto.titleHi,
-        titleEn: dto.titleEn,
-        descriptionHi: dto.descriptionHi ?? null,
-        descriptionEn: dto.descriptionEn ?? null,
-        startsAt: new Date(dto.startsAt),
-        durationMinutes: dto.durationMinutes,
-        embedUrl: normalizeYoutubeInput(dto.youtubeUrlOrId),
-        createdBy: principal.userId,
-      },
-      include: { course: { select: { titleHi: true, titleEn: true } }, _count: { select: { attendees: true } } },
-    });
-    await this.audit.record({
-      actorUserId: principal.userId,
-      action: 'liveClass.create',
-      targetType: 'LiveClass',
-      targetId: created.id,
-      result: 'SUCCESS',
-      after: { courseId: dto.courseId, startsAt: dto.startsAt },
-    });
-    return this.toView(created);
+
+    const baseData = {
+      courseId: dto.courseId,
+      orgId: scope.orgId ?? null,
+      hostUserId: principal.userId,
+      coHostUserId: dto.coHostUserId ?? null,
+      batchId: dto.batchId ?? null,
+      titleHi: dto.titleHi,
+      titleEn: dto.titleEn,
+      descriptionHi: dto.descriptionHi ?? null,
+      descriptionEn: dto.descriptionEn ?? null,
+      durationMinutes: dto.durationMinutes,
+      embedUrl: normalizeYoutubeInput(dto.youtubeUrlOrId),
+      createdBy: principal.userId,
+    };
+
+    const firstStartsAt = new Date(dto.startsAt);
+    const occurrenceStarts: Date[] = [firstStartsAt];
+    if (dto.repeat) {
+      const until = new Date(dto.repeat.until);
+      const stepDays = dto.repeat.frequency === 'DAILY' ? 1 : 7;
+      let next = new Date(firstStartsAt);
+      for (;;) {
+        next = new Date(next.getTime() + stepDays * 86_400_000);
+        if (next.getTime() > until.getTime()) break;
+        if (occurrenceStarts.length >= LiveClassesService.MAX_REPEAT_OCCURRENCES) {
+          throw AppError.conflict(`A repeating series can create at most ${LiveClassesService.MAX_REPEAT_OCCURRENCES} classes — pick an earlier "until" date.`);
+        }
+        occurrenceStarts.push(next);
+      }
+    }
+
+    // Each occurrence is created as its own fully independent LiveClass row
+    // (no parent/series model) — editing or cancelling one never affects the
+    // others. Sequential, not Promise.all, so audit records land in a stable
+    // order and one failure doesn't leave a half-created batch racing itself.
+    let first: LiveClassView | undefined;
+    for (const startsAt of occurrenceStarts) {
+      const row = await this.prisma.liveClass.create({
+        data: { ...baseData, startsAt },
+        include: LiveClassesService.VIEW_INCLUDE,
+      });
+      await this.audit.record({
+        actorUserId: principal.userId,
+        action: 'liveClass.create',
+        targetType: 'LiveClass',
+        targetId: row.id,
+        result: 'SUCCESS',
+        after: { courseId: dto.courseId, startsAt: startsAt.toISOString() },
+      });
+      first ??= this.toView(row);
+    }
+    // occurrenceStarts always has at least one entry (firstStartsAt), so the
+    // loop above always runs at least once.
+    return first!;
   }
 
   async list(principal: Principal, courseId: string): Promise<LiveClassView[]> {
@@ -142,7 +224,7 @@ export class LiveClassesService {
     const rows = await this.prisma.liveClass.findMany({
       where: { courseId, deletedAt: null },
       orderBy: { startsAt: 'desc' },
-      include: { course: { select: { titleHi: true, titleEn: true } }, _count: { select: { attendees: true } } },
+      include: LiveClassesService.VIEW_INCLUDE,
     });
     return rows.map((r) => this.toView(r));
   }
@@ -155,7 +237,10 @@ export class LiveClassesService {
 
   async update(principal: Principal, id: string, dto: UpdateLiveClassInput): Promise<LiveClassView> {
     const lc = await this.loadForStaff(id);
-    this.assertScope(principal, await this.courseScope(lc.courseId));
+    const scope = await this.courseScope(lc.courseId);
+    this.assertScope(principal, scope);
+    const newStartsAt = dto.startsAt ? new Date(dto.startsAt) : undefined;
+    const rescheduled = newStartsAt && newStartsAt.getTime() !== lc.startsAt.getTime();
     const updated = await this.prisma.liveClass.update({
       where: { id },
       data: {
@@ -163,21 +248,52 @@ export class LiveClassesService {
         titleEn: dto.titleEn,
         descriptionHi: dto.descriptionHi,
         descriptionEn: dto.descriptionEn,
-        startsAt: dto.startsAt ? new Date(dto.startsAt) : undefined,
+        startsAt: newStartsAt,
         durationMinutes: dto.durationMinutes,
         embedUrl: dto.youtubeUrlOrId ? normalizeYoutubeInput(dto.youtubeUrlOrId) : undefined,
+        batchId: dto.batchId,
+        coHostUserId: dto.coHostUserId,
       },
-      include: { course: { select: { titleHi: true, titleEn: true } }, _count: { select: { attendees: true } } },
+      include: LiveClassesService.VIEW_INCLUDE,
     });
     await this.audit.record({ actorUserId: principal.userId, action: 'liveClass.update', targetType: 'LiveClass', targetId: id, result: 'SUCCESS' });
+
+    if (rescheduled && scope.examId) {
+      await this.notifyEntitled(
+        lc.courseId,
+        scope.examId,
+        'आपकी लाइव क्लास का समय बदल गया है',
+        'Your live class has been rescheduled',
+        `${updated.titleHi} अब ${formatClassTime(updated.startsAt, 'hi')} पर होगी — ${updated.course.titleHi}`,
+        `${updated.titleEn} is now at ${formatClassTime(updated.startsAt, 'en')} — ${updated.course.titleEn}`,
+        id,
+      );
+    }
     return this.toView(updated);
   }
 
   async cancel(principal: Principal, id: string): Promise<{ id: string }> {
     const lc = await this.loadForStaff(id);
-    this.assertScope(principal, await this.courseScope(lc.courseId));
-    await this.prisma.liveClass.update({ where: { id }, data: { status: 'CANCELLED' } });
+    const scope = await this.courseScope(lc.courseId);
+    this.assertScope(principal, scope);
+    const cancelled = await this.prisma.liveClass.update({
+      where: { id },
+      data: { status: 'CANCELLED' },
+      include: { course: { select: { titleHi: true, titleEn: true } } },
+    });
     await this.audit.record({ actorUserId: principal.userId, action: 'liveClass.cancel', targetType: 'LiveClass', targetId: id, result: 'SUCCESS' });
+
+    if (scope.examId) {
+      await this.notifyEntitled(
+        lc.courseId,
+        scope.examId,
+        'आपकी लाइव क्लास रद्द कर दी गई है',
+        'Your live class has been cancelled',
+        `${cancelled.titleHi} — ${cancelled.course.titleHi}`,
+        `${cancelled.titleEn} — ${cancelled.course.titleEn}`,
+        id,
+      );
+    }
     return { id };
   }
 
@@ -193,6 +309,8 @@ export class LiveClassesService {
       studentId: r.studentId,
       name: r.student.studentProfile?.fullName ?? r.student.displayName ?? '—',
       joinedAt: r.joinedAt.toISOString(),
+      lastSeenAt: r.lastSeenAt.toISOString(),
+      durationMinutes: Math.round((r.lastSeenAt.getTime() - r.joinedAt.getTime()) / 60_000),
     }));
   }
 
@@ -278,7 +396,7 @@ export class LiveClassesService {
     const candidates = await this.prisma.liveClass.findMany({
       where: { status: 'SCHEDULED', deletedAt: null },
       orderBy: { startsAt: 'asc' },
-      include: { course: { select: { titleHi: true, titleEn: true } }, _count: { select: { attendees: true } } },
+      include: LiveClassesService.VIEW_INCLUDE,
     });
     const notEnded = candidates.filter((c) => c.startsAt.getTime() + c.durationMinutes * 60_000 > now.getTime());
     const courseIds = Array.from(new Set(notEnded.map((c) => c.courseId)));
@@ -314,5 +432,28 @@ export class LiveClassesService {
     });
 
     return { url: lc.embedUrl, kind: 'EMBED' };
+  }
+
+  /** Periodic heartbeat (called every ~20s by the join view, mirroring
+   *  LessonProgress's heartbeat) — bumps lastSeenAt so attendance() can
+   *  compute "duration so far". Re-checks entitlement same as join(), but
+   *  does NOT re-enforce the join window: a heartbeat that arrives a few
+   *  seconds after the class technically "closes" (clock skew, a slow
+   *  network tick) shouldn't throw on a student who's already watching —
+   *  only join() gates entry. Upserts rather than requiring a prior join()
+   *  call to have happened, so a heartbeat can never fail with "not found"
+   *  due to an ordering race between it and the join request. */
+  async heartbeat(principal: Principal, id: string): Promise<{ ok: true }> {
+    const studentId = this.studentId(principal);
+    const lc = await this.prisma.liveClass.findFirst({ where: { id, deletedAt: null } });
+    if (!lc || lc.status === 'CANCELLED') throw AppError.notFound('Live class not found.');
+    if (!(await this.entitlements.hasCourseAccess(studentId, lc.courseId))) throw AppError.entitlementRequired();
+
+    await this.prisma.liveClassAttendance.upsert({
+      where: { liveClassId_studentId: { liveClassId: id, studentId } },
+      update: { lastSeenAt: new Date() },
+      create: { liveClassId: id, studentId },
+    });
+    return { ok: true };
   }
 }

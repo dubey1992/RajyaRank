@@ -76,4 +76,9 @@ export class StudentLiveClassesController {
   join(@CurrentPrincipal() principal: Principal, @Param('id') id: string) {
     return this.liveClasses.join(principal, id);
   }
+
+  @Patch(':id/heartbeat')
+  heartbeat(@CurrentPrincipal() principal: Principal, @Param('id') id: string) {
+    return this.liveClasses.heartbeat(principal, id);
+  }
 }

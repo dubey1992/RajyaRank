@@ -92,4 +92,10 @@ export class AnalyticsController {
   studentPerformanceDetail(@CurrentPrincipal() principal: Principal, @Param('studentId') studentId: string) {
     return this.analytics.studentPerformanceDetail(principal, studentId);
   }
+
+  @Get('live-class-engagement')
+  @RequirePermission('reports.view')
+  liveClassEngagement(@CurrentPrincipal() principal: Principal) {
+    return this.analytics.liveClassEngagement(principal);
+  }
 }

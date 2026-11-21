@@ -246,9 +246,10 @@ model Batch {
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
-  course  Course            @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  lessons Lesson[]
-  assigns StaffAssignment[]
+  course      Course            @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lessons     Lesson[]
+  assigns     StaffAssignment[]
+  liveClasses LiveClass[]
 
   @@unique([courseId, code])
   @@index([courseId])
@@ -510,7 +511,8 @@ model User {
   riskSignal          StudentRiskSignal?
   performanceSnapshot StudentPerformanceSnapshot?
   subjectPerformance  StudentSubjectPerformance[]
-  hostedLiveClasses   LiveClass[]
+  hostedLiveClasses   LiveClass[] @relation("LiveClassHost")
+  coHostedLiveClasses LiveClass[] @relation("LiveClassCoHost")
   liveClassAttendance LiveClassAttendance[]
 
   orgId     String?       @map("org_id")
@@ -1938,6 +1940,15 @@ model LiveClass {
   courseId          String          @map("course_id")
   orgId             String?         @map("org_id") // denormalized from Course.orgId, same no-FK convention as StudentRiskSignal.orgId
   hostUserId        String          @map("host_user_id")
+  // Record-keeping only — shown alongside the host in the roster/listing.
+  // Never consulted by join()/stream delivery: the actual video is a single
+  // YouTube Live broadcast regardless of how many hosts are on record.
+  coHostUserId      String?         @map("co_host_user_id")
+  // Display-only label (e.g. "this is the April batch's class") — never
+  // consulted by join()'s entitlement check, which stays course-level. A real
+  // per-batch access restriction would need a BatchMembership model, which
+  // doesn't exist yet and is out of scope here.
+  batchId           String?         @map("batch_id")
   titleHi           String          @map("title_hi")
   titleEn           String          @map("title_en")
   descriptionHi     String?         @map("description_hi")
@@ -1959,12 +1970,15 @@ model LiveClass {
   deletedAt         DateTime?       @map("deleted_at")
 
   course          Course                @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  host            User                  @relation(fields: [hostUserId], references: [id])
+  host            User                  @relation("LiveClassHost", fields: [hostUserId], references: [id])
+  coHost          User?                 @relation("LiveClassCoHost", fields: [coHostUserId], references: [id])
+  batch           Batch?                @relation(fields: [batchId], references: [id])
   publishedLesson Lesson?               @relation(fields: [publishedLessonId], references: [id])
   attendees       LiveClassAttendance[]
 
   @@index([courseId, startsAt])
   @@index([orgId, startsAt])
+  @@index([batchId])
   @@map("live_classes")
 }
 
@@ -1973,6 +1987,12 @@ model LiveClassAttendance {
   liveClassId String   @map("live_class_id")
   studentId   String   @map("student_id")
   joinedAt    DateTime @default(now()) @map("joined_at")
+  // Bumped by a periodic heartbeat while the student has the class open —
+  // same "last confirmed present" reasoning as LessonProgress: a heartbeat
+  // that stops arriving IS the "left" signal, no explicit leave event needed
+  // since a closed tab/app can't reliably fire one. "Duration so far" is
+  // simply lastSeenAt - joinedAt, computed where read, never stored.
+  lastSeenAt  DateTime @default(now()) @map("last_seen_at")
 
   liveClass LiveClass @relation(fields: [liveClassId], references: [id], onDelete: Cascade)
   student   User      @relation(fields: [studentId], references: [id], onDelete: Cascade)

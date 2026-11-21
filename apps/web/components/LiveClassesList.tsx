@@ -1,13 +1,18 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { LiveClassView, JoinLiveClassResponse } from '@rajyarank/contracts';
 import { apiFetch, type ApiError } from '@/lib/api';
+
+// Same interval as the lesson player's heartbeat (learn/[lessonId]/player.tsx)
+// — kept in sync so a student's "how long were they actually watching" signal
+// means the same thing across both features.
+const HEARTBEAT_SECONDS = 20;
 
 function timeLabel(startsAt: string, locale: 'hi' | 'en'): string {
   return new Date(startsAt).toLocaleString(locale === 'hi' ? 'hi-IN' : 'en-IN', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
 }
 
-function ClassCard({ c, locale, onJoined }: { c: LiveClassView; locale: 'hi' | 'en'; onJoined: (embedUrl: string) => void }) {
+function ClassCard({ c, locale, onJoined }: { c: LiveClassView; locale: 'hi' | 'en'; onJoined: (id: string, embedUrl: string) => void }) {
   const hi = locale === 'hi';
   const L = (h: string, e: string) => (hi ? h : e);
   const [busy, setBusy] = useState(false);
@@ -23,7 +28,7 @@ function ClassCard({ c, locale, onJoined }: { c: LiveClassView; locale: 'hi' | '
     setError(null);
     try {
       const res = await apiFetch<JoinLiveClassResponse>(`/student/live-classes/${c.id}/join`, { method: 'POST' });
-      onJoined(res.url);
+      onJoined(c.id, res.url);
     } catch (e) {
       setError((e as ApiError).message);
     } finally {
@@ -63,7 +68,22 @@ function ClassCard({ c, locale, onJoined }: { c: LiveClassView; locale: 'hi' | '
 export function LiveClassesList({ classes, locale }: { classes: LiveClassView[]; locale: 'hi' | 'en' }) {
   const hi = locale === 'hi';
   const L = (h: string, e: string) => (hi ? h : e);
-  const [activeEmbed, setActiveEmbed] = useState<string | null>(null);
+  const [activeEmbed, setActiveEmbed] = useState<{ id: string; url: string } | null>(null);
+
+  // Periodic heartbeat while the embed is open, same cadence/visibility-gate
+  // as the lesson player's — lets the admin attendance roster show a real
+  // "duration" instead of just a join timestamp.
+  useEffect(() => {
+    if (!activeEmbed) return;
+    const id = window.setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      void apiFetch(`/student/live-classes/${activeEmbed.id}/heartbeat`, { method: 'PATCH' }).catch(() => {
+        // Best-effort — a missed heartbeat just means a slightly shorter
+        // recorded duration, never worth interrupting the student over.
+      });
+    }, HEARTBEAT_SECONDS * 1000);
+    return () => window.clearInterval(id);
+  }, [activeEmbed]);
 
   const live = classes.filter((c) => c.phase === 'LIVE_NOW');
   const upcoming = classes.filter((c) => c.phase === 'UPCOMING');
@@ -77,7 +97,7 @@ export function LiveClassesList({ classes, locale }: { classes: LiveClassView[];
         <div className="aspect-video w-full overflow-hidden rounded-lg">
           <iframe
             title="Live class"
-            src={activeEmbed}
+            src={activeEmbed.url}
             className="h-full w-full bg-black"
             // Same CSP/referrer gotcha as learn/[lessonId]/player.tsx's EMBED
             // case — YouTube validates the referring page as part of
@@ -100,13 +120,13 @@ export function LiveClassesList({ classes, locale }: { classes: LiveClassView[];
       {live.length > 0 ? (
         <section>
           <h2 className="mb-2 text-sm font-black uppercase tracking-wide text-danger">{L('अभी लाइव', 'Live now')}</h2>
-          <div className="grid gap-2.5">{live.map((c) => <ClassCard key={c.id} c={c} locale={locale} onJoined={setActiveEmbed} />)}</div>
+          <div className="grid gap-2.5">{live.map((c) => <ClassCard key={c.id} c={c} locale={locale} onJoined={(id, url) => setActiveEmbed({ id, url })} />)}</div>
         </section>
       ) : null}
       {upcoming.length > 0 ? (
         <section>
           <h2 className="mb-2 text-sm font-black uppercase tracking-wide text-navy-900">{L('आगामी', 'Upcoming')}</h2>
-          <div className="grid gap-2.5">{upcoming.map((c) => <ClassCard key={c.id} c={c} locale={locale} onJoined={setActiveEmbed} />)}</div>
+          <div className="grid gap-2.5">{upcoming.map((c) => <ClassCard key={c.id} c={c} locale={locale} onJoined={(id, url) => setActiveEmbed({ id, url })} />)}</div>
         </section>
       ) : null}
     </div>

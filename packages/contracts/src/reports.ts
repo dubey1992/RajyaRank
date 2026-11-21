@@ -14,6 +14,22 @@ export interface PerformanceOverview {
   avgScorePercentPrior: number | null;
 }
 
+/** Live Classes engagement — the most recent ended classes in scope, live-
+ *  queried (not a precomputed snapshot, matching PerformanceTrendPoint's own
+ *  pattern), since live-class volume is low by design (a handful per
+ *  institution per day). avgDurationMinutes is null until any attendance row
+ *  has a lastSeenAt meaningfully past joinedAt. */
+export interface LiveClassEngagementRow {
+  id: string;
+  titleHi: string;
+  titleEn: string;
+  startsAt: string;
+  attendeeCount: number;
+  entitledCount: number;
+  attendanceRatePercent: number | null;
+  avgDurationMinutes: number | null;
+}
+
 export interface PerformanceTrendPoint {
   weekStart: string;
   avgScorePercent: number | null;

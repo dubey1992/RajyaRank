@@ -300,6 +300,9 @@ export class CoursesService {
     return this.prisma.course.findFirst({
       where: { id, deletedAt: null, ...this.orgVisibility(actor) },
       include: {
+        // For LiveClassesTab's batch display-tag picker (Phase 5) — cosmetic
+        // only, never used for access control.
+        batches: { where: { deletedAt: null }, orderBy: { code: 'asc' }, select: { id: true, code: true, nameHi: true, nameEn: true } },
         subjects: {
           where: { deletedAt: null },
           orderBy: { sequence: 'asc' },

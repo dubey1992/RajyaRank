@@ -23,3 +23,18 @@ Future<String> joinLiveClass(WidgetRef ref, String id) async {
   final response = await api.dio.post('/student/live-classes/$id/join');
   return response.data['data']['url'] as String;
 }
+
+/// PATCH student/live-classes/:id/heartbeat — bumps LiveClassAttendance's
+/// lastSeenAt so the admin attendance roster can show a real "duration
+/// attended" instead of just a join timestamp. Mirrors the web join view's
+/// own 20s heartbeat interval (apps/web/components/LiveClassesList.tsx).
+/// Best-effort by design — a failure here should never interrupt playback.
+Future<void> sendLiveClassHeartbeat(WidgetRef ref, String id) async {
+  final api = ref.read(apiClientProvider);
+  try {
+    await api.dio.patch('/student/live-classes/$id/heartbeat');
+  } catch (_) {
+    // Best-effort — a missed heartbeat just means a slightly shorter
+    // recorded duration, never worth surfacing to the student.
+  }
+}

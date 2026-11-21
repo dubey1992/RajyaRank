@@ -2,8 +2,10 @@
 import { useEffect, useState } from 'react';
 import { Alert, Button, Field, Card, Toast } from '@rajyarank/ui';
 import { apiFetch, type ApiError } from '@/lib/api';
-import type { LiveClassView, LiveClassAttendanceRow } from '@rajyarank/contracts';
+import type { LiveClassView, LiveClassAttendanceRow, StaffListItem } from '@rajyarank/contracts';
 import type { CurriculumSubject } from './CurriculumBuilder';
+
+interface BatchRef { id: string; code: string; nameHi: string; nameEn: string }
 
 function toLocalInputValue(iso: string): string {
   const d = new Date(iso);
@@ -20,20 +22,42 @@ interface FormState {
   startsAtLocal: string;
   durationMinutes: string;
   youtubeUrlOrId: string;
+  batchId: string;
+  coHostUserId: string;
+  // Create-only convenience — see CreateLiveClassInput's own comment on why
+  // this isn't a true recurring-series model.
+  repeatEnabled: boolean;
+  repeatFrequency: 'DAILY' | 'WEEKLY';
+  repeatUntilLocal: string;
 }
 
-const EMPTY_FORM: FormState = { id: null, titleHi: '', titleEn: '', descriptionHi: '', descriptionEn: '', startsAtLocal: '', durationMinutes: '60', youtubeUrlOrId: '' };
+const EMPTY_FORM: FormState = {
+  id: null,
+  titleHi: '',
+  titleEn: '',
+  descriptionHi: '',
+  descriptionEn: '',
+  startsAtLocal: '',
+  durationMinutes: '60',
+  youtubeUrlOrId: '',
+  batchId: '',
+  coHostUserId: '',
+  repeatEnabled: false,
+  repeatFrequency: 'WEEKLY',
+  repeatUntilLocal: '',
+};
 
 /** Course Studio step 7 — schedule/edit/cancel YouTube-Live classes for this
  *  course, and view per-class attendance. Self-contained like
  *  CoursePricingPanel/CurriculumBuilder: fetches its own data, mounted only
  *  once a courseId exists. */
-export function LiveClassesTab({ courseId, subjects, locale }: { courseId: string; subjects: CurriculumSubject[]; locale: 'hi' | 'en' }) {
+export function LiveClassesTab({ courseId, subjects, batches, locale }: { courseId: string; subjects: CurriculumSubject[]; batches: BatchRef[]; locale: 'hi' | 'en' }) {
   const hi = locale === 'hi';
   const L = (h: string, e: string) => (hi ? h : e);
   const topics = subjects.flatMap((s) => s.chapters.flatMap((c) => c.topics.map((t) => ({ id: t.id, nameHi: `${s.nameHi} / ${c.nameHi} / ${t.nameHi}`, nameEn: `${s.nameEn} / ${c.nameEn} / ${t.nameEn}` }))));
 
   const [classes, setClasses] = useState<LiveClassView[] | null>(null);
+  const [staff, setStaff] = useState<StaffListItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [form, setForm] = useState<FormState | null>(null);
@@ -46,12 +70,19 @@ export function LiveClassesTab({ courseId, subjects, locale }: { courseId: strin
     apiFetch<LiveClassView[]>(`/admin/live-classes?courseId=${courseId}`).then(setClasses).catch((e: ApiError) => setError(e.message));
   }
   useEffect(load, [courseId]);
+  useEffect(() => {
+    // Co-host picker is informational only (Phase 7) — a Content Admin
+    // without the staff-list permission simply won't see the option rather
+    // than breaking the rest of this tab.
+    apiFetch<StaffListItem[]>('/admin/staff').then(setStaff).catch(() => setStaff([]));
+  }, []);
 
   function openCreate() {
     setForm({ ...EMPTY_FORM });
   }
   function openEdit(c: LiveClassView) {
     setForm({
+      ...EMPTY_FORM,
       id: c.id,
       titleHi: c.titleHi,
       titleEn: c.titleEn,
@@ -60,6 +91,8 @@ export function LiveClassesTab({ courseId, subjects, locale }: { courseId: strin
       startsAtLocal: toLocalInputValue(c.startsAt),
       durationMinutes: String(c.durationMinutes),
       youtubeUrlOrId: c.embedUrl,
+      batchId: c.batchId ?? '',
+      coHostUserId: c.coHostUserId ?? '',
     });
   }
 
@@ -67,7 +100,7 @@ export function LiveClassesTab({ courseId, subjects, locale }: { courseId: strin
     if (!form) return;
     setBusy(true);
     setError(null);
-    const body = {
+    const body: Record<string, unknown> = {
       titleHi: form.titleHi,
       titleEn: form.titleEn,
       descriptionHi: form.descriptionHi || undefined,
@@ -75,7 +108,15 @@ export function LiveClassesTab({ courseId, subjects, locale }: { courseId: strin
       startsAt: new Date(form.startsAtLocal).toISOString(),
       durationMinutes: Number(form.durationMinutes),
       youtubeUrlOrId: form.youtubeUrlOrId,
+      // Create only accepts a set value or omission; update also accepts null
+      // (to clear a previously-set batch/co-host) — createLiveClassSchema vs.
+      // updateLiveClassSchema in packages/contracts/src/live-classes.ts.
+      batchId: form.batchId || (form.id ? null : undefined),
+      coHostUserId: form.coHostUserId || (form.id ? null : undefined),
     };
+    if (!form.id && form.repeatEnabled && form.repeatUntilLocal) {
+      body.repeat = { frequency: form.repeatFrequency, until: new Date(form.repeatUntilLocal).toISOString() };
+    }
     try {
       if (form.id) {
         await apiFetch(`/admin/live-classes/${form.id}`, { method: 'PATCH', body: JSON.stringify(body) });
@@ -157,6 +198,14 @@ export function LiveClassesTab({ courseId, subjects, locale }: { courseId: strin
                     <div className="text-xs text-muted">
                       {new Date(c.startsAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })} · {c.durationMinutes} {L('मिनट', 'min')} · {c.attendeeCount} {L('उपस्थित', 'attended')}
                     </div>
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-muted">
+                      <span>{L('होस्ट', 'Hosted by')} {c.hostName}{c.coHostName ? ` · ${L('सह-होस्ट', 'co-hosted by')} ${c.coHostName}` : ''}</span>
+                      {c.batchNameHi ? (
+                        <span className="rounded-full bg-surface-soft px-2 py-0.5 font-bold text-navy-700" title={L('केवल लेबल — एक्सेस प्रतिबंधित नहीं करता', 'Label only — does not restrict access')}>
+                          {hi ? c.batchNameHi : c.batchNameEn}
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
                   <div className="flex shrink-0 gap-1.5">
                     <button onClick={() => void viewAttendance(c.id)} className="rounded-md border border-line px-2.5 py-1 text-xs font-bold text-navy-900 hover:bg-surface-soft">{L('उपस्थिति', 'Attendance')}</button>
@@ -200,6 +249,50 @@ export function LiveClassesTab({ courseId, subjects, locale }: { courseId: strin
                 <Field label={L('अवधि (मिनट)', 'Duration (minutes)')} name="duration" type="number" min={5} max={360} value={form.durationMinutes} onChange={(e) => setForm({ ...form, durationMinutes: e.target.value })} />
               </div>
               <Field label={L('YouTube Live लिंक', 'YouTube Live URL')} name="youtubeUrl" value={form.youtubeUrlOrId} onChange={(e) => setForm({ ...form, youtubeUrlOrId: e.target.value })} placeholder="https://youtube.com/watch?v=... or youtu.be/..." />
+
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block">
+                  <span className="mb-1 block text-xs font-bold text-navy-900">{L('बैच (वैकल्पिक लेबल)', 'Batch (optional label)')}</span>
+                  <select value={form.batchId} onChange={(e) => setForm({ ...form, batchId: e.target.value })} className="w-full rounded-md border border-line px-3 py-3 text-sm outline-none focus:border-orange-500">
+                    <option value="">{L('— कोई नहीं —', '— None —')}</option>
+                    {batches.map((b) => (
+                      <option key={b.id} value={b.id}>{hi ? b.nameHi : b.nameEn}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-xs font-bold text-navy-900">{L('सह-होस्ट (वैकल्पिक)', 'Co-host (optional)')}</span>
+                  <select value={form.coHostUserId} onChange={(e) => setForm({ ...form, coHostUserId: e.target.value })} className="w-full rounded-md border border-line px-3 py-3 text-sm outline-none focus:border-orange-500">
+                    <option value="">{L('— कोई नहीं —', '— None —')}</option>
+                    {staff.map((s) => (
+                      <option key={s.id} value={s.id}>{s.fullName}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <p className="text-[11px] text-muted">{L('बैच व सह-होस्ट केवल रिकॉर्ड के लिए हैं — किसी की पहुंच सीमित नहीं करते।', 'Batch and co-host are record-keeping only — neither restricts who can join.')}</p>
+
+              {!form.id ? (
+                <div className="rounded-md border border-line p-3">
+                  <label className="flex items-center gap-2 text-xs font-bold text-navy-900">
+                    <input type="checkbox" checked={form.repeatEnabled} onChange={(e) => setForm({ ...form, repeatEnabled: e.target.checked })} />
+                    {L('दोहराएं', 'Repeat')}
+                  </label>
+                  {form.repeatEnabled ? (
+                    <div className="mt-2 grid grid-cols-2 gap-3">
+                      <label className="block">
+                        <span className="mb-1 block text-xs font-bold text-navy-900">{L('आवृत्ति', 'Frequency')}</span>
+                        <select value={form.repeatFrequency} onChange={(e) => setForm({ ...form, repeatFrequency: e.target.value as 'DAILY' | 'WEEKLY' })} className="w-full rounded-md border border-line px-3 py-3 text-sm outline-none focus:border-orange-500">
+                          <option value="DAILY">{L('रोज़ाना', 'Daily')}</option>
+                          <option value="WEEKLY">{L('साप्ताहिक', 'Weekly')}</option>
+                        </select>
+                      </label>
+                      <Field label={L('तक (तारीख)', 'Until (date)')} name="repeatUntil" type="date" value={form.repeatUntilLocal} onChange={(e) => setForm({ ...form, repeatUntilLocal: e.target.value })} />
+                    </div>
+                  ) : null}
+                  <p className="mt-2 text-[11px] text-muted">{L('हर क्लास एक स्वतंत्र एंट्री बनती है — एक को रद्द करने से बाकी प्रभावित नहीं होतीं।', 'Each class is created as an independent entry — cancelling one never affects the others.')}</p>
+                </div>
+              ) : null}
             </div>
             <div className="mt-4 flex justify-end gap-2">
               <Button variant="outline" onClick={() => setForm(null)} className="min-h-[40px] px-4 text-sm">{L('रद्द करें', 'Cancel')}</Button>
@@ -220,7 +313,10 @@ export function LiveClassesTab({ courseId, subjects, locale }: { courseId: strin
                 {attendanceFor.rows.map((r) => (
                   <div key={r.studentId} className="flex items-center justify-between rounded-md border border-line px-3 py-2 text-xs">
                     <span className="font-bold text-ink">{r.name}</span>
-                    <span className="text-muted">{new Date(r.joinedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>
+                    <span className="text-right text-muted">
+                      <span className="block">{new Date(r.joinedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>
+                      <span className="block text-[10px]">{r.durationMinutes} {L('मिनट', 'min')}</span>
+                    </span>
                   </div>
                 ))}
               </div>

@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/commo
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { NotificationService } from '../notifications/notification.service';
+import { EntitlementService } from '../payments/entitlement.service';
 
 /** T-minus-15-minutes live-class reminder. Lives in the API (not
  *  apps/worker) specifically so it can call NotificationService.emit()
@@ -27,6 +28,7 @@ export class LiveClassReminderScheduler implements OnModuleInit, OnModuleDestroy
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
     private readonly notifications: NotificationService,
+    private readonly entitlements: EntitlementService,
   ) {}
 
   onModuleInit() {
@@ -54,23 +56,10 @@ export class LiveClassReminderScheduler implements OnModuleInit, OnModuleDestroy
       // entitlement, or a Pro/Plus subscription covering the course's exam)
       // — a bulk query here rather than looping EntitlementService's
       // single-course check, since we need every entitled user at once.
-      const entitled = await this.prisma.entitlement.findMany({
-        where: {
-          status: 'ACTIVE',
-          OR: [
-            { endsAt: null },
-            { endsAt: { gt: now } },
-          ],
-          AND: {
-            OR: [{ courseId: lc.courseId }, { product: { kind: 'SUBSCRIPTION', OR: [{ examId: null }, { examId: lc.course.examId }] } }],
-          },
-        },
-        select: { userId: true },
-        distinct: ['userId'],
-      });
+      const entitledUserIds = await this.entitlements.entitledUserIdsForCourse(lc.courseId, lc.course.examId);
 
       let notified = 0;
-      for (const { userId } of entitled) {
+      for (const userId of entitledUserIds) {
         await this.notifications.emit({
           userId,
           category: 'LIVE_CLASS',

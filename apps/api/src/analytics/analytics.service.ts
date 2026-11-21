@@ -9,9 +9,11 @@ import type {
   InstitutionLeaderboardRow,
   StudentLeaderboardRow,
   StudentPerformanceDetail,
+  LiveClassEngagementRow,
 } from '@rajyarank/contracts';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthorizationService } from '../authz/authorization.service';
+import { EntitlementService } from '../payments/entitlement.service';
 import { AppError } from '../common/errors/app-error';
 
 const RISK_RANK: Record<RiskLevel, number> = { HIGH: 0, MEDIUM: 1, LOW: 2 };
@@ -23,6 +25,7 @@ export class AnalyticsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly authz: AuthorizationService,
+    private readonly entitlements: EntitlementService,
   ) {}
 
   async overview() {
@@ -544,5 +547,51 @@ export class AnalyticsService {
         attemptCount: r.attemptsCount,
       }))
       .sort((a, b) => b.attemptCount - a.attemptCount);
+  }
+
+  /** Live Classes engagement — the most recent ended classes in scope
+   *  (Super Admin: platform-wide; Academic Head: their own org only, same
+   *  principal.orgId branch as performanceOverview above). Live-queried, not
+   *  a precomputed snapshot — matches performanceTrend's pattern, since
+   *  live-class volume is low by design. entitledCount reuses
+   *  EntitlementService.entitledUserIdsForCourse (same shared method the
+   *  T-15 reminder and reschedule/cancel notifications use), one call per
+   *  distinct course among the recent classes rather than per class. */
+  async liveClassEngagement(principal: Principal): Promise<LiveClassEngagementRow[]> {
+    const classes = await this.prisma.liveClass.findMany({
+      where: {
+        deletedAt: null,
+        status: 'SCHEDULED',
+        orgId: principal.orgId ?? undefined,
+        startsAt: { lt: new Date() }, // already started — a stable "ended" proxy good enough for a recent-classes list; exact end is startsAt+durationMinutes, checked below
+      },
+      orderBy: { startsAt: 'desc' },
+      take: 20,
+      include: { course: { select: { examId: true } }, attendees: { select: { joinedAt: true, lastSeenAt: true } } },
+    });
+    const ended = classes.filter((c) => c.startsAt.getTime() + c.durationMinutes * 60_000 <= Date.now());
+
+    const entitledCountByCourse = new Map<string, number>();
+    for (const c of ended) {
+      if (entitledCountByCourse.has(c.courseId)) continue;
+      const ids = await this.entitlements.entitledUserIdsForCourse(c.courseId, c.course.examId);
+      entitledCountByCourse.set(c.courseId, ids.length);
+    }
+
+    return ended.map((c) => {
+      const entitledCount = entitledCountByCourse.get(c.courseId) ?? 0;
+      const durations = c.attendees.map((a) => (a.lastSeenAt.getTime() - a.joinedAt.getTime()) / 60_000);
+      const avgDurationMinutes = durations.length ? Math.round(durations.reduce((s, d) => s + d, 0) / durations.length) : null;
+      return {
+        id: c.id,
+        titleHi: c.titleHi,
+        titleEn: c.titleEn,
+        startsAt: c.startsAt.toISOString(),
+        attendeeCount: c.attendees.length,
+        entitledCount,
+        attendanceRatePercent: this.pct(c.attendees.length, entitledCount),
+        avgDurationMinutes,
+      };
+    });
   }
 }
