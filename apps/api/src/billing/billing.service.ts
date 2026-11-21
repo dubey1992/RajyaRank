@@ -578,6 +578,30 @@ export class BillingService {
       await this.notifySubscriptionOutcome(subscription.orgId, 'ACTIVATED', subscription.plan);
     }
 
+    // A real charge is proof of payment regardless of why the institution was
+    // suspended (manual Super Admin action, or the worker's trial-grace
+    // auto-deactivation — see sweepTrialAutoDeactivation in
+    // apps/worker/src/main.ts) — so any successful charge lifts a suspension,
+    // matching the product's own promise copy ("pick a plan to restore
+    // access"). Checked unconditionally, not only inside the
+    // !periodAlreadyCurrent branch above, since a suspended org's existing
+    // period could in principle still read as current.
+    const org = await this.prisma.organization.findUnique({ where: { id: subscription.orgId }, select: { status: true } });
+    if (org?.status === 'SUSPENDED') {
+      await this.prisma.organization.update({ where: { id: subscription.orgId }, data: { status: 'ACTIVE' } });
+      await this.prisma.user.updateMany({ where: { orgId: subscription.orgId }, data: { permVersion: { increment: 1 } } });
+      await this.authz.invalidateOrg(subscription.orgId);
+      await this.audit.record({
+        actorRole: 'SYSTEM',
+        action: 'org.status_change',
+        targetType: 'Organization',
+        targetId: subscription.orgId,
+        result: 'SUCCESS',
+        reasonCode: 'SUBSCRIPTION_REACTIVATED',
+        after: { status: 'ACTIVE' },
+      });
+    }
+
     await this.prisma.institutionInvoice.create({
       data: {
         invoiceNumber: generateInvoiceNumber(now),

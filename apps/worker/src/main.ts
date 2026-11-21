@@ -420,6 +420,94 @@ async function sweepTrialExpiration() {
   if (expired.length) console.log(`[worker] expired ${expired.length} institution trial(s)`);
 }
 
+/** Same duplicated-shell convention as entitlementExpiringHtml above. Closes
+ *  with a direct support contact since this is the final, most serious notice
+ *  in the trial lifecycle — the in-app SuspendedBanner's "Contact support"
+ *  opens a ticket form, which isn't available from an email, so a mailto:
+ *  link to the same address is the substitute here. */
+function trialAutoDeactivatedHtml(locale: 'hi' | 'en', orgName: string): { subject: string; html: string } {
+  const hi = locale === 'hi';
+  const heading = hi ? 'आपका खाता निष्क्रिय कर दिया गया है' : 'Your account has been deactivated';
+  const subject = hi ? 'RajyaRank — खाता निष्क्रिय कर दिया गया' : 'RajyaRank — your account has been deactivated';
+  const body = hi
+    ? `${orgName} का निःशुल्क ट्रायल समाप्त होने के बाद ${TRIAL_AUTO_DEACTIVATE_GRACE_DAYS} दिनों तक कोई योजना नहीं चुनी गई, इसलिए खाता अब पूरी तरह निष्क्रिय कर दिया गया है — आपके स्टाफ और विद्यार्थी अभी साइन इन नहीं कर सकते। कोई भी योजना चुनते ही पहुंच तुरंत बहाल हो जाएगी। अगर यह गलती लगती है या योजना चुनने में मदद चाहिए, तो <a href="mailto:support@rajyarank.com" style="color:#0B2F4F;font-weight:700;">support@rajyarank.com</a> पर हमसे सीधे संपर्क करें।`
+    : `${orgName}'s free trial ended and no plan was chosen within the ${TRIAL_AUTO_DEACTIVATE_GRACE_DAYS}-day grace period, so the account has now been fully deactivated — your staff and students can't sign in right now. Picking any plan restores access immediately. If this looks wrong, or you'd like help choosing a plan, reach us directly at <a href="mailto:support@rajyarank.com" style="color:#0B2F4F;font-weight:700;">support@rajyarank.com</a>.`;
+  const html = `<!doctype html><html lang="${locale}"><body style="margin:0;padding:0;background:#F4F6F8;font-family:Arial,Helvetica,sans-serif;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F4F6F8;padding:24px 12px;"><tr><td align="center">
+<table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#ffffff;border-radius:12px;overflow:hidden;">
+<tr><td style="background:#0B2F4F;padding:20px 28px;"><span style="font-size:20px;font-weight:900;color:#ffffff;">Rajya<span style="color:#F97316;">Rank</span></span></td></tr>
+<tr><td style="padding:32px 28px;"><h1 style="margin:0 0 16px;font-size:19px;font-weight:900;color:#0B2F4F;">${heading}</h1><p style="margin:0;font-size:14px;line-height:1.6;color:#334155;">${body}</p></td></tr>
+</table></td></tr></table></body></html>`;
+  return { subject, html };
+}
+
+/** Institutions whose TRIAL subscription has sat EXPIRED for longer than the
+ *  grace period with no plan chosen — fully suspends the institution
+ *  (Organization.status, the same state Super Admin's manual suspend action
+ *  produces: blocks every staff/student login, hides its courses from the
+ *  public catalogue), bumps every org member's permVersion for immediate
+ *  effect, records it in the audit trail, and notifies the Head once.
+ *  Skips organizations already SUSPENDED (idempotent across runs and safe
+ *  alongside a manual Super Admin suspend for an unrelated reason). Picking a
+ *  plan afterward reactivates the organization automatically — see
+ *  activateChargedSubscription in apps/api/src/billing/billing.service.ts. */
+const TRIAL_AUTO_DEACTIVATE_GRACE_DAYS = 7;
+
+async function sweepTrialAutoDeactivation() {
+  const now = new Date();
+  const graceDeadline = new Date(now.getTime() - TRIAL_AUTO_DEACTIVATE_GRACE_DAYS * 86_400_000);
+  const overdue = await prisma.organizationSubscription.findMany({
+    where: { status: 'EXPIRED', currentPeriodEnd: { lte: graceDeadline } },
+    include: { organization: { select: { id: true, name: true, status: true, headUserId: true } } },
+  });
+  let deactivated = 0;
+  for (const sub of overdue) {
+    if (sub.organization.status === 'SUSPENDED' || !sub.currentPeriodEnd) continue;
+    const claimed = await redis.set(
+      `rr:trial:autodeactivate:${sub.id}:${sub.currentPeriodEnd.toISOString()}`,
+      '1',
+      'EX',
+      60 * 86_400,
+      'NX',
+    );
+    if (!claimed) continue;
+    await prisma.organization.update({ where: { id: sub.organization.id }, data: { status: 'SUSPENDED' } });
+    await prisma.user.updateMany({ where: { orgId: sub.organization.id }, data: { permVersion: { increment: 1 } } });
+    await prisma.auditLog.create({
+      data: {
+        actorRole: 'SYSTEM',
+        action: 'org.status_change',
+        targetType: 'Organization',
+        targetId: sub.organization.id,
+        result: 'SUCCESS',
+        reasonCode: 'TRIAL_GRACE_EXPIRED',
+        after: { status: 'SUSPENDED' },
+      },
+    });
+    deactivated++;
+    if (!sub.organization.headUserId) continue;
+    const head = await prisma.user.findUnique({ where: { id: sub.organization.headUserId }, select: { email: true, locale: true } });
+    if (!head?.email) continue;
+    const pref = await prisma.notificationPreference.findUnique({ where: { userId: sub.organization.headUserId } });
+    const locale: 'hi' | 'en' = head.locale === 'hi' ? 'hi' : 'en';
+    if (!(pref?.mutedCategories?.includes('EXPIRY') || pref?.emailEnabled === false)) {
+      const { subject, html } = trialAutoDeactivatedHtml(locale, sub.organization.name);
+      await mailer.sendMail({ from: env.EMAIL_FROM, to: head.email, subject, html });
+    }
+    await prisma.notification.create({
+      data: {
+        userId: sub.organization.headUserId,
+        category: 'EXPIRY',
+        titleHi: 'आपका खाता निष्क्रिय कर दिया गया है',
+        titleEn: 'Your account has been deactivated',
+        bodyHi: 'पहुंच बहाल करने के लिए एक योजना चुनें।',
+        bodyEn: 'Pick a plan to restore access.',
+      },
+    });
+  }
+  if (deactivated) console.log(`[worker] auto-deactivated ${deactivated} institution(s) past trial grace period`);
+}
+
 /** Same duplicated-shell convention as entitlementExpiringHtml above. */
 function planBehindHtml(locale: 'hi' | 'en', missedCount: number): { subject: string; html: string } {
   const hi = locale === 'hi';
@@ -696,12 +784,14 @@ async function main() {
   const subExpiryTimer = setInterval(() => void sweepSubscriptionExpiry(), 3_600_000);
   const trialReminderTimer = setInterval(() => void sweepTrialReminders(), 3_600_000);
   const trialExpiryTimer = setInterval(() => void sweepTrialExpiration(), 3_600_000);
+  const trialDeactivateTimer = setInterval(() => void sweepTrialAutoDeactivation(), 3_600_000);
   const planTimer = setInterval(() => void sweepStudyPlans(), 3_600_000);
   const riskTimer = setInterval(() => void sweepInstituteRisk(), 3_600_000);
   void sweepEntitlementExpiry();
   void sweepSubscriptionExpiry();
   void sweepTrialReminders();
   void sweepTrialExpiration();
+  void sweepTrialAutoDeactivation();
   void sweepStudyPlans();
   void sweepInstituteRisk();
   const shutdown = async () => {
@@ -711,6 +801,7 @@ async function main() {
     clearInterval(subExpiryTimer);
     clearInterval(trialReminderTimer);
     clearInterval(trialExpiryTimer);
+    clearInterval(trialDeactivateTimer);
     clearInterval(planTimer);
     clearInterval(riskTimer);
     // Let an in-progress delivery (including its retry backoff) finish rather
