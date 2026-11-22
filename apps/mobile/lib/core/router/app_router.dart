@@ -7,6 +7,7 @@ import '../../features/all_features/presentation/all_features_screen.dart';
 import '../../features/auth/presentation/forgot_password_screen.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/signup_screen.dart';
+import '../../features/content_products/presentation/content_products_screen.dart';
 import '../../features/courses/presentation/course_catalogue_screen.dart';
 import '../../features/courses/presentation/course_detail_screen.dart';
 import '../../features/current_affairs/presentation/current_affairs_screen.dart';
@@ -33,7 +34,15 @@ import '../../features/wishlist/presentation/wishlist_screen.dart';
 import '../auth/auth_repository.dart';
 import '../navigation/home_shell.dart';
 
-const _publicRoutes = {'/login', '/signup', '/forgot-password', '/explore'};
+const _publicRoutes = {
+  '/login',
+  '/signup',
+  '/forgot-password',
+  '/explore',
+  // Matches web's /content — publicly browsable, same reasoning as
+  // /courses below (GET content-products is @Public() on the API).
+  '/content',
+};
 
 /// Matches web's `/courses` (catalogue) and `/courses/{id}` (detail) —
 /// publicly browsable there (search/filter/syllabus/pricing/ratings, no
@@ -92,6 +101,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/live-classes/:id/join',
         builder: (context, state) =>
             LiveClassJoinScreen(liveClassId: state.pathParameters['id']!),
+      ),
+      GoRoute(
+        path: '/content',
+        builder: (context, state) => const ContentProductsScreen(),
       ),
       GoRoute(
         path: '/courses',

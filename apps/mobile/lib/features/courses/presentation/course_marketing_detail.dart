@@ -172,7 +172,7 @@ class _CourseMarketingDetailState extends ConsumerState<CourseMarketingDetail> {
             Text('Syllabus', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
             for (final subject in course.subjects)
-              _SyllabusSubjectTile(subject: subject),
+              _SyllabusSubjectTile(subject: subject, signedIn: widget.signedIn),
             const SizedBox(height: 24),
             Text('Ratings & reviews', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
@@ -379,9 +379,10 @@ class _BuyBox extends StatelessWidget {
 }
 
 class _SyllabusSubjectTile extends StatelessWidget {
-  const _SyllabusSubjectTile({required this.subject});
+  const _SyllabusSubjectTile({required this.subject, required this.signedIn});
 
   final CourseOutlineSubject subject;
+  final bool signedIn;
 
   @override
   Widget build(BuildContext context) {
@@ -401,7 +402,9 @@ class _SyllabusSubjectTile extends StatelessWidget {
                   : Text('${lesson.estimatedMinutes} min'),
               trailing: lesson.freePreview
                   ? const _Pill(text: 'Preview')
-                  : const Icon(Icons.lock_outline, size: 18, color: AppColors.muted),
+                  : lesson.individualProductId != null
+                      ? _BuyLessonButton(lesson: lesson, signedIn: signedIn)
+                      : const Icon(Icons.lock_outline, size: 18, color: AppColors.muted),
             ),
         ],
       ),
@@ -413,6 +416,53 @@ class _SyllabusSubjectTile extends StatelessWidget {
     if (t == 'PDF' || t == 'TEXT') return Icons.picture_as_pdf_outlined;
     if (t == 'QUIZ') return Icons.quiz_outlined;
     return Icons.play_circle_outline;
+  }
+}
+
+/// A locked lesson that has its own "sell individually" price — lets a
+/// student buy just this one lesson without the whole course, mirroring
+/// web's CourseSyllabus.tsx inline BuyButton. Builds a lightweight
+/// [ProductView] directly from the outline response rather than a second
+/// network round trip: the price shown here is display-only, createOrder
+/// re-reads the real Product row server-side regardless.
+class _BuyLessonButton extends StatelessWidget {
+  const _BuyLessonButton({required this.lesson, required this.signedIn});
+
+  final CourseOutlineLesson lesson;
+  final bool signedIn;
+
+  @override
+  Widget build(BuildContext context) {
+    final priceMinor = lesson.individualPriceMinor ?? 0;
+    return TextButton(
+      style: TextButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+      onPressed: () {
+        if (!signedIn) {
+          context.go('/login');
+          return;
+        }
+        showCheckoutSheet(
+          context,
+          ProductView(
+            id: lesson.individualProductId!,
+            kind: 'LESSON',
+            courseId: null,
+            titleEn: lesson.titleEn,
+            priceMinor: priceMinor,
+            originalPriceMinor: null,
+            currency: 'INR',
+            validityDays: null,
+            accessType: 'PAID',
+            audience: 'PUBLIC',
+          ),
+        );
+      },
+      child: Text('Buy ₹${(priceMinor / 100).toStringAsFixed(0)}'),
+    );
   }
 }
 

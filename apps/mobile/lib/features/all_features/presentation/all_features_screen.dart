@@ -50,6 +50,7 @@ class AllFeaturesScreen extends ConsumerWidget {
         [
           _Feature('📰', 'Current Affairs', 'Daily updates, written for exam relevance.', onTap: () => context.push('/current-affairs')),
           _Feature('📚', 'My Courses', "Courses you've bought or received from your institute.", onTap: () => openTab(1)),
+          _Feature('🛍', 'Individual Content', "Don't need a whole course? Buy just the lesson, test, or pack you actually need.", onTap: () => context.push('/content')),
         ],
       ),
       (

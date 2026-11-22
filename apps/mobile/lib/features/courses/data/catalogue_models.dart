@@ -101,6 +101,8 @@ class CourseOutlineLesson {
     required this.lessonType,
     required this.freePreview,
     required this.estimatedMinutes,
+    required this.individualProductId,
+    required this.individualPriceMinor,
   });
 
   factory CourseOutlineLesson.fromJson(Map<String, dynamic> json) {
@@ -110,6 +112,8 @@ class CourseOutlineLesson {
       lessonType: json['lessonType'] as String? ?? '',
       freePreview: json['freePreview'] as bool? ?? false,
       estimatedMinutes: (json['estimatedMinutes'] as num?)?.toInt(),
+      individualProductId: json['individualProductId'] as String?,
+      individualPriceMinor: (json['individualPriceMinor'] as num?)?.toInt(),
     );
   }
 
@@ -118,6 +122,11 @@ class CourseOutlineLesson {
   final String lessonType;
   final bool freePreview;
   final int? estimatedMinutes;
+  // Set only when this specific lesson has an active "sell individually"
+  // Product (see ContentProductsService.upsertLessonPricing on the API) —
+  // null means it's only reachable via the whole course.
+  final String? individualProductId;
+  final int? individualPriceMinor;
 }
 
 class CourseOutlineSubject {
