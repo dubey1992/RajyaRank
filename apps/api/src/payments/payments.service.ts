@@ -110,29 +110,33 @@ export class PaymentsService {
       }
     }
 
-    const product = await this.prisma.product.findFirst({ where: { id: dto.productId, active: true }, include: { course: { include: { organization: true } } } });
+    const product = await this.prisma.product.findFirst({ where: { id: dto.productId, active: true } });
     if (!product) throw AppError.notFound('Product not available.');
+    // Resolved once, lazily — most checkouts are PUBLIC-audience platform
+    // content with no owning institute at all, so this stays null for them
+    // rather than always joining Organization whether or not it's needed.
+    const owningOrg = product.orgId ? await this.prisma.organization.findUnique({ where: { id: product.orgId } }) : null;
 
     // A rejected KYC only ever auto-blocked future payouts to the institute
     // (settlements.service.ts createTransferForOrder) — an already-live
-    // course kept accepting new sales regardless. Re-checked live on every
-    // checkout so a rejection issued after the course went live still stops
-    // further sales immediately, without needing to touch the course itself.
-    if (product.course?.orgId) {
-      const linkedAccount = await this.prisma.instituteLinkedAccount.findUnique({ where: { orgId: product.course.orgId } });
+    // course (or lesson/test/pack belonging to that institute) kept accepting
+    // new sales regardless. Re-checked live on every checkout so a rejection
+    // issued after the content went live still stops further sales
+    // immediately, without needing to touch the content itself. Keyed on
+    // product.orgId (denormalized from whichever content path applies) rather
+    // than product.course?.orgId, which always evaluated to undefined for any
+    // courseless product — this is a genuine fix, not just a rename.
+    if (product.orgId) {
+      const linkedAccount = await this.prisma.instituteLinkedAccount.findUnique({ where: { orgId: product.orgId } });
       if (linkedAccount?.kycStatus === 'REJECTED') {
-        throw AppError.conflict("This institution's KYC was rejected and its courses are temporarily unavailable for purchase.");
+        throw AppError.conflict("This institution's KYC was rejected and its content is temporarily unavailable for purchase.");
       }
     }
 
     if (product.audience === 'INSTITUTE') {
-      const ownerOrgId = product.course?.orgId;
+      const ownerOrgId = product.orgId;
       const isMember = !!ownerOrgId && principal.orgId === ownerOrgId;
-      const codeMatches =
-        !!ownerOrgId &&
-        !!dto.accessCode &&
-        !!product.course?.organization?.accessCode &&
-        product.course.organization.accessCode === dto.accessCode.trim();
+      const codeMatches = !!ownerOrgId && !!dto.accessCode && !!owningOrg?.accessCode && owningOrg.accessCode === dto.accessCode.trim();
       if (!isMember && !codeMatches) {
         throw AppError.permissionDenied('This price is only available to enrolled students of the owning institution.');
       }
@@ -357,8 +361,11 @@ export class PaymentsService {
    *  buyer's own org — an institute's course can be bought by internal
    *  members and external marketplace students alike. */
   async academicListOrders(orgId: string) {
+    // product.orgId (denormalized from whichever content path applies), not
+    // product.course.orgId — the old course-only filter silently hid every
+    // lesson/test/pack sale from an institute's own payments ledger.
     const orders = await this.prisma.order.findMany({
-      where: { product: { course: { orgId } } },
+      where: { product: { orgId } },
       include: {
         product: { select: { titleHi: true, titleEn: true, audience: true } },
         user: { select: { displayName: true, email: true, phone: true, orgId: true } },
@@ -388,7 +395,7 @@ export class PaymentsService {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
       include: {
-        product: { include: { course: { select: { orgId: true } } } },
+        product: true,
         user: { select: { displayName: true, email: true, phone: true } },
         payments: { where: { status: 'PAID' }, orderBy: { paidAt: 'desc' }, take: 1 },
       },
@@ -478,10 +485,15 @@ export class PaymentsService {
     if (!principal.orgId) throw AppError.permissionDenied('No institution assigned.');
     const payment = await this.prisma.payment.findUnique({
       where: { id: dto.paymentId },
-      include: { order: { include: { product: { include: { course: true } } } } },
+      include: { order: { include: { product: true } } },
     });
     if (!payment) throw AppError.notFound('Payment not found.');
-    if (payment.order.product.course?.orgId !== principal.orgId) {
+    // product.orgId (denormalized from whichever content path applies) fixes
+    // a real pre-existing bug here: product.course?.orgId always evaluated to
+    // undefined for any courseless product (TEST_SERIES/BUNDLE existed in the
+    // schema but were unused until now), so an institute could never
+    // self-service-refund one — this check always denied.
+    if (payment.order.product.orgId !== principal.orgId) {
       throw AppError.permissionDenied('This order is not part of your institution.');
     }
     if (payment.status !== 'PAID' && payment.status !== 'REFUNDED_PARTIAL') {
@@ -587,7 +599,7 @@ export class PaymentsService {
           include: {
             order: {
               include: {
-                product: { include: { course: { include: { organization: true } } } },
+                product: true,
                 user: { select: { displayName: true, email: true, phone: true } },
               },
             },
@@ -596,6 +608,12 @@ export class PaymentsService {
       },
       orderBy: { createdAt: 'desc' },
     });
+    // Batched separately rather than an `include` on product (product.orgId
+    // has no FK relation — it's a denormalized plain column, same convention
+    // as LiveClass.orgId — so there's no Organization to include through it).
+    const orgIds = [...new Set(rows.map((r) => r.payment.order.product.orgId).filter((id): id is string => !!id))];
+    const orgs = orgIds.length ? await this.prisma.organization.findMany({ where: { id: { in: orgIds } }, select: { id: true, name: true } }) : [];
+    const orgNameById = new Map(orgs.map((o) => [o.id, o.name]));
     return rows.map((r) => ({
       id: r.id,
       paymentId: r.paymentId,
@@ -603,8 +621,8 @@ export class PaymentsService {
       reason: r.reason,
       productTitle: r.payment.order.product.titleEn,
       buyer: r.payment.order.user.displayName ?? r.payment.order.user.email ?? r.payment.order.user.phone ?? '—',
-      orgId: r.payment.order.product.course?.organization?.id ?? null,
-      orgName: r.payment.order.product.course?.organization?.name ?? null,
+      orgId: r.payment.order.product.orgId,
+      orgName: r.payment.order.product.orgId ? (orgNameById.get(r.payment.order.product.orgId) ?? null) : null,
       createdAt: r.createdAt.toISOString(),
     }));
   }

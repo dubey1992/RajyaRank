@@ -5,6 +5,7 @@ import { Button, ConfirmDialog, Toast } from '@rajyarank/ui';
 import { apiFetch, type ApiError } from '@/lib/api';
 import { CreateContentWizard } from '../CreateContentWizard';
 import { StatusBadge } from '../WorkflowActions';
+import { IndividualPricingControl } from '../IndividualPricingControl';
 
 interface Lesson { id: string; lessonType: string; currentVersion: { titleHi: string | null; titleEn: string | null; status: string } | null }
 interface Topic { id: string; nameHi: string; nameEn: string; lessons: Lesson[] }
@@ -296,7 +297,10 @@ export function CurriculumBuilder({
                                     {t.lessons.map((l) => (
                                       <li key={l.id} className="flex items-center gap-2 rounded bg-surface-soft px-2 py-1.5 text-xs">
                                         <span className="truncate font-bold text-ink">{(hi ? l.currentVersion?.titleHi : l.currentVersion?.titleEn) ?? l.lessonType}</span>
-                                        <span className="ml-auto flex-none"><StatusBadge status={l.currentVersion?.status ?? '—'} /></span>
+                                        <span className="flex-none"><StatusBadge status={l.currentVersion?.status ?? '—'} /></span>
+                                        {l.currentVersion?.status === 'PUBLISHED' ? (
+                                          <IndividualPricingControl kind="lessons" id={l.id} locale={locale} />
+                                        ) : null}
                                         {delBtn(L('पाठ हटाएँ?', 'Delete lesson?'), (hi ? l.currentVersion?.titleHi : l.currentVersion?.titleEn) ?? l.lessonType, `lessons/${l.id}`)}
                                       </li>
                                     ))}

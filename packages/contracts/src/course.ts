@@ -59,6 +59,11 @@ export interface CourseOutlineLesson {
   titleHi: string;
   titleEn: string;
   estimatedMinutes: number | null;
+  // Set only when this lesson has an active, PUBLIC-audience individual
+  // price (see ContentProductsService) — lets the syllabus offer a real Buy
+  // button on a locked lesson instead of a dead-end "Locked" pill.
+  individualProductId: string | null;
+  individualPriceMinor: number | null;
 }
 export interface CourseOutlineTopic {
   id: string;

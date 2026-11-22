@@ -1,4 +1,5 @@
 import type { CourseOutlineView } from '@rajyarank/contracts';
+import { BuyButton } from './BuyButton';
 
 const LESSON_ICON: Record<string, string> = {
   VIDEO: '▶',
@@ -59,13 +60,19 @@ export function CourseSyllabus({ course, locale }: { course: CourseOutlineView; 
                           <span className="font-bold">{hi ? l.titleHi : l.titleEn}</span>
                           {l.estimatedMinutes ? <span className="text-xs text-muted">· {L(`${l.estimatedMinutes} मिनट`, `${l.estimatedMinutes} min`)}</span> : null}
                         </div>
-                        <span
-                          className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-extrabold ${
-                            l.freePreview ? 'bg-teal-100 text-success' : 'bg-surface-soft text-muted'
-                          }`}
-                        >
-                          {l.freePreview ? L('पूर्वावलोकन', 'Preview') : L('लॉक', 'Locked')}
-                        </span>
+                        {l.freePreview ? (
+                          <span className="shrink-0 rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-extrabold text-success">
+                            {L('पूर्वावलोकन', 'Preview')}
+                          </span>
+                        ) : l.individualProductId ? (
+                          <div className="shrink-0">
+                            <BuyButton productId={l.individualProductId} locale={locale} />
+                          </div>
+                        ) : (
+                          <span className="shrink-0 rounded-full bg-surface-soft px-2 py-0.5 text-[10px] font-extrabold text-muted">
+                            {L('लॉक', 'Locked')}
+                          </span>
+                        )}
                       </div>
                     ))
                   )}

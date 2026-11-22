@@ -331,6 +331,11 @@ model Lesson {
   bookmarks       Bookmark[]
   concepts        LessonConcept[]
   liveClassSource LiveClass?
+  // At most one active LESSON-kind Product per lesson in practice (enforced
+  // by the partial unique index on products(lesson_id) WHERE kind='LESSON'),
+  // modeled as a list here only because Prisma relations can't express that
+  // cardinality constraint directly.
+  individualProducts Product[]
 
   @@index([topicId])
   @@index([batchId])
@@ -1048,6 +1053,8 @@ model Test {
   exam           Exam          @relation(fields: [examId], references: [id])
   versions       TestVersion[] @relation("TestVersions")
   currentVersion TestVersion?  @relation("TestCurrentVersion", fields: [currentVersionId], references: [id])
+  // Same single-active-product-in-practice note as Lesson.individualProducts.
+  individualProducts Product[]
 
   @@index([examId])
   @@map("tests")
@@ -1186,6 +1193,8 @@ enum ProductKind {
   TEST_SERIES
   BUNDLE
   SUBSCRIPTION
+  LESSON
+  TEST
 }
 
 /// PUBLIC = anyone; INSTITUTE = only students whose orgId matches the course's
@@ -1261,6 +1270,21 @@ model Product {
   id                 String          @id @default(uuid())
   kind               ProductKind
   courseId           String?         @map("course_id")
+  // Set only for LESSON-kind products — the single lesson this product grants
+  // access to. See EntitlementService.hasLessonAccess.
+  lessonId           String?         @map("lesson_id")
+  // Set only for TEST-kind products — the single standalone test this product
+  // grants access to. See EntitlementService.hasTestAccess.
+  testId             String?         @map("test_id")
+  // Denormalized from whichever path applies at creation (course.orgId,
+  // lesson's course's orgId, or test.orgId) — null for a platform-wide item
+  // or a cross-course pack assembled by platform staff. Replaces threading
+  // `product.course?.orgId` through three different relation paths for the
+  // KYC/audience/refund-ownership checks in payments.service.ts, which this
+  // field's own introduction also happened to fix: those checks previously
+  // always evaluated false for any already-existing courseless product
+  // (TEST_SERIES/BUNDLE, both unused until this field existed to check).
+  orgId              String?         @map("org_id")
   examId             String?         @map("exam_id")
   titleHi            String          @map("title_hi")
   titleEn            String          @map("title_en")
@@ -1274,13 +1298,49 @@ model Product {
   createdAt          DateTime        @default(now()) @map("created_at")
   updatedAt          DateTime        @updatedAt @map("updated_at")
 
-  course       Course?       @relation(fields: [courseId], references: [id])
-  orders       Order[]
-  entitlements Entitlement[]
+  course        Course?             @relation(fields: [courseId], references: [id])
+  lesson        Lesson?             @relation(fields: [lessonId], references: [id])
+  test          Test?               @relation(fields: [testId], references: [id])
+  orders        Order[]
+  entitlements  Entitlement[]
+  // Rows where THIS product is the bundle (kind BUNDLE) listing its items.
+  bundleItems   ProductBundleItem[] @relation("BundleItems")
+  // Rows where THIS product (a LESSON/TEST-kind product) is an item inside
+  // some other bundle — lets a lesson/test's own individual-pricing Product
+  // double as the entitlement anchor a pack grants, instead of inventing a
+  // second identity for the same content.
+  partOfBundles ProductBundleItem[] @relation("BundleItemOf")
 
+  // Partial unique indexes (hand-added in the migration — Prisma's schema DSL
+  // can't express a WHERE clause) prevent duplicate LESSON/TEST products for
+  // the same content + audience; courseId's plain unique below is unaffected
+  // since COURSE/SUBSCRIPTION products never set lessonId/testId.
   @@unique([courseId, kind, audience])
   @@index([active])
+  @@index([lessonId])
+  @@index([testId])
+  @@index([orgId])
   @@map("products")
+}
+
+// A curated set of lessons/tests sold together as one BUNDLE-kind Product.
+// Every item here is itself a real LESSON- or TEST-kind Product (not a bare
+// Lesson/Test id) so that granting a bundle purchase can create one ordinary
+// Entitlement per item's own productId — reusing Entitlement's existing
+// `@@unique([userId, productId])` guarantee rather than weakening it to admit
+// several entitlement rows under one shared product id. See
+// EntitlementService.grantFromOrder's BUNDLE branch.
+model ProductBundleItem {
+  id              String   @id @default(uuid())
+  bundleProductId String   @map("bundle_product_id")
+  itemProductId   String   @map("item_product_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  bundleProduct Product @relation("BundleItems", fields: [bundleProductId], references: [id], onDelete: Cascade)
+  itemProduct   Product @relation("BundleItemOf", fields: [itemProductId], references: [id])
+
+  @@unique([bundleProductId, itemProductId])
+  @@map("product_bundle_items")
 }
 
 model Coupon {
@@ -1536,6 +1596,8 @@ model Entitlement {
   userId     String            @map("user_id")
   productId  String            @map("product_id")
   courseId   String?           @map("course_id")
+  lessonId   String?           @map("lesson_id")
+  testId     String?           @map("test_id")
   source     EntitlementSource
   status     EntitlementStatus @default(ACTIVE)
   accessType AccessType        @default(PAID) @map("access_type")
@@ -1552,6 +1614,8 @@ model Entitlement {
 
   @@unique([userId, productId])
   @@index([userId, courseId, status])
+  @@index([userId, lessonId, status])
+  @@index([userId, testId, status])
   @@map("entitlements")
 }
 

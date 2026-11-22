@@ -66,10 +66,17 @@ export class SettlementsService {
     try {
       const order = await this.prisma.order.findUnique({
         where: { id: orderId },
-        include: { product: { include: { course: true } } },
+        include: { product: true },
       });
-      if (!order || !order.product.course?.orgId) return; // platform-owned course — nothing to split
-      const orgId = order.product.course.orgId;
+      // product.orgId (denormalized from whichever content path applies —
+      // course, lesson, test, or pack) is the real fix here: this used to key
+      // on product.course?.orgId, which silently skipped the institute payout
+      // split for every lesson/test/pack sale (TEST_SERIES/BUNDLE existed in
+      // the schema but were unused until now, so this never fired for them
+      // either) — institutes selling individual content would otherwise never
+      // get paid for it.
+      if (!order || !order.product.orgId) return; // platform-owned content — nothing to split
+      const orgId = order.product.orgId;
 
       const linkedAccount = await this.prisma.instituteLinkedAccount.findUnique({ where: { orgId } });
       if (!linkedAccount || !linkedAccount.payoutsEnabled) return; // institute not onboarded for payouts yet

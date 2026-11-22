@@ -85,15 +85,20 @@ export class StudentTestsService {
     const now = new Date();
     const activeEntitlements = await this.prisma.entitlement.findMany({
       where: { userId: studentId, status: 'ACTIVE', OR: [{ endsAt: null }, { endsAt: { gt: now } }] },
-      select: { courseId: true, product: { select: { kind: true, examId: true } } },
+      select: { courseId: true, testId: true, product: { select: { kind: true, examId: true } } },
     });
     const directCourseIds = new Set(activeEntitlements.filter((e) => e.courseId).map((e) => e.courseId as string));
+    const directTestIds = new Set(activeEntitlements.filter((e) => e.testId).map((e) => e.testId as string));
     const hasProSubscription = activeEntitlements.some((e) => e.product.kind === 'SUBSCRIPTION' && e.product.examId === null);
     const plusExamIds = new Set(
       activeEntitlements.filter((e) => e.product.kind === 'SUBSCRIPTION' && e.product.examId !== null).map((e) => e.product.examId as string),
     );
-    const isAccessible = (test: { courseId: string | null; examId: string; freeDemo: boolean }) =>
-      test.freeDemo || (test.courseId !== null && directCourseIds.has(test.courseId)) || hasProSubscription || plusExamIds.has(test.examId);
+    const isAccessible = (test: { id: string; courseId: string | null; examId: string; freeDemo: boolean }) =>
+      test.freeDemo ||
+      directTestIds.has(test.id) ||
+      (test.courseId !== null && directCourseIds.has(test.courseId)) ||
+      hasProSubscription ||
+      plusExamIds.has(test.examId);
 
     return tests.map((tv) => ({
       testVersionId: tv.id,
@@ -103,7 +108,7 @@ export class StudentTestsService {
       durationMinutes: tv.durationMinutes,
       questionCount: tv.sections.reduce((n, s) => n + s._count.questions, 0),
       completedAttemptId: completedByVersion.get(tv.id) ?? null,
-      accessible: isAccessible(tv.test),
+      accessible: isAccessible({ id: tv.testId, courseId: tv.test.courseId, examId: tv.test.examId, freeDemo: tv.test.freeDemo }),
     }));
   }
 
@@ -122,6 +127,7 @@ export class StudentTestsService {
     // the lesson-playback gate in student.service.ts.
     if (!tv.test.freeDemo) {
       const hasAccess =
+        (await this.entitlements.hasTestAccess(studentId, tv.testId)) ||
         (tv.test.courseId !== null && (await this.entitlements.hasCourseAccess(studentId, tv.test.courseId))) ||
         (await this.entitlements.hasExamAccess(studentId, tv.test.examId));
       if (!hasAccess) throw AppError.entitlementRequired();

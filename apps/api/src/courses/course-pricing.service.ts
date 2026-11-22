@@ -73,6 +73,7 @@ export class CoursePricingService {
         validityDays: dto.validityDays ?? null,
         accessType: dto.accessType,
         active: dto.active,
+        orgId: course.orgId ?? null,
       },
       create: {
         kind: 'COURSE',
@@ -86,6 +87,7 @@ export class CoursePricingService {
         validityDays: dto.validityDays ?? null,
         accessType: dto.accessType,
         active: dto.active,
+        orgId: course.orgId ?? null,
       },
     });
     await this.audit.record({

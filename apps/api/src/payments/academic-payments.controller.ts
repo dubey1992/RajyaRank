@@ -29,7 +29,7 @@ export class AcademicPaymentsController {
   async receipt(@CurrentPrincipal() p: Principal, @Param('id') id: string, @Res() res: Response) {
     if (!p.orgId) throw AppError.permissionDenied('No institution assigned.');
     const order = await this.payments.getOrderForReceipt(id);
-    if (order.product.course?.orgId !== p.orgId) throw AppError.permissionDenied('This order is not part of your institution.');
+    if (order.product.orgId !== p.orgId) throw AppError.permissionDenied('This order is not part of your institution.');
     const pdf = await this.payments.renderReceiptPdf(order);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="receipt-${order.id.slice(0, 8)}.pdf"`);

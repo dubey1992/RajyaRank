@@ -770,8 +770,13 @@ export class StudentService {
     return lesson;
   }
 
-  /** Live entitlement check for the lesson's course. */
+  /** Live entitlement check for this lesson — a direct individual purchase
+   *  of this exact lesson (or a pack that included it), OR the lesson's
+   *  whole course (direct purchase or a covering subscription). Either one
+   *  suffices; checked lesson-first since it's a single indexed lookup with
+   *  no course traversal, cheaper than hasCourseAccess's. */
   private async hasAccess(userId: string, lessonId: string): Promise<boolean> {
+    if (await this.entitlements.hasLessonAccess(userId, lessonId)) return true;
     const courseId = await this.courseIdForLesson(lessonId);
     if (!courseId) return false;
     return this.entitlements.hasCourseAccess(userId, courseId);

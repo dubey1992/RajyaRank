@@ -350,6 +350,20 @@ export class CatalogueController {
     if (!course) return null;
     if (course.organization?.status === 'SUSPENDED' || course.organization?.isDemo) return null;
     const { organization, createdAt, ...rest } = course;
+
+    // Individual-purchase pricing, for lessons that have it — lets a locked
+    // lesson in this syllabus offer a real Buy button instead of a dead-end
+    // "Locked" pill. Batched once across every lesson in the course rather
+    // than per-lesson, since there could be dozens here.
+    const allLessonIds = course.subjects.flatMap((s) => s.chapters.flatMap((c) => c.topics.flatMap((t) => t.lessons.map((l) => l.id))));
+    const individualProducts = allLessonIds.length
+      ? await this.prisma.product.findMany({
+          where: { lessonId: { in: allLessonIds }, kind: 'LESSON', active: true, audience: 'PUBLIC' },
+          select: { id: true, lessonId: true, priceMinor: true },
+        })
+      : [];
+    const productByLessonId = new Map(individualProducts.map((p) => [p.lessonId!, p]));
+
     return {
       ...rest,
       createdAt: createdAt.toISOString(),
@@ -367,6 +381,8 @@ export class CatalogueController {
               titleHi: l.currentVersion?.titleHi ?? '',
               titleEn: l.currentVersion?.titleEn ?? '',
               estimatedMinutes: l.currentVersion?.estimatedMinutes ?? null,
+              individualProductId: productByLessonId.get(l.id)?.id ?? null,
+              individualPriceMinor: productByLessonId.get(l.id)?.priceMinor ?? null,
             })),
           })),
         })),

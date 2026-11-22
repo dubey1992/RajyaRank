@@ -19,8 +19,35 @@ export class EntitlementService {
     private readonly audit: AuditService,
   ) {}
 
-  /** Idempotently grant/refresh an entitlement from a paid order. */
+  /** Idempotently grant/refresh an entitlement from a paid order. A BUNDLE
+   *  product has no content of its own — it grants one ordinary entitlement
+   *  per curated item instead (each item is itself a real LESSON/TEST-kind
+   *  Product, so this reuses the exact same single-item path below once per
+   *  item, rather than inventing bundle-aware entitlement logic). */
   async grantFromOrder(order: Order, product: Product, payment: Payment | null) {
+    if (product.kind === 'BUNDLE') {
+      const items = await this.prisma.productBundleItem.findMany({
+        where: { bundleProductId: product.id },
+        include: { itemProduct: true },
+      });
+      const granted = [];
+      for (const item of items) {
+        granted.push(await this.grantSingle(order, item.itemProduct, payment));
+      }
+      await this.audit.record({
+        actorUserId: order.userId,
+        action: 'entitlement.granted',
+        targetType: 'Entitlement',
+        targetId: product.id,
+        result: 'SUCCESS',
+        after: { source: 'PURCHASE', productId: product.id, bundleItemCount: items.length },
+      });
+      return granted;
+    }
+    return this.grantSingle(order, product, payment);
+  }
+
+  private async grantSingle(order: Order, product: Product, payment: Payment | null) {
     const endsAt = product.validityDays ? new Date(Date.now() + product.validityDays * 86_400_000) : null;
     const entitlement = await this.prisma.entitlement.upsert({
       where: { userId_productId: { userId: order.userId, productId: product.id } },
@@ -29,6 +56,8 @@ export class EntitlementService {
         userId: order.userId,
         productId: product.id,
         courseId: product.courseId,
+        lessonId: product.lessonId,
+        testId: product.testId,
         source: 'PURCHASE',
         status: 'ACTIVE',
         accessType: product.accessType,
@@ -75,6 +104,8 @@ export class EntitlementService {
         userId: dto.userId,
         productId: dto.productId,
         courseId: product.courseId,
+        lessonId: product.lessonId,
+        testId: product.testId,
         source: dto.source,
         status: 'ACTIVE',
         accessType: dto.source === 'SCHOLARSHIP' ? 'SCHOLARSHIP' : 'ADMIN_GRANTED',
@@ -123,6 +154,25 @@ export class EntitlementService {
     const course = await this.prisma.course.findUnique({ where: { id: courseId }, select: { examId: true } });
     if (!course) return false;
     return this.hasSubscriptionAccess(userId, course.examId);
+  }
+
+  /** Does the user hold a direct, live entitlement to this one lesson —
+   *  granted by buying that lesson individually, or it being part of a pack
+   *  they bought (see grantFromOrder's BUNDLE branch, which grants one
+   *  ordinary entitlement per item). Deliberately does NOT fall back to a
+   *  subscription check — a lesson is unlocked by its own course entitlement
+   *  or subscription via hasCourseAccess already; this is purely the
+   *  individual-purchase path, checked alongside that at the real call site
+   *  (student.service.ts#hasAccess). */
+  async hasLessonAccess(userId: string, lessonId: string): Promise<boolean> {
+    const direct = await this.prisma.entitlement.findFirst({ where: { userId, lessonId, ...this.activeWhere() } });
+    return Boolean(direct);
+  }
+
+  /** Same shape as hasLessonAccess, for a standalone test bought on its own. */
+  async hasTestAccess(userId: string, testId: string): Promise<boolean> {
+    const direct = await this.prisma.entitlement.findFirst({ where: { userId, testId, ...this.activeWhere() } });
+    return Boolean(direct);
   }
 
   /** Does the user have a live Plus (scoped to this exam) or Pro (all-access)

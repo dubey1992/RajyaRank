@@ -6,6 +6,7 @@ import { can } from '@/lib/permissions';
 import type { MeResponse, TestListItem } from '@rajyarank/contracts';
 import { CreateContentWizard } from './CreateContentWizard';
 import { TestPreviewModal } from './TestPreviewModal';
+import { IndividualPricingControl } from './IndividualPricingControl';
 
 const STATUS_TONE: Record<string, string> = {
   DRAFT: 'bg-line text-muted',
@@ -161,6 +162,7 @@ export function MockTestsManager({ initialTests, me, locale }: { initialTests: T
                       </>
                     ) : null}
                     <span className={`rounded-full px-2 py-0.5 text-xs font-extrabold ${STATUS_TONE[status] ?? 'bg-line text-muted'}`}>{status}</span>
+                    {status === 'PUBLISHED' ? <IndividualPricingControl kind="tests" id={t.id} locale={locale} /> : null}
                   </div>
                 </div>
 

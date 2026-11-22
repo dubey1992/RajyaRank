@@ -510,6 +510,10 @@ export class CoursesService {
               titleHi: l.currentVersion?.titleHi ?? '',
               titleEn: l.currentVersion?.titleEn ?? '',
               estimatedMinutes: l.currentVersion?.estimatedMinutes ?? null,
+              // Not relevant to this staff-only preview — the real public
+              // outline (catalogue.controller.ts#outline) populates these.
+              individualProductId: null,
+              individualPriceMinor: null,
             })),
           })),
         })),
