@@ -10,16 +10,15 @@ import { AnnouncementBanner } from '@/components/AnnouncementBanner';
 import { toFilterableCourses, type CourseListItem } from '@/lib/courses';
 import { apiFetchServer } from '@/lib/api';
 import { getMe } from '@/lib/student';
-import type { ProductView, PartnerInstituteView, PlatformStatsView, State, Exam, TestimonialView, FaqView, StudyContentTeaserView, MobileAppLatestReleaseView, MarketingBannerView } from '@rajyarank/contracts';
+import type { ProductView, PartnerInstituteView, PlatformStatsView, State, Exam, TestimonialView, FaqView, ContentProductView, MobileAppLatestReleaseView, MarketingBannerView } from '@rajyarank/contracts';
 
 // NEXT_PUBLIC_ deliberately, not WEB_PUBLIC_URL — see the comment in robots.ts.
 const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
 
-const TEASER_STYLE: Record<StudyContentTeaserView['kind'], { icon: string; color: string; fg: string }> = {
-  VIDEO: { icon: '▶', color: 'edf4ff', fg: '2e69ba' },
-  PDF: { icon: '📄', color: 'fff5e9', fg: 'd96b17' },
+const TEASER_STYLE: Record<ContentProductView['kind'], { icon: string; color: string; fg: string }> = {
+  LESSON: { icon: '▶', color: 'edf4ff', fg: '2e69ba' },
   TEST: { icon: '📝', color: 'e9f8f5', fg: '15948c' },
-  PACK: { icon: '🔁', color: 'fff1f3', fg: 'c64355' },
+  BUNDLE: { icon: '🔁', color: 'fff1f3', fg: 'c64355' },
 };
 
 // Shared button styles — mirror the prototype's primary/outline/light treatments.
@@ -35,7 +34,7 @@ export default async function LandingPage({ params }: { params: { locale: string
   const L = (h: string, e: string) => (hi ? h : e);
 
   const cookie = cookies().toString();
-  const [me, courseList, products, institutes, states, examList, testimonials, faqRows, teasers, platformStats, androidRelease, banner] = await Promise.all([
+  const [me, courseList, products, institutes, states, examList, testimonials, faqRows, contentProducts, platformStats, androidRelease, banner] = await Promise.all([
     getMe(cookie),
     apiFetchServer<CourseListItem[]>('/courses', ''),
     apiFetchServer<ProductView[]>('/products', ''),
@@ -44,7 +43,7 @@ export default async function LandingPage({ params }: { params: { locale: string
     apiFetchServer<Exam[]>('/exams', ''),
     apiFetchServer<TestimonialView[]>('/testimonials', ''),
     apiFetchServer<FaqView[]>('/faqs', ''),
-    apiFetchServer<StudyContentTeaserView[]>('/study-content-teasers', ''),
+    apiFetchServer<ContentProductView[]>('/content-products', ''),
     apiFetchServer<PlatformStatsView>('/platform-stats', ''),
     apiFetchServer<MobileAppLatestReleaseView | null>('/app-releases/android/latest', ''),
     apiFetchServer<MarketingBannerView | null>('/marketing-banner', ''),
@@ -295,32 +294,67 @@ export default async function LandingPage({ params }: { params: { locale: string
         </section>
       ) : null}
 
-      {/* Individual study content — presentational preview; purchase not yet live */}
-      {teasers && teasers.length ? (
+      {/* Individual study content — real purchasable lessons/tests/packs,
+          replacing the old StudyContentTeaser-backed "Coming soon" preview. */}
+      {contentProducts && contentProducts.length ? (
         <section id="content" className="mx-auto max-w-6xl px-4 py-16 md:py-20">
           <div className="mx-auto mb-9 max-w-2xl text-center">
             <span className="inline-flex items-center gap-2 rounded-full border border-teal-500/40 bg-teal-100 px-3 py-1.5 text-[13px] font-extrabold text-teal-600">{L('अलग से खरीदें', 'Buy individually')}</span>
             <h2 className="mt-3 text-3xl font-black tracking-tight text-navy-950 md:text-[40px]">{L('अध्ययन सामग्री अलग से खरीदें', 'Buy individual study content')}</h2>
-            <p className="mt-2 text-muted">{L('पूरा कोर्स नहीं चाहिए? सिर्फ़ वह वीडियो, PDF, टेस्ट या रिवीज़न पैक ख़रीदें जिसकी ज़रूरत है।', 'Don’t need a whole course? Buy only the video, PDF, test, or revision pack you actually need.')}</p>
+            <p className="mt-2 text-muted">{L('पूरा कोर्स नहीं चाहिए? सिर्फ़ वह वीडियो, PDF, टेस्ट या पैक ख़रीदें जिसकी ज़रूरत है।', "Don't need a whole course? Buy only the video, PDF, test, or pack you actually need.")}</p>
           </div>
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {teasers.map((item) => {
+            {contentProducts.slice(0, 8).map((item) => {
               const style = TEASER_STYLE[item.kind];
               return (
                 <article key={item.id} className="flex flex-col rounded-lg border border-line bg-white p-5 shadow-[0_10px_28px_rgba(15,23,42,0.05)]">
                   <div className="grid h-28 place-items-center rounded-md text-3xl" style={{ background: `#${style.color}`, color: `#${style.fg}` }}>{style.icon}</div>
                   <span className="mt-3 inline-flex w-fit rounded-full bg-surface-soft px-2 py-1 text-[10px] font-extrabold text-muted">{item.kind}</span>
                   <h3 className="mt-2 text-sm font-black text-navy-900">{hi ? item.titleHi : item.titleEn}</h3>
-                  <p className="mt-1 text-xs text-muted">{hi ? item.descHi : item.descEn}</p>
-                  <div className="mt-auto flex items-center justify-between pt-4">
-                    <span className="rounded-full bg-teal-100 px-2.5 py-1 text-[10px] font-extrabold text-success">{L('जल्द आ रहा है', 'Coming soon')}</span>
+                  <div className="mt-auto flex items-center justify-between gap-3 pt-4">
+                    <span className="text-base font-black text-navy-900">₹{(item.priceMinor / 100).toFixed(0)}</span>
+                    <Link href={`/${locale}/content`} className="text-xs font-extrabold text-orange-600 hover:underline">
+                      {L('खरीदें →', 'Buy →')}
+                    </Link>
                   </div>
                 </article>
               );
             })}
           </div>
+          <div className="mt-7 flex justify-center">
+            <Link href={`/${locale}/content`} className={BTN_OUTLINE}>{L('सभी सामग्री देखें', 'View all individual content')}</Link>
+          </div>
         </section>
       ) : null}
+
+      {/* Live Classes */}
+      <section className="border-y border-line bg-surface-soft">
+        <div className="mx-auto grid max-w-6xl items-center gap-8 px-4 py-16 md:grid-cols-[1.05fr_0.95fr] md:py-20">
+          <div>
+            <span className="inline-flex items-center gap-2 rounded-full border border-teal-500/40 bg-teal-100 px-3 py-1.5 text-[13px] font-extrabold text-teal-600">
+              {L('लाइव क्लासेज़', 'Live Classes')}
+            </span>
+            <h2 className="mt-3 text-3xl font-black tracking-tight text-navy-950 md:text-[40px]">
+              {L('सिर्फ़ रिकॉर्डिंग नहीं, लाइव डाउट-क्लियरिंग भी', 'Not just recordings — live doubt-clearing too')}
+            </h2>
+            <p className="mt-2 text-muted">
+              {L('अपने संस्थान की शेड्यूल्ड लाइव क्लास में सीधे ऐप के अंदर शामिल हों — कोई अलग मीटिंग लिंक नहीं।', "Join your institute's scheduled live sessions right inside the app — no separate meeting link to juggle.")}
+            </p>
+            <ul className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-[13px] font-semibold text-navy-800">
+              <li className="inline-flex items-center gap-1.5"><span className="text-success">✓</span> {L('शुरू होने से पहले रिमाइंडर', 'Reminder before it starts')}</li>
+              <li className="inline-flex items-center gap-1.5"><span className="text-success">✓</span> {L('छूट गई? बाद में दोबारा देखें', "Missed it? Rewatch it later")}</li>
+              <li className="inline-flex items-center gap-1.5"><span className="text-success">✓</span> {L('उपस्थिति अपने आप दर्ज होती है', 'Attendance tracked automatically')}</li>
+            </ul>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Link href={`/${locale}/signup`} className={BTN_PRIMARY}>{L('मुफ़्त शुरू करें', 'Start for free')}</Link>
+            </div>
+          </div>
+          <div className="overflow-hidden rounded-[20px] border border-orange-100 bg-white shadow-[0_14px_35px_rgba(15,23,42,0.08)]">
+            {/* Animated GIF demo — plain img, not next/image, since next/image doesn't animate GIFs */}
+            <img src="/live-classes-demo.gif" alt={L('लाइव क्लास में शामिल होने का डेमो', 'Demo of joining a live class')} className="w-full" width={640} height={400} loading="lazy" />
+          </div>
+        </div>
+      </section>
 
       {/* Partner institutes */}
       {institutes && institutes.length ? (
