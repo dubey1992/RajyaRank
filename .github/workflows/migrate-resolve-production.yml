@@ -1,0 +1,78 @@
+name: Migrate Resolve (Production)
+
+# Recovery tool for a migration stuck "failed" in Prisma's own migration
+# history (prisma migrate deploy refuses to apply ANYTHING further until
+# this is cleared — see the error from "Deploy Production"'s own migration
+# step: "A migration failed to apply. New migrations cannot be applied
+# before the error is recovered from"). Runs `prisma migrate resolve` as a
+# one-off ECS task through the exact same trusted path (OIDC role, cluster,
+# network config) the regular deploy's migration step already uses — no new
+# IAM permissions needed, since ecs:RunTask/DescribeTasks are already
+# granted to that role for that purpose.
+#
+# This does NOT run arbitrary SQL and does NOT touch the real schema — it
+# only edits Prisma's own `_prisma_migrations` bookkeeping table, marking one
+# named migration as rolled-back or applied so `migrate deploy` will treat it
+# correctly on the next real deploy. Use --rolled-back when the migration's
+# own DDL genuinely never committed (Postgres rolls back the whole
+# transaction on any error inside a migration.sql, so this is almost always
+# the right choice); --applied only if you've confirmed by hand that the
+# migration's changes are actually already present in the database.
+
+on:
+  workflow_dispatch:
+    inputs:
+      migration_name:
+        description: "Exact migration folder name, e.g. 20261122090000_individual_content_purchase"
+        required: true
+      resolve_as:
+        description: "How to mark it"
+        required: true
+        type: choice
+        options:
+          - rolled-back
+          - applied
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+  deployments: write
+
+env:
+  AWS_REGION: ap-south-1
+  ECS_CLUSTER: rajyarank-production
+  TASK_FAMILY: rajyarank-production-api
+
+jobs:
+  resolve:
+    name: Resolve stuck migration
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Assume the production deploy role (OIDC — no stored AWS keys)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::485141928074:role/rajyarank-github-production-deploy-role
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Run prisma migrate resolve as a one-off task (current running image)
+        run: |
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "$ECS_CLUSTER" \
+            --task-definition "$TASK_FAMILY" \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=[subnet-08690545b2df36758,subnet-0fc7d3cb0cdb81126,subnet-009c75d2c0c3a100d],securityGroups=[sg-0f93bc272733e704d],assignPublicIp=ENABLED}" \
+            --overrides "{\"containerOverrides\":[{\"name\":\"api\",\"command\":[\"npx\",\"prisma@5.22.0\",\"migrate\",\"resolve\",\"--${{ inputs.resolve_as }}\",\"${{ inputs.migration_name }}\",\"--schema=./prisma/schema.prisma\"]}]}" \
+            --query 'tasks[0].taskArn' --output text)
+          echo "Resolve task: $TASK_ARN"
+          aws ecs wait tasks-stopped --cluster "$ECS_CLUSTER" --tasks "$TASK_ARN"
+          EXIT_CODE=$(aws ecs describe-tasks --cluster "$ECS_CLUSTER" --tasks "$TASK_ARN" --query 'tasks[0].containers[0].exitCode' --output text)
+          if [ "$EXIT_CODE" != "0" ]; then
+            echo "::error::Resolve task failed with exit code $EXIT_CODE — check CloudWatch Logs (/ecs/rajyarank-production)"
+            exit 1
+          fi
+          echo "Migration '${{ inputs.migration_name }}' marked '${{ inputs.resolve_as }}'. You can now re-run Deploy Production."
