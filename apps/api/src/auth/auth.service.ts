@@ -524,12 +524,23 @@ export class AuthService {
     const ua = req.header('user-agent') ?? undefined;
     const result = await this.sessions.rotate(raw, ip, ua);
     if (!result) {
-      const reuse = await this.sessions.handlePotentialReuse(raw);
-      const user = await this.userForRefresh(raw);
-      clearAuthCookies(res, this.env, 'STUDENT');
-      clearAuthCookies(res, this.env, 'STAFF');
-      if (reuse && user) {
-        await this.audit.record({ actorUserId: user.id, action: 'auth.refresh.reuse', result: 'DENIED', reasonCode: 'TOKEN_REUSE', ip, userAgent: ua });
+      const verdict = await this.sessions.checkReuse(raw);
+      // A benign race (this browser's own second, uncoordinated refresh call
+      // losing to one that already rotated this exact token moments ago)
+      // must NOT clear cookies — the winning request already set fresh ones,
+      // and the still-valid access cookie shouldn't be destroyed just because
+      // this one redundant attempt lost the race. Only a genuinely dead
+      // session (never existed / actually expired) or confirmed theft earns
+      // a full cookie wipe.
+      if (verdict !== 'benign-race') {
+        clearAuthCookies(res, this.env, 'STUDENT');
+        clearAuthCookies(res, this.env, 'STAFF');
+      }
+      if (verdict === 'theft') {
+        const user = await this.userForRefresh(raw);
+        if (user) {
+          await this.audit.record({ actorUserId: user.id, action: 'auth.refresh.reuse', result: 'DENIED', reasonCode: 'TOKEN_REUSE', ip, userAgent: ua });
+        }
       }
       throw AppError.sessionExpired();
     }

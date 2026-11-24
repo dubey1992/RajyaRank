@@ -72,15 +72,32 @@ export class SessionService {
     return { userId: session.userId, assurance: session.assurance, remembered: session.remembered, issued };
   }
 
-  /** Detect reuse: a token hash not active but whose family still has sessions. */
-  async handlePotentialReuse(rawToken: string): Promise<boolean> {
+  /** Grace window after a rotation within which the just-rotated-away token can
+   *  still show up again without being treated as theft — covers a second,
+   *  uncoordinated refresh call racing the first from the same browser (e.g.
+   *  the admin SSR middleware's own silent refresh vs. the client's, or an
+   *  old tab's in-flight request overlapping a newly opened one) rather than
+   *  an attacker replaying a stolen token. */
+  private static readonly ROTATION_GRACE_MS = 15_000;
+
+  /** Detect reuse: a token hash not active but whose family still has sessions.
+   *  Returns 'theft' (family revoked — a real signal to escalate/audit),
+   *  'benign-race' (very recently rotated by the same legitimate flow — no
+   *  action taken, the other concurrent request already has fresh cookies),
+   *  or 'none' (token never existed / unrelated). */
+  async checkReuse(rawToken: string): Promise<'theft' | 'benign-race' | 'none'> {
     const hash = sha256(rawToken);
     const revoked = await this.prisma.loginSession.findUnique({ where: { refreshTokenHash: hash } });
-    if (revoked && revoked.status === 'REVOKED') {
-      await this.revokeFamily(revoked.familyId, 'reuse-detected');
-      return true;
+    if (!revoked || revoked.status !== 'REVOKED') return 'none';
+    if (
+      revoked.revokedReason === 'rotated' &&
+      revoked.revokedAt &&
+      Date.now() - revoked.revokedAt.getTime() < SessionService.ROTATION_GRACE_MS
+    ) {
+      return 'benign-race';
     }
-    return false;
+    await this.revokeFamily(revoked.familyId, 'reuse-detected');
+    return 'theft';
   }
 
   async revokeFamily(familyId: string, reason: string): Promise<void> {
